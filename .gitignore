@@ -1,0 +1,74 @@
+# ============================================================
+# WTC_Lodestone — root .gitignore
+# Covers: mod/ (NeoForge), hub/ (Spring Boot), dashboard (Vite/React), deploy/
+# ============================================================
+
+# ---------- Gradle (mod + hub) ----------
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+out/
+bin/
+
+# ---------- NeoForge dev environment (mod/) ----------
+mod/run/
+mod/runs/
+mod/run-data/
+mod/repo/
+mod/logs/
+# Keep datagen output (src/generated) committed — it is part of the mod.
+
+# ---------- Java ----------
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# ---------- IDEs ----------
+# IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+*.launch
+# VS Code (keep shared settings if you want them)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ---------- Dashboard (hub/src/main/frontend) ----------
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+# Built dashboard copied into the hub jar by the Gradle task — generated, not source
+hub/src/main/resources/static/
+
+# ---------- Secrets & local config ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Local Spring overrides (e.g. application-local.yml with real passwords)
+application-local.*
+
+# ---------- Docker / deploy ----------
+deploy/data/
+deploy/caddy_data/
+deploy/caddy_config/
+
+# ---------- OS files ----------
+.DS_Store
+Thumbs.db
+desktop.ini
