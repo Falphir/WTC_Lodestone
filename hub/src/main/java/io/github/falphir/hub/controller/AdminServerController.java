@@ -1,6 +1,7 @@
 package io.github.falphir.hub.controller;
 
 import io.github.falphir.hub.service.ServerService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @RestController
 @RequestMapping("/api/admin/servers")
 @Tag(name = "Admin", description = "Staff-only management endpoints")
+@SecurityRequirement(name = "adminLogin")
 public class AdminServerController {
 
     private final ServerService serverService;
