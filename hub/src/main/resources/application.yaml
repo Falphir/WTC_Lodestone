@@ -7,5 +7,7 @@ spring:
     password: lodestone
   jpa:
     hibernate:
+      jdbc:
+        time_zone: UTC
       ddl-auto: validate
     open-in-view: false

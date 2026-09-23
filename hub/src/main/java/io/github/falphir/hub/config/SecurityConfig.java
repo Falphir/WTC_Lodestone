@@ -1,4 +1,4 @@
-package io.github.falphir.hub;
+package io.github.falphir.hub.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
