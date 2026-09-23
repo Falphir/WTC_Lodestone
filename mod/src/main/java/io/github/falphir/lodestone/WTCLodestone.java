@@ -24,6 +24,16 @@ public class WTCLodestone {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("WTC Lodestone loaded");
+        if (!Config.ENABLED.get()) {
+            LOGGER.info("WTC Lodestone is disabled in config");
+            return;
+        }
+        if (!Config.isReady()) {
+            LOGGER.warn("WTC Lodestone is not configured (serverId or token missing) - hub connection disabled");
+            return;
+        }
+        LOGGER.info("WTC Lodestone ready: server '{}' -> {}{}",
+                Config.SERVER_ID.get(), Config.HUB_URL.get(), Config.DRY_RUN.get() ? " (dry run)" : "");
+        HubClient.hello();
     }
 }
