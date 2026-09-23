@@ -11,3 +11,8 @@ spring:
         time_zone: UTC
       ddl-auto: validate
     open-in-view: false
+  security:
+    user:
+      name: admin
+      password: ${LODESTONE_ADMIN_PASSWORD:admin}
+      roles: ADMIN

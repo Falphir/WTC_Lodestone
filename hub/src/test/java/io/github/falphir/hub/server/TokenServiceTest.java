@@ -2,6 +2,7 @@ package io.github.falphir.hub.server;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.falphir.hub.service.TokenService;
 import org.junit.jupiter.api.Test;
 
 class TokenServiceTest {
