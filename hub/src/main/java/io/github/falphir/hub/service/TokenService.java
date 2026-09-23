@@ -1,4 +1,4 @@
-package io.github.falphir.hub.server;
+package io.github.falphir.hub.service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

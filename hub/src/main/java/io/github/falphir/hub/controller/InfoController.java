@@ -1,4 +1,4 @@
-package io.github.falphir.hub.api;
+package io.github.falphir.hub.controller;
 
 import java.time.Instant;
 

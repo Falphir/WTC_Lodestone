@@ -1,4 +1,4 @@
-package io.github.falphir.hub.server;
+package io.github.falphir.hub.entity;
 
 import java.time.Instant;
 
