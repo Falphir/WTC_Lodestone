@@ -1,7 +1,10 @@
+import com.github.gradle.node.npm.task.NpmTask
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.1'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.github.node-gradle.node' version '7.1.0'
 }
 
 group = 'io.github.falphir'
@@ -36,8 +39,32 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+node {
+    download = true                 // Gradle uses its own Node, same everywhere
+    version = '22.12.0'             // match the Node major you use locally
+    npmInstallCommand = 'ci'        // exact installs from package-lock.json
+    nodeProjectDir = file('src/main/frontend')
+}
+
+tasks.register('buildFrontend', NpmTask) {
+    dependsOn tasks.named('npmInstall')
+    args = ['run', 'build']
+    inputs.files(fileTree('src/main/frontend') {
+        exclude 'node_modules/**', 'dist/**'
+    })
+    outputs.dir('src/main/frontend/dist')
+}
+
+tasks.named('processResources') {
+    dependsOn 'buildFrontend'
+    from('src/main/frontend/dist') {
+        into 'static'
+    }
 }
