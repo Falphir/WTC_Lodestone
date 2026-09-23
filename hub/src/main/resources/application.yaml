@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: wtc-lodestone-hub
+  datasource:
+    url: jdbc:mariadb://localhost:3306/wtc_lodestone
+    username: lodestone
+    password: lodestone
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false

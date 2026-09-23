@@ -1,0 +1,15 @@
+services:
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wtc_lodestone
+      MARIADB_USER: lodestone
+      MARIADB_PASSWORD: lodestone
+      MARIADB_ROOT_PASSWORD: root
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+volumes:
+  mariadb-data:
