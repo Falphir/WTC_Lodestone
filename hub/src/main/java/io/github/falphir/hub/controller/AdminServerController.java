@@ -3,6 +3,7 @@ package io.github.falphir.hub.controller;
 import java.time.Instant;
 import java.util.List;
 
+import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.entity.ServerHeartbeat;
 import io.github.falphir.hub.service.ServerService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -33,6 +34,18 @@ public class AdminServerController {
 
     public AdminServerController(ServerService serverService) {
         this.serverService = serverService;
+    }
+
+    @GetMapping
+    @Operation(summary = "List servers", description = "All registered servers.")
+    public List<ServerView> list() {
+        return serverService.listServers().stream().map(ServerView::from).toList();
+    }
+
+    public record ServerView(String id, String name, Instant lastSeen) {
+        static ServerView from(GameServer s) {
+            return new ServerView(s.getId(), s.getName(), s.getLastSeen());
+        }
     }
 
     @PostMapping

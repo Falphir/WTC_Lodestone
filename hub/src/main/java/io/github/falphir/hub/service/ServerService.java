@@ -67,5 +67,11 @@ public class ServerService {
         return heartbeats.findByServerIdOrderByRecordedAtDesc(id);
     }
 
+    /** Returns all registered servers. */
+    @Transactional(readOnly = true)
+    public List<GameServer> listServers() {
+        return repository.findAll();
+    }
+
     public record RegisteredServer(String id, String name, String token) {}
 }

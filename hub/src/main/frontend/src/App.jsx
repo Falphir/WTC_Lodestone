@@ -13,33 +13,54 @@ function formatRelativeTime(iso) {
 function App() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [serverId, setServerId] = useState('')
+  const [servers, setServers] = useState(null)
+  const [selectedServerId, setSelectedServerId] = useState('')
   const [heartbeats, setHeartbeats] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  async function loadHeartbeats(event) {
-    event.preventDefault()
-    const id = serverId.trim()
-    if (!id) return
+  function authHeader() {
+    return `Basic ${btoa(`${username}:${password}`)}`
+  }
 
+  async function signIn(event) {
+    event.preventDefault()
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/admin/servers/${encodeURIComponent(id)}/heartbeats`, {
-        headers: { Authorization: `Basic ${btoa(`${username}:${password}`)}` },
-      })
+      const response = await fetch('/api/admin/servers', { headers: { Authorization: authHeader() } })
       if (!response.ok) {
         throw new Error(
           response.status === 401
             ? 'Wrong admin username or password.'
-            : `Couldn't load '${id}' (HTTP ${response.status})`,
+            : `Couldn't load servers (HTTP ${response.status})`,
         )
+      }
+      setServers(await response.json())
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function selectServer(id) {
+    setSelectedServerId(id)
+    setHeartbeats(null)
+    setError(null)
+    if (!id) return
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/servers/${encodeURIComponent(id)}/heartbeats`, {
+        headers: { Authorization: authHeader() },
+      })
+      if (!response.ok) {
+        throw new Error(`Couldn't load '${id}' (HTTP ${response.status})`)
       }
       setHeartbeats(await response.json())
     } catch (err) {
       setError(err.message)
-      setHeartbeats(null)
     } finally {
       setLoading(false)
     }
@@ -54,40 +75,53 @@ function App() {
         <p>Heartbeat data reported by WTC Lodestone servers.</p>
       </header>
 
-      <form onSubmit={loadHeartbeats}>
+      {!servers && (
+        <form onSubmit={signIn}>
+          <div className="row">
+            <label htmlFor="username">Admin username</label>
+            <input
+              id="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="admin"
+              autoComplete="username"
+            />
+            <label htmlFor="password">Admin password</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="password"
+              autoComplete="current-password"
+            />
+            <button type="submit" disabled={loading}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {servers?.length === 0 && <p className="empty">No servers registered yet.</p>}
+
+      {servers?.length > 0 && (
         <div className="row">
-          <label htmlFor="username">Admin username</label>
-          <input
-            id="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            placeholder="admin"
-            autoComplete="username"
-          />
-          <label htmlFor="password">Admin password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="password"
-            autoComplete="current-password"
-          />
-        </div>
-        <div className="row">
-          <label htmlFor="serverId">Server ID</label>
-          <input
+          <label htmlFor="serverId">Server</label>
+          <select
             id="serverId"
-            value={serverId}
-            onChange={(event) => setServerId(event.target.value)}
-            placeholder="genesis"
-            autoComplete="off"
-          />
-          <button type="submit" disabled={loading}>
-            {loading ? 'Loading…' : 'Load'}
-          </button>
+            value={selectedServerId}
+            onChange={(event) => selectServer(event.target.value)}
+            disabled={loading}
+          >
+            <option value="">Select a server…</option>
+            {servers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.id})
+              </option>
+            ))}
+          </select>
         </div>
-      </form>
+      )}
 
       {error && <p className="error">{error}</p>}
 
@@ -118,7 +152,7 @@ function App() {
 
       {heartbeats?.length === 0 && (
         <p className="empty">
-          No heartbeats yet for '{serverId}'. It reports one every 60 seconds once connected.
+          No heartbeats yet for '{selectedServerId}'. It reports one every 60 seconds once connected.
         </p>
       )}
 
