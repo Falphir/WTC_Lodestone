@@ -1,8 +1,14 @@
 package io.github.falphir.hub.controller;
 
+import java.time.Instant;
+import java.util.List;
+
+import io.github.falphir.hub.entity.ServerHeartbeat;
 import io.github.falphir.hub.service.ServerService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,6 +49,20 @@ public class AdminServerController {
 
             @Schema(description = "Display name shown on the dashboard and in Discord", example = "Example Server")
             @NotBlank @Size(max = 100) String name) {}
+
+    @GetMapping("/{id}/heartbeats")
+    @Operation(summary = "Server heartbeat history", description = "Most recent heartbeats first.")
+    public List<HeartbeatView> heartbeats(@PathVariable String id) {
+        return serverService.heartbeatHistory(id).stream().map(HeartbeatView::from).toList();
+    }
+
+    public record HeartbeatView(
+            Instant recordedAt, int playerCount, int maxPlayers, double tps, int memoryUsedMb, int memoryMaxMb) {
+        static HeartbeatView from(ServerHeartbeat h) {
+            return new HeartbeatView(h.getRecordedAt(), h.getPlayerCount(), h.getMaxPlayers(), h.getTps(),
+                    h.getMemoryUsedMb(), h.getMemoryMaxMb());
+        }
+    }
 }
 
 
