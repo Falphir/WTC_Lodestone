@@ -92,10 +92,19 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Bearer tokens on /api/bridge/** are server tokens, not JWTs, so the JWT check must not see them. */
+    /**
+     * Bearer tokens on /api/bridge/** are server tokens, not JWTs, so the JWT check must not see them.
+     * The live-updates WebSocket can't send headers, so only there the JWT may come as ?access_token=.
+     */
     private static BearerTokenResolver adminBearerTokens() {
-        DefaultBearerTokenResolver resolver = new DefaultBearerTokenResolver();
-        return request -> request.getRequestURI().startsWith("/api/bridge/") ? null : resolver.resolve(request);
+        DefaultBearerTokenResolver headerOnly = new DefaultBearerTokenResolver();
+        DefaultBearerTokenResolver headerOrQuery = new DefaultBearerTokenResolver();
+        headerOrQuery.setAllowUriQueryParameter(true);
+        return request -> {
+            String uri = request.getRequestURI();
+            if (uri.startsWith("/api/bridge/")) return null;
+            return uri.equals("/api/admin/live") ? headerOrQuery.resolve(request) : headerOnly.resolve(request);
+        };
     }
 
     /** AuthController puts the admin's roles in a "roles" claim; turn them back into ROLE_ authorities. */

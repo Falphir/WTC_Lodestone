@@ -27,13 +27,26 @@ public final class HubClient {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
+    /** Fallback until the hub tells us its interval on check-in: 20 ticks/s * 60s. */
+    private static final int DEFAULT_HEARTBEAT_INTERVAL_TICKS = 20 * 60;
+
+    /** Ticks between heartbeats, as set by the hub. Written by the HTTP thread, read by the server thread. */
+    private static volatile int heartbeatIntervalTicks = DEFAULT_HEARTBEAT_INTERVAL_TICKS;
+
     /** Only touched on the server thread. */
     private static boolean warnedEmptyWhitelist = false;
 
+    /** Whitelist version last reported to the hub as applied. Only touched on the server thread. */
+    private static String reportedWhitelistVersion = null;
+
     private HubClient() {}
 
-    /** Checks in with the hub and logs whether the connection and token work. */
-    public static void hello() {
+    public static int heartbeatIntervalTicks() {
+        return heartbeatIntervalTicks;
+    }
+
+    /** Checks in with the hub: reports this server's setup, and logs whether the connection and token work. */
+    public static void hello(String modVersion, String minecraftVersion, String loaderVersion) {
         String url = baseUrl() + "/api/bridge/hello";
 
         if (Config.DRY_RUN.get()) {
@@ -41,10 +54,17 @@ public final class HubClient {
             return;
         }
 
+        JsonObject body = new JsonObject();
+        body.addProperty("modVersion", modVersion);
+        body.addProperty("minecraftVersion", minecraftVersion);
+        body.addProperty("loaderVersion", loaderVersion);
+        body.addProperty("syncWhitelist", Config.SYNC_WHITELIST.get());
+
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
                 .header("Authorization", "Bearer " + Config.TOKEN.get())
-                .POST(HttpRequest.BodyPublishers.noBody())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
 
         HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString())
@@ -63,6 +83,12 @@ public final class HubClient {
             String hubServerId = body.get("serverId").getAsString();
             WTCLodestone.LOGGER.info("Connected to WTC Lodestone hub as '{}' ({})",
                     hubServerId, body.get("name").getAsString());
+
+            // older hubs don't send it; keep the default then
+            if (body.has("heartbeatIntervalSeconds")) {
+                int seconds = body.get("heartbeatIntervalSeconds").getAsInt();
+                heartbeatIntervalTicks = Math.max(20 * 10, seconds * 20);
+            }
 
             if (!hubServerId.equals(Config.SERVER_ID.get())) {
                 WTCLodestone.LOGGER.warn("Config says serverId '{}' but this token belongs to '{}'. Check the config.",
@@ -132,7 +158,10 @@ public final class HubClient {
                         return;
                     }
                     List<GameProfile> players = parseWhitelist(response.body());
-                    server.execute(() -> applyWhitelist(server, players));
+                    String version = response.headers().firstValue("X-Whitelist-Version").orElse(null);
+                    server.execute(() -> {
+                        if (applyWhitelist(server, players)) reportWhitelistApplied(version);
+                    });
                 })
                 .exceptionally(error -> {
                     WTCLodestone.LOGGER.warn("WTC Lodestone whitelist sync failed: {}", error.getMessage());
@@ -149,8 +178,11 @@ public final class HubClient {
         return players;
     }
 
-    /** Runs on the server thread. Makes the local whitelist exactly match the hub's, then kicks anyone no longer on it. */
-    private static void applyWhitelist(MinecraftServer server, List<GameProfile> players) {
+    /**
+     * Runs on the server thread. Makes the local whitelist exactly match the hub's, then kicks anyone no longer on it.
+     * Returns false if the list was left alone.
+     */
+    private static boolean applyWhitelist(MinecraftServer server, List<GameProfile> players) {
         // ponytail: an empty hub list means "not set up yet", so a fresh hub can't wipe existing whitelists.
         // Downside: removing the very last player on the hub never reaches the servers.
         if (players.isEmpty()) {
@@ -158,7 +190,7 @@ public final class HubClient {
                 WTCLodestone.LOGGER.warn("Hub whitelist is empty - leaving this server's whitelist untouched. Import it on the dashboard.");
                 warnedEmptyWhitelist = true;
             }
-            return;
+            return false;
         }
 
         UserWhiteList whitelist = server.getPlayerList().getWhiteList();
@@ -185,6 +217,33 @@ public final class HubClient {
             // Same as vanilla /whitelist remove: only kicks when enforce-whitelist is on
             server.kickUnlistedPlayers(server.createCommandSourceStack());
         }
+        return true;
+    }
+
+    /** Tells the hub which whitelist version this server now has. Only sent when it changed. Server thread only. */
+    private static void reportWhitelistApplied(String version) {
+        if (version == null || version.equals(reportedWhitelistVersion)) return;
+
+        JsonObject body = new JsonObject();
+        body.addProperty("version", version);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/bridge/whitelist/applied"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + Config.TOKEN.get())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                .build();
+
+        reportedWhitelistVersion = version;
+        HTTP.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+                .thenAccept(response -> {
+                    if (response.statusCode() >= 300) {
+                        WTCLodestone.LOGGER.warn("WTC Lodestone could not report the applied whitelist (HTTP {})", response.statusCode());
+                    }
+                })
+                .exceptionally(error -> {
+                    WTCLodestone.LOGGER.warn("WTC Lodestone could not report the applied whitelist: {}", error.getMessage());
+                    return null;
+                });
     }
 
     private static String baseUrl() {

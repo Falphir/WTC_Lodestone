@@ -54,7 +54,6 @@ public class ServerHeartbeat {
     }
 
     public Long getId() { return id; }
-    public String getServerId() { return serverId; }
     public Instant getRecordedAt() { return recordedAt; }
     public int getPlayerCount() { return playerCount; }
     public int getMaxPlayers() { return maxPlayers; }

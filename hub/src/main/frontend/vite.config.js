@@ -8,7 +8,8 @@ export default defineConfig({
     // forwards API calls to the hub during `npm run dev`; in production the
     // dashboard is served by the hub itself, so this only matters locally
     proxy: {
-      '/api': 'http://localhost:8080',
+      // ws: the live-updates WebSocket at /api/admin/live goes through the same proxy
+      '/api': { target: 'http://localhost:8080', ws: true },
     },
   },
 })

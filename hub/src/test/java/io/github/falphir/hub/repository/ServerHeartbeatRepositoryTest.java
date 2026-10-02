@@ -45,7 +45,7 @@ class ServerHeartbeatRepositoryTest {
         int deleted = heartbeats.deleteByRecordedAtBefore(Instant.now().minus(7, ChronoUnit.DAYS));
 
         assertThat(deleted).isEqualTo(1);
-        assertThat(heartbeats.findByServerIdOrderByRecordedAtDesc("retention-test"))
+        assertThat(heartbeats.findByServerIdAndRecordedAtAfterOrderByRecordedAtDesc("retention-test", Instant.EPOCH))
                 .extracting(ServerHeartbeat::getId)
                 .containsExactly(recent.getId());
     }

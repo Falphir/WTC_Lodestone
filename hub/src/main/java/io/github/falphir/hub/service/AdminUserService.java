@@ -4,6 +4,7 @@ import java.util.List;
 
 import io.github.falphir.hub.entity.AdminUser;
 import io.github.falphir.hub.repository.AdminUserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -15,10 +16,12 @@ public class AdminUserService {
 
     private final AdminUserRepository repository;
     private final PasswordEncoder encoder;
+    private final ApplicationEventPublisher events;
 
-    public AdminUserService(AdminUserRepository repository, PasswordEncoder encoder) {
+    public AdminUserService(AdminUserRepository repository, PasswordEncoder encoder, ApplicationEventPublisher events) {
         this.repository = repository;
         this.encoder = encoder;
+        this.events = events;
     }
 
     @Transactional
@@ -26,7 +29,9 @@ public class AdminUserService {
         if (repository.existsByUsername(username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Admin '" + username + "' already exists");
         }
-        return repository.save(new AdminUser(username, encoder.encode(password)));
+        AdminUser admin = repository.save(new AdminUser(username, encoder.encode(password)));
+        events.publishEvent(HubEvent.admins());
+        return admin;
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +53,7 @@ public class AdminUserService {
         if (enabled != null) {
             admin.setEnabled(enabled);
         }
+        events.publishEvent(HubEvent.admins());
         return admin;
     }
 
@@ -58,6 +64,7 @@ public class AdminUserService {
         }
         requireAnotherEnabledAdmin(id);
         repository.deleteById(id);
+        events.publishEvent(HubEvent.admins());
     }
 
     private void requireAnotherEnabledAdmin(Long excludingId) {

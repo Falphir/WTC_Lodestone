@@ -21,3 +21,5 @@ lodestone:
     - username: admin
       password: ${LODESTONE_ADMIN_PASSWORD:admin}
   heartbeat-retention-days: 7
+  # how often servers report; the mod learns it on check-in, the dashboard from /api/info
+  heartbeat-interval-seconds: 60

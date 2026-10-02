@@ -1,0 +1,188 @@
+import { useRef, useState } from 'react'
+import { api } from '../api'
+import { Badge, ErrorNote, Icon } from '../components'
+import { formatDate, plural, whitelistSync } from '../format'
+import { useApi } from '../hooks'
+
+/** Which servers have applied the current list; changes reach each one within a heartbeat. */
+function SyncPanel({ servers }) {
+  const rows = servers.map((s) => ({ ...s, sync: whitelistSync(s) })).sort((a, b) => a.name.localeCompare(b.name))
+  const current = rows.filter((s) => s.sync.tone === 'good').length
+  return (
+    <section className="panel" aria-label="Sync status">
+      <p className="panel-note">
+        Up to date on {current} of {plural(rows.length, 'server')}.
+      </p>
+      <ul className="sync-list">
+        {rows.map((s) => (
+          <li key={s.id}>
+            <a href={`#/servers/${encodeURIComponent(s.id)}`}>{s.name}</a>
+            <Badge tone={s.sync.tone}>{s.sync.label}</Badge>
+            <small className="muted">{s.sync.detail}</small>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+export default function Whitelist() {
+  const { data: players, error: loadError, reload } = useApi('/api/admin/whitelist', { topics: ['whitelist'] })
+  const { data: servers } = useApi('/api/admin/servers', { refreshMs: 60_000, topics: ['servers', 'whitelist'] })
+  const [name, setName] = useState('')
+  const [query, setQuery] = useState('')
+  const [message, setMessage] = useState(null)
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const fileInput = useRef(null)
+
+  async function run(action) {
+    setBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      setMessage(await action())
+      reload()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function addPlayer(event) {
+    event.preventDefault()
+    run(async () => {
+      const player = await api('/api/admin/whitelist', { method: 'POST', body: { name: name.trim() } })
+      setName('')
+      return `Added ${player.name}. Servers pick it up within a minute.`
+    })
+  }
+
+  function removePlayer(player) {
+    if (!window.confirm(`Remove ${player.name} from the whitelist on every server?`)) return
+    run(async () => {
+      await api(`/api/admin/whitelist/${player.uuid}`, { method: 'DELETE' })
+      return `Removed ${player.name}.`
+    })
+  }
+
+  function importFile(event) {
+    const file = event.target.files[0]
+    event.target.value = ''
+    if (!file) return
+    run(async () => {
+      let entries
+      try {
+        entries = JSON.parse(await file.text())
+      } catch {
+        throw new Error(`${file.name} isn't valid JSON. Pick a server's whitelist.json.`)
+      }
+      const { added } = await api('/api/admin/whitelist/import', { method: 'POST', body: { players: entries } })
+      return `Imported ${plural(added, 'new player')} from ${file.name}.`
+    })
+  }
+
+  const needle = query.trim().toLowerCase()
+  const shown = players?.filter((p) => !needle || p.name.toLowerCase().includes(needle) || p.uuid.includes(needle))
+
+  return (
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <h1>Whitelist</h1>
+          <p className="muted">
+            Shared by every server. Changes reach the servers within a minute.
+            {players && ` ${plural(players.length, 'player')}.`}
+          </p>
+        </div>
+        <button type="button" className="button" disabled={busy} onClick={() => fileInput.current.click()}>
+          <Icon name="upload" />
+          Import whitelist.json
+        </button>
+        <input ref={fileInput} type="file" accept=".json,application/json" onChange={importFile} hidden />
+      </header>
+
+      <form className="toolbar" onSubmit={addPlayer}>
+        <label className="field field-inline">
+          <span className="visually-hidden">Minecraft username</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Minecraft username"
+            maxLength={16}
+            pattern="[A-Za-z0-9_]{1,16}"
+            title="Letters, numbers and _ only, up to 16 characters"
+          />
+        </label>
+        <button type="submit" className="button button-primary" disabled={busy || !name.trim()}>
+          <Icon name="plus" />
+          Add player
+        </button>
+
+        {players?.length > 0 && (
+          <label className="field field-inline field-search">
+            <Icon name="search" />
+            <span className="visually-hidden">Search players</span>
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" />
+          </label>
+        )}
+      </form>
+
+      {players?.length > 0 && servers?.length > 0 && <SyncPanel servers={servers} />}
+
+      {message && (
+        <p className="note" role="status">
+          {message}
+        </p>
+      )}
+      <ErrorNote>{error || loadError}</ErrorNote>
+
+      {players?.length === 0 && (
+        <div className="empty">
+          <h2>The whitelist is empty</h2>
+          <p>
+            Import an existing server's <code>whitelist.json</code> to start, or add players one by one. Until the list has at
+            least one player, servers keep their own whitelist untouched.
+          </p>
+        </div>
+      )}
+
+      {shown?.length === 0 && players.length > 0 && <p className="muted">No players match “{query}”.</p>}
+
+      {shown?.length > 0 && (
+        <div className="panel">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th className="hide-sm">Added by</th>
+                <th className="hide-sm">Added</th>
+                <th>
+                  <span className="visually-hidden">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((p) => (
+                <tr key={p.uuid}>
+                  <td>
+                    <span className="cell-title">{p.name}</span>
+                    <span className="cell-sub mono">{p.uuid}</span>
+                  </td>
+                  <td className="hide-sm muted">{p.addedBy}</td>
+                  <td className="hide-sm muted">{formatDate(p.addedAt)}</td>
+                  <td className="actions">
+                    <button type="button" className="button button-quiet button-danger" disabled={busy} onClick={() => removePlayer(p)}>
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.github.falphir.hub.service.ServerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -16,17 +17,22 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class InfoController {
 
     private final String appName;
+    private final ServerService servers;
 
-    public InfoController(@Value("${spring.application.name}") String appName) {
+    public InfoController(@Value("${spring.application.name}") String appName, ServerService servers) {
         this.appName = appName;
+        this.servers = servers;
     }
 
     @GetMapping("/info")
     @Operation(summary = "Basic hub information",
-            description = "Public endpoint returning the hub's name, status and current server time.")
+            description = "Public endpoint returning the hub's name, status, current server time and the heartbeat "
+                    + "timing the dashboard uses to draw gaps.")
     public InfoResponse info() {
-        return new InfoResponse(appName, "online", Instant.now());
+        return new InfoResponse(appName, "online", Instant.now(), servers.heartbeatInterval().toSeconds(),
+                servers.offlineAfter().toSeconds(), ServerService.LAGGING_BELOW_TPS);
     }
 
-    public record InfoResponse(String name, String status, Instant serverTime) {}
+    public record InfoResponse(String name, String status, Instant serverTime, long heartbeatIntervalSeconds,
+            long offlineAfterSeconds, double laggingBelowTps) {}
 }

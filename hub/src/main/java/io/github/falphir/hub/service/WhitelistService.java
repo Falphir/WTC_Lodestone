@@ -4,9 +4,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import io.github.falphir.hub.entity.WhitelistedPlayer;
 import io.github.falphir.hub.repository.WhitelistedPlayerRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,15 +19,33 @@ public class WhitelistService {
 
     private final WhitelistedPlayerRepository repository;
     private final MojangProfiles mojang;
+    private final TokenService hashing;
+    private final ApplicationEventPublisher events;
 
-    public WhitelistService(WhitelistedPlayerRepository repository, MojangProfiles mojang) {
+    public WhitelistService(WhitelistedPlayerRepository repository, MojangProfiles mojang, TokenService hashing,
+            ApplicationEventPublisher events) {
         this.repository = repository;
         this.mojang = mojang;
+        this.hashing = hashing;
+        this.events = events;
     }
 
     @Transactional(readOnly = true)
     public List<WhitelistedPlayer> list() {
         return repository.findAllByOrderByNameAsc();
+    }
+
+    /**
+     * Identifies the current contents of the whitelist: a hash of the sorted UUIDs. Servers report the version they
+     * applied, so the dashboard can tell which ones are behind. Names are left out, they don't affect who can join.
+     */
+    @Transactional(readOnly = true)
+    public String version() {
+        return version(list());
+    }
+
+    public String version(List<WhitelistedPlayer> players) {
+        return hashing.hash(players.stream().map(WhitelistedPlayer::getUuid).sorted().collect(Collectors.joining(",")));
     }
 
     /** Whitelists the Minecraft account with this name, looking up its UUID through Mojang. */
@@ -36,7 +56,9 @@ public class WhitelistService {
         if (repository.existsById(profile.uuid())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "'" + profile.name() + "' is already whitelisted");
         }
-        return repository.save(new WhitelistedPlayer(profile.uuid(), profile.name(), addedBy));
+        WhitelistedPlayer player = repository.save(new WhitelistedPlayer(profile.uuid(), profile.name(), addedBy));
+        events.publishEvent(HubEvent.whitelist());
+        return player;
     }
 
     /** Adds entries from an existing whitelist.json. Already-whitelisted players are skipped. Returns how many were added. */
@@ -50,6 +72,7 @@ public class WhitelistService {
             repository.save(new WhitelistedPlayer(uuid, entry.name(), addedBy));
             added++;
         }
+        if (added > 0) events.publishEvent(HubEvent.whitelist());
         return added;
     }
 
@@ -59,6 +82,7 @@ public class WhitelistService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player is not whitelisted");
         }
         repository.deleteById(uuid);
+        events.publishEvent(HubEvent.whitelist());
     }
 
     public record Entry(String uuid, String name) {}
