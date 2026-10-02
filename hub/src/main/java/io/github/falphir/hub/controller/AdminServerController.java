@@ -28,6 +28,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @RequestMapping("/api/admin/servers")
 @Tag(name = "Admin", description = "Staff-only management endpoints")
 @SecurityRequirement(name = "adminLogin")
+@SecurityRequirement(name = "adminToken")
 public class AdminServerController {
 
     private final ServerService serverService;

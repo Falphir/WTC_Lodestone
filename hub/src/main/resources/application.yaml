@@ -11,6 +11,10 @@ spring:
         time_zone: UTC
       ddl-auto: validate
     open-in-view: false
+  web:
+    error:
+      # include ResponseStatusException reasons (e.g. "No Minecraft account named ...") in error responses
+      include-message: always
 
 lodestone:
   admins:

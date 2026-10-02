@@ -41,6 +41,7 @@ public class WTCLodestone {
         LOGGER.info("WTC Lodestone ready: server '{}' -> {}{}",
                 Config.SERVER_ID.get(), Config.HUB_URL.get(), Config.DRY_RUN.get() ? " (dry run)" : "");
         HubClient.hello();
+        if (Config.SYNC_WHITELIST.get()) HubClient.syncWhitelist(event.getServer());
     }
 
     @SubscribeEvent
@@ -49,5 +50,6 @@ public class WTCLodestone {
         if (--ticksUntilHeartbeat > 0) return;
         ticksUntilHeartbeat = HEARTBEAT_INTERVAL_TICKS;
         HubClient.heartbeat(event.getServer());
+        if (Config.SYNC_WHITELIST.get()) HubClient.syncWhitelist(event.getServer());
     }
 }

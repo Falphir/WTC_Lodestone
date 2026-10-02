@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/users")
 @Tag(name = "Admin", description = "Staff-only management endpoints")
 @SecurityRequirement(name = "adminLogin")
+@SecurityRequirement(name = "adminToken")
 public class AdminUserController {
 
     private final AdminUserService adminUsers;

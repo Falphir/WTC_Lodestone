@@ -26,6 +26,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
@@ -48,8 +49,10 @@ tasks.named('test') {
 
 node {
     download = true                 // Gradle uses its own Node, same everywhere
-    version = '22.12.0'             // match the Node major you use locally
-    npmInstallCommand = 'ci'        // exact installs from package-lock.json
+    version = '24.21.0'             // current LTS; eslint 10 needs >= 22.13
+    // CI: exact installs from package-lock.json. Locally: 'install', because 'ci' wipes node_modules
+    // and fails on Windows while the Vite dev server holds a native binary in it open.
+    npmInstallCommand = System.getenv('CI') ? 'ci' : 'install'
     nodeProjectDir = file('src/main/frontend')
 }
 

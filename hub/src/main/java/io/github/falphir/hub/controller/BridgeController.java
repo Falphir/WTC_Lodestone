@@ -2,6 +2,9 @@ package io.github.falphir.hub.controller;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.security.core.Authentication;
+import java.util.List;
+
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.service.ServerService;
+import io.github.falphir.hub.service.WhitelistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,9 +25,11 @@ import jakarta.validation.constraints.Min;
 public class BridgeController {
 
     private final ServerService serverService;
+    private final WhitelistService whitelistService;
 
-    public BridgeController(ServerService serverService) {
+    public BridgeController(ServerService serverService, WhitelistService whitelistService) {
         this.serverService = serverService;
+        this.whitelistService = whitelistService;
     }
 
     @PostMapping("/hello")
@@ -41,6 +47,15 @@ public class BridgeController {
         serverService.recordHeartbeat(authentication.getName(), request.playerCount(), request.maxPlayers(),
                 request.tps(), request.memoryUsedMb(), request.memoryMaxMb());
     }
+
+    @GetMapping("/whitelist")
+    @Operation(summary = "Network whitelist", description = "Polled by the mod, which mirrors it into the server's whitelist.json.")
+    public List<WhitelistEntry> whitelist() {
+        return whitelistService.list().stream().map(p -> new WhitelistEntry(p.getUuid(), p.getName())).toList();
+    }
+
+    /** Same shape as whitelist.json entries. */
+    public record WhitelistEntry(String uuid, String name) {}
 
     public record HeartbeatRequest(
             @Min(0) int playerCount,

@@ -145,3 +145,12 @@ td {
   color: var(--text-h);
   font-variant-numeric: tabular-nums;
 }
+
+.whitelist {
+  margin-top: 48px;
+}
+
+.whitelist td button {
+  padding: 2px 10px;
+  font-size: 13px;
+}

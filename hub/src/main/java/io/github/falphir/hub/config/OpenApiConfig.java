@@ -9,7 +9,8 @@ import io.swagger.v3.oas.annotations.security.SecuritySchemes;
 @Configuration
 @SecuritySchemes({
         @SecurityScheme(name = "serverToken", type = SecuritySchemeType.HTTP, scheme = "bearer"),
-        @SecurityScheme(name = "adminLogin", type = SecuritySchemeType.HTTP, scheme = "basic")
+        @SecurityScheme(name = "adminLogin", type = SecuritySchemeType.HTTP, scheme = "basic"),
+        @SecurityScheme(name = "adminToken", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 })
 public class OpenApiConfig {
 }

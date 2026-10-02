@@ -21,12 +21,10 @@ class AdminUserServiceTest {
     @Test
     void refusesToRemoveTheLastEnabledAdmin() {
         AdminUser dave = service.create("dave", "dave-password");
-        AdminUser seeded = service.list().stream()
+        // Remove every other admin (the seeded one plus any in the dev database); rolled back after the test
+        service.list().stream()
                 .filter(a -> !a.getId().equals(dave.getId()))
-                .findFirst()
-                .orElseThrow();
-
-        service.delete(seeded.getId());
+                .forEach(a -> service.delete(a.getId()));
 
         assertThatThrownBy(() -> service.delete(dave.getId()))
                 .isInstanceOf(ResponseStatusException.class);
