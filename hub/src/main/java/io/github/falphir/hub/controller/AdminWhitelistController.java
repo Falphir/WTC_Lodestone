@@ -2,6 +2,7 @@ package io.github.falphir.hub.controller;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import io.github.falphir.hub.entity.WhitelistedPlayer;
 import io.github.falphir.hub.service.WhitelistService;
@@ -15,11 +16,13 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -41,9 +44,32 @@ public class AdminWhitelistController {
     }
 
     @GetMapping
-    @Operation(summary = "List whitelisted players", description = "The network-wide whitelist, sorted by name.")
+    @Operation(summary = "List whitelisted players",
+            description = "The network-wide whitelist, sorted by name, with the Discord account each is linked to (if any, via the bot's /link).")
     public List<PlayerView> list() {
         return whitelist.list().stream().map(PlayerView::from).toList();
+    }
+
+    @GetMapping("/{uuid}")
+    @Operation(summary = "Get a whitelisted player by Minecraft UUID")
+    public ResponseEntity<PlayerView> get(@PathVariable String uuid) {
+        return found(whitelist.find(uuid));
+    }
+
+    @GetMapping("/by-discord/{discordId}")
+    @Operation(summary = "Find the player linked to a Discord account", description = "404 if that Discord account isn't linked to anyone.")
+    public ResponseEntity<PlayerView> byDiscord(@PathVariable String discordId) {
+        return found(whitelist.findByDiscordId(discordId));
+    }
+
+    @GetMapping("/by-name/{name}")
+    @Operation(summary = "Get a whitelisted player by Minecraft username", description = "Case-insensitive.")
+    public ResponseEntity<PlayerView> byName(@PathVariable String name) {
+        return found(whitelist.findByName(name));
+    }
+
+    private static ResponseEntity<PlayerView> found(Optional<WhitelistedPlayer> player) {
+        return player.map(PlayerView::from).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
@@ -66,10 +92,22 @@ public class AdminWhitelistController {
 
     @DeleteMapping("/{uuid}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Remove a player from the whitelist")
+    @Operation(summary = "Remove a player from the whitelist", description = "Also drops its Discord link, if any.")
     public void remove(@PathVariable String uuid) {
         whitelist.remove(uuid);
     }
+
+    @PutMapping("/{uuid}/discord-link")
+    @Operation(summary = "Link a Discord account to an already-whitelisted player",
+            description = "Used by the bot's /link and /apply approve flow. 404 if the player isn't whitelisted yet; "
+                    + "409 if that Discord account is already linked to a different player.")
+    public PlayerView linkDiscord(@PathVariable String uuid, @Valid @RequestBody LinkDiscordRequest request) {
+        return PlayerView.from(whitelist.linkDiscord(uuid, request.discordId(), request.username()));
+    }
+
+    public record LinkDiscordRequest(
+            @NotBlank @Pattern(regexp = "\\d{1,20}", message = "not a Discord id") String discordId,
+            @NotBlank @Size(max = 16) String username) {}
 
     public record AddPlayerRequest(
             @Schema(description = "Minecraft username", example = "Notch")
@@ -85,9 +123,11 @@ public class AdminWhitelistController {
 
     public record ImportResult(int added) {}
 
-    public record PlayerView(String uuid, String name, String addedBy, Instant addedAt) {
+    public record PlayerView(String uuid, String name, String addedBy, Instant addedAt,
+            @Schema(description = "Discord id of the account this is linked to via /link, if any") String linkedDiscordId,
+            @Schema(description = "Epoch millis the link was made, null if not linked") Long linkedDiscordAt) {
         static PlayerView from(WhitelistedPlayer p) {
-            return new PlayerView(p.getUuid(), p.getName(), p.getAddedBy(), p.getAddedAt());
+            return new PlayerView(p.getUuid(), p.getName(), p.getAddedBy(), p.getAddedAt(), p.getDiscordId(), p.getDiscordLinkedAt());
         }
     }
 }

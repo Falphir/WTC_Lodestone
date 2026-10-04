@@ -54,4 +54,43 @@ class WhitelistServiceTest {
     void dashesMojangUuids() {
         assertThat(MojangProfiles.dashed("0F3A1B2C000040008000000000000001")).isEqualTo(ALICE);
     }
+
+    @Test
+    void removingAPlayerAlsoDropsTheirDiscordLink() {
+        when(mojang.lookup("alice")).thenReturn(Optional.of(new MojangProfiles.Profile(ALICE, "Alice")));
+        service.add("alice", "admin");
+        service.linkDiscord(ALICE, "discord1", "Alice");
+
+        service.remove(ALICE);
+
+        assertThat(service.findByDiscordId("discord1")).isEmpty();
+    }
+
+    @Test
+    void linkDiscordRequiresAnAlreadyWhitelistedPlayer() {
+        assertThatThrownBy(() -> service.linkDiscord(ALICE, "discord1", "Alice")).isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void linkDiscordRefusesAnAccountAlreadyLinkedElsewhere() {
+        when(mojang.lookup("alice")).thenReturn(Optional.of(new MojangProfiles.Profile(ALICE, "Alice")));
+        when(mojang.lookup("bob")).thenReturn(Optional.of(new MojangProfiles.Profile(BOB, "Bob")));
+        service.add("alice", "admin");
+        service.add("bob", "admin");
+        service.linkDiscord(ALICE, "discord1", "Alice");
+
+        assertThatThrownBy(() -> service.linkDiscord(BOB, "discord1", "Bob")).isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void linkDiscordRefreshesCanonicalNameAndIsFindableByDiscordIdAndName() {
+        when(mojang.lookup("alice")).thenReturn(Optional.of(new MojangProfiles.Profile(ALICE, "alice_old_case")));
+        service.add("alice", "admin");
+
+        service.linkDiscord(ALICE, "discord1", "Alice");
+
+        assertThat(service.find(ALICE).get().getName()).isEqualTo("Alice");
+        assertThat(service.findByDiscordId("discord1").get().getUuid()).isEqualTo(ALICE);
+        assertThat(service.findByName("alice")).isPresent(); // case-insensitive
+    }
 }

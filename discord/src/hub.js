@@ -160,48 +160,35 @@ async function mojangLookup(name) {
   return getOrNull(`/api/admin/mojang/${encodeURIComponent(name)}`);
 }
 
-// ---- Discord<->Minecraft account links (replaces what used to be local SQLite) ----
+// ---- whitelisted players, incl. the Discord link each one may have ----
+// A Discord link is just two columns on a whitelisted_players row now (merged from what used to
+// be a separate discord_links table/local SQLite) -- a link only ever makes sense for an account
+// that's actually whitelisted, and removing a player drops its link for free. db.js adapts these
+// "player" views into the plain {discordId, uuid, username, linkedAt} shape its callers expect.
 
-async function listLinks() {
-  const res = await withAuth((t) => fetch(`${baseUrl()}/api/admin/discord/links`, { headers: { Authorization: `Bearer ${t}` } }));
-  if (!res.ok) throw new Error(`Could not list links: ${await errorMessage(res)}`);
-  return res.json();
+async function getPlayerByUuid(uuid) {
+  return getOrNull(`/api/admin/whitelist/${encodeURIComponent(uuid)}`);
 }
 
-async function getLinkByDiscord(discordId) {
-  return getOrNull(`/api/admin/discord/links/by-discord/${encodeURIComponent(discordId)}`);
+async function getPlayerByDiscord(discordId) {
+  return getOrNull(`/api/admin/whitelist/by-discord/${encodeURIComponent(discordId)}`);
 }
 
-async function getLinkByUuid(uuid) {
-  return getOrNull(`/api/admin/discord/links/by-uuid/${encodeURIComponent(uuid)}`);
+async function getPlayerByName(name) {
+  return getOrNull(`/api/admin/whitelist/by-name/${encodeURIComponent(name)}`);
 }
 
-async function getLinkByName(name) {
-  return getOrNull(`/api/admin/discord/links/by-name/${encodeURIComponent(name)}`);
-}
-
-/** Sets (or replaces) the Minecraft account linked to `discordId`. */
-async function setLink(discordId, uuid, username) {
+/** Links `discordId` to the already-whitelisted account `uuid`. */
+async function linkDiscord(uuid, discordId, username) {
   const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/links/${encodeURIComponent(discordId)}`, {
+    fetch(`${baseUrl()}/api/admin/whitelist/${encodeURIComponent(uuid)}/discord-link`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uuid, username }),
+      body: JSON.stringify({ discordId, username }),
     })
   );
-  if (!res.ok) throw new Error(`Could not set link for '${discordId}': ${await errorMessage(res)}`);
+  if (!res.ok) throw new Error(`Could not link Discord account for '${uuid}': ${await errorMessage(res)}`);
   return res.json();
-}
-
-/** A no-op if there wasn't a link. */
-async function removeLink(discordId) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/links/${encodeURIComponent(discordId)}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${t}` },
-    })
-  );
-  if (!res.ok) throw new Error(`Could not remove link for '${discordId}': ${await errorMessage(res)}`);
 }
 
 // ---- applications ----
@@ -255,12 +242,10 @@ module.exports = {
   updateDiscordServer,
   removeDiscordServer,
   mojangLookup,
-  listLinks,
-  getLinkByDiscord,
-  getLinkByUuid,
-  getLinkByName,
-  setLink,
-  removeLink,
+  getPlayerByUuid,
+  getPlayerByDiscord,
+  getPlayerByName,
+  linkDiscord,
   getApplication,
   setApplicationPending,
   setApplicationDecision,

@@ -26,6 +26,13 @@ public class WhitelistedPlayer {
     @Column(name = "added_at", nullable = false, updatable = false)
     private Instant addedAt;
 
+    /** Discord account this player is linked to via the bot's /link, if any. Unique when set. */
+    @Column(name = "discord_id", length = 32)
+    private String discordId;
+
+    @Column(name = "discord_linked_at")
+    private Long discordLinkedAt;
+
     protected WhitelistedPlayer() {
         // required by JPA
     }
@@ -37,8 +44,17 @@ public class WhitelistedPlayer {
         this.addedAt = Instant.now();
     }
 
+    /** Also refreshes `name` to the canonical casing Mojang just resolved. */
+    public void linkDiscord(String discordId, String canonicalName) {
+        this.discordId = discordId;
+        this.discordLinkedAt = System.currentTimeMillis();
+        this.name = canonicalName;
+    }
+
     public String getUuid() { return uuid; }
     public String getName() { return name; }
     public String getAddedBy() { return addedBy; }
     public Instant getAddedAt() { return addedAt; }
+    public String getDiscordId() { return discordId; }
+    public Long getDiscordLinkedAt() { return discordLinkedAt; }
 }

@@ -156,6 +156,7 @@ export default function Whitelist() {
             <thead>
               <tr>
                 <th>Player</th>
+                <th>Discord</th>
                 <th className="hide-sm">Added by</th>
                 <th className="hide-sm">Added</th>
                 <th>
@@ -169,6 +170,15 @@ export default function Whitelist() {
                   <td>
                     <span className="cell-title">{p.name}</span>
                     <span className="cell-sub mono">{p.uuid}</span>
+                  </td>
+                  <td>
+                    {p.linkedDiscordId ? (
+                      <a className="mono" href={`https://discord.com/users/${p.linkedDiscordId}`} target="_blank" rel="noreferrer">
+                        {p.linkedDiscordId}
+                      </a>
+                    ) : (
+                      <span className="muted">Not linked</span>
+                    )}
                   </td>
                   <td className="hide-sm muted">{p.addedBy}</td>
                   <td className="hide-sm muted">{formatDate(p.addedAt)}</td>

@@ -1,14 +1,13 @@
 'use strict';
 
-const db = require('../db');
 const hub = require('../hub');
 
-// De-whitelist someone (network-wide, via the hub) and drop their link row. Used on
-// unlink, member leave, or the member-role being removed.
+// De-whitelist someone (network-wide, via the hub). Used on unlink, member leave, or the
+// member-role being removed. Also drops their Discord link for free -- it's just two columns
+// on the same whitelist row now, so removing the row removes the link with it.
 async function revokeAccess(link) {
   if (!link) return;
   await hub.whitelistRemove(link.uuid);
-  await db.removeLink(link.discordId);
 }
 
 // Whitelists `profile` when linking/relinking. The hub keys the whitelist by UUID, so

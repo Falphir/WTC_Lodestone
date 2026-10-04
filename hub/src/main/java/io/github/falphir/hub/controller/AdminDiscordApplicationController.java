@@ -1,7 +1,7 @@
 package io.github.falphir.hub.controller;
 
 import io.github.falphir.hub.entity.DiscordApplication;
-import io.github.falphir.hub.service.DiscordLinkService;
+import io.github.falphir.hub.service.DiscordApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,9 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "adminToken")
 public class AdminDiscordApplicationController {
 
-    private final DiscordLinkService service;
+    private final DiscordApplicationService service;
 
-    public AdminDiscordApplicationController(DiscordLinkService service) {
+    public AdminDiscordApplicationController(DiscordApplicationService service) {
         this.service = service;
     }
 

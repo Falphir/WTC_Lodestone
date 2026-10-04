@@ -1,28 +1,30 @@
 'use strict';
 
-// Discord<->Minecraft account links and in-flight applications. Used to be a local SQLite
-// file (links.db); now every call goes straight through to the hub's admin API (see hub.js)
-// -- the hub is the only place this state lives, so the bot has nothing local to lose.
+// Discord<->Minecraft account links and in-flight applications. Used to be a local SQLite file
+// (links.db), then a separate hub table; a link is now just two columns on the hub's whitelisted
+// player row (see hub.js), since a link only ever makes sense for an account that's actually
+// whitelisted. This module adapts that into the {discordId, uuid, username, linkedAt} shape every
+// caller here already expects, so none of them had to change across any of these moves.
 const hub = require('./hub');
 
+function asLink(player) {
+  return player && player.linkedDiscordId
+    ? { discordId: player.linkedDiscordId, uuid: player.uuid, username: player.name, linkedAt: player.linkedDiscordAt }
+    : null;
+}
+
 module.exports = {
-  async getAll() {
-    return hub.listLinks();
-  },
   async getByDiscord(id) {
-    return hub.getLinkByDiscord(id);
+    return asLink(await hub.getPlayerByDiscord(id));
   },
   async getByUuid(uuid) {
-    return hub.getLinkByUuid(uuid);
+    return asLink(await hub.getPlayerByUuid(uuid));
   },
   async getByName(name) {
-    return hub.getLinkByName(name);
+    return asLink(await hub.getPlayerByName(name));
   },
   async setLink({ discordId, uuid, username }) {
-    await hub.setLink(discordId, uuid, username);
-  },
-  async removeLink(id) {
-    await hub.removeLink(id);
+    await hub.linkDiscord(uuid, discordId, username);
   },
 
   // ---- applications ----

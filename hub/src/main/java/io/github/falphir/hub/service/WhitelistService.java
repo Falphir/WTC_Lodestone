@@ -2,6 +2,7 @@ package io.github.falphir.hub.service;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,6 +57,21 @@ public class WhitelistService {
         return repository.findAllByOrderByNameAsc();
     }
 
+    @Transactional(readOnly = true)
+    public Optional<WhitelistedPlayer> find(String uuid) {
+        return repository.findById(uuid);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<WhitelistedPlayer> findByDiscordId(String discordId) {
+        return repository.findByDiscordId(discordId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<WhitelistedPlayer> findByName(String name) {
+        return repository.findByNameIgnoreCase(name);
+    }
+
     /**
      * Identifies the current contents of the whitelist: a hash of the sorted UUIDs. Servers report the version they
      * applied, so the dashboard can tell which ones are behind. Names are left out, they don't affect who can join.
@@ -101,6 +117,7 @@ public class WhitelistService {
         return added;
     }
 
+    /** Removing a player drops any Discord link with it, since that's just a column on the same row now. */
     @Transactional
     public void remove(String uuid) {
         if (!repository.existsById(uuid)) {
@@ -108,6 +125,26 @@ public class WhitelistService {
         }
         repository.deleteById(uuid);
         events.publishEvent(HubEvent.whitelist());
+    }
+
+    /**
+     * Links a Discord account to an already-whitelisted player (the bot's /link always whitelists
+     * the account first). Refuses if that Discord account is already linked elsewhere.
+     */
+    @Transactional
+    public WhitelistedPlayer linkDiscord(String uuid, String discordId, String canonicalUsername) {
+        WhitelistedPlayer player = repository.findById(uuid)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player is not whitelisted"));
+        repository.findByDiscordId(discordId).ifPresent(existing -> {
+            if (!existing.getUuid().equals(uuid)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "That Discord account is already linked to '" + existing.getName() + "'");
+            }
+        });
+        player.linkDiscord(discordId, canonicalUsername);
+        WhitelistedPlayer saved = repository.save(player);
+        events.publishEvent(HubEvent.whitelist());
+        return saved;
     }
 
     public record Entry(String uuid, String name) {}
