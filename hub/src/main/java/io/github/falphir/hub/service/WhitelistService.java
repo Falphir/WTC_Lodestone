@@ -6,7 +6,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import io.github.falphir.hub.entity.WhitelistState;
 import io.github.falphir.hub.entity.WhitelistedPlayer;
+import io.github.falphir.hub.repository.WhitelistStateRepository;
 import io.github.falphir.hub.repository.WhitelistedPlayerRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -18,16 +20,35 @@ import org.springframework.web.server.ResponseStatusException;
 public class WhitelistService {
 
     private final WhitelistedPlayerRepository repository;
+    private final WhitelistStateRepository state;
     private final MojangProfiles mojang;
     private final TokenService hashing;
     private final ApplicationEventPublisher events;
 
-    public WhitelistService(WhitelistedPlayerRepository repository, MojangProfiles mojang, TokenService hashing,
-            ApplicationEventPublisher events) {
+    public WhitelistService(WhitelistedPlayerRepository repository, WhitelistStateRepository state,
+            MojangProfiles mojang, TokenService hashing, ApplicationEventPublisher events) {
         this.repository = repository;
+        this.state = state;
         this.mojang = mojang;
         this.hashing = hashing;
         this.events = events;
+    }
+
+    /**
+     * Whether the whitelist has ever had a player on it. Lets the bridge tell "nobody's imported
+     * anything yet" apart from "deliberately emptied" -- servers only apply the former blindly.
+     */
+    @Transactional(readOnly = true)
+    public boolean everPopulated() {
+        return state.findById(1).map(WhitelistState::isEverPopulated).orElse(false);
+    }
+
+    private void markPopulated() {
+        WhitelistState row = state.findById(1).orElseGet(() -> new WhitelistState(false));
+        if (!row.isEverPopulated()) {
+            row.setEverPopulated(true);
+            state.save(row);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -57,6 +78,7 @@ public class WhitelistService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "'" + profile.name() + "' is already whitelisted");
         }
         WhitelistedPlayer player = repository.save(new WhitelistedPlayer(profile.uuid(), profile.name(), addedBy));
+        markPopulated();
         events.publishEvent(HubEvent.whitelist());
         return player;
     }
@@ -72,7 +94,10 @@ public class WhitelistService {
             repository.save(new WhitelistedPlayer(uuid, entry.name(), addedBy));
             added++;
         }
-        if (added > 0) events.publishEvent(HubEvent.whitelist());
+        if (added > 0) {
+            markPopulated();
+            events.publishEvent(HubEvent.whitelist());
+        }
         return added;
     }
 

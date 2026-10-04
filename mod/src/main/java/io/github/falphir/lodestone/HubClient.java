@@ -153,6 +153,15 @@ public final class HubClient {
 
         HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(response -> {
+                    // 204: nobody has ever been added to the hub whitelist -- leave this server's alone
+                    // rather than wipe it (see WhitelistService.everPopulated() on the hub).
+                    if (response.statusCode() == 204) {
+                        if (!warnedEmptyWhitelist) {
+                            WTCLodestone.LOGGER.warn("Hub whitelist is empty - leaving this server's whitelist untouched. Import it on the dashboard.");
+                            warnedEmptyWhitelist = true;
+                        }
+                        return;
+                    }
                     if (response.statusCode() != 200) {
                         WTCLodestone.LOGGER.warn("WTC Lodestone whitelist sync failed (HTTP {})", response.statusCode());
                         return;
@@ -160,7 +169,8 @@ public final class HubClient {
                     List<GameProfile> players = parseWhitelist(response.body());
                     String version = response.headers().firstValue("X-Whitelist-Version").orElse(null);
                     server.execute(() -> {
-                        if (applyWhitelist(server, players)) reportWhitelistApplied(version);
+                        applyWhitelist(server, players);
+                        reportWhitelistApplied(version);
                     });
                 })
                 .exceptionally(error -> {
@@ -179,20 +189,11 @@ public final class HubClient {
     }
 
     /**
-     * Runs on the server thread. Makes the local whitelist exactly match the hub's, then kicks anyone no longer on it.
-     * Returns false if the list was left alone.
+     * Runs on the server thread. Makes the local whitelist exactly match the hub's (which may be
+     * genuinely empty -- the hub only sends 200 here once it's confirmed populated at least once,
+     * see syncWhitelist), then kicks anyone no longer on it.
      */
-    private static boolean applyWhitelist(MinecraftServer server, List<GameProfile> players) {
-        // ponytail: an empty hub list means "not set up yet", so a fresh hub can't wipe existing whitelists.
-        // Downside: removing the very last player on the hub never reaches the servers.
-        if (players.isEmpty()) {
-            if (!warnedEmptyWhitelist) {
-                WTCLodestone.LOGGER.warn("Hub whitelist is empty - leaving this server's whitelist untouched. Import it on the dashboard.");
-                warnedEmptyWhitelist = true;
-            }
-            return false;
-        }
-
+    private static void applyWhitelist(MinecraftServer server, List<GameProfile> players) {
         UserWhiteList whitelist = server.getPlayerList().getWhiteList();
         Set<UUID> wanted = players.stream().map(GameProfile::getId).collect(Collectors.toSet());
         int removed = 0;
@@ -217,7 +218,6 @@ public final class HubClient {
             // Same as vanilla /whitelist remove: only kicks when enforce-whitelist is on
             server.kickUnlistedPlayers(server.createCommandSourceStack());
         }
-        return true;
     }
 
     /** Tells the hub which whitelist version this server now has. Only sent when it changed. Server thread only. */

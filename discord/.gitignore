@@ -1,0 +1,4 @@
+node_modules/
+
+# Secrets (copy .env.example and fill it in)
+.env

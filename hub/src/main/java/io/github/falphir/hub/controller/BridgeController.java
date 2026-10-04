@@ -75,8 +75,13 @@ public class BridgeController {
     @GetMapping("/whitelist")
     @Operation(summary = "Network whitelist",
             description = "Polled by the mod, which mirrors it into the server's whitelist.json. "
-                    + "The " + WHITELIST_VERSION_HEADER + " header identifies this version of the list.")
+                    + "The " + WHITELIST_VERSION_HEADER + " header identifies this version of the list. "
+                    + "204 (no body) means nobody has ever been added to the hub whitelist yet -- "
+                    + "the mod should leave the server's existing whitelist alone rather than wipe it.")
     public ResponseEntity<List<WhitelistEntry>> whitelist() {
+        if (!whitelistService.everPopulated()) {
+            return ResponseEntity.noContent().build();
+        }
         List<WhitelistedPlayer> players = whitelistService.list();
         return ResponseEntity.ok()
                 .header(WHITELIST_VERSION_HEADER, whitelistService.version(players))

@@ -20,6 +20,10 @@ lodestone:
   admins:
     - username: admin
       password: ${LODESTONE_ADMIN_PASSWORD:admin}
+    # Service account for the Discord bot (discord/) -- it signs in and uses the whitelist
+    # API exactly like a dashboard admin, see discord/README.md "Hub account".
+    - username: discord-bot
+      password: ${LODESTONE_BOT_PASSWORD:bot}
   heartbeat-retention-days: 7
   # how often servers report; the mod learns it on check-in, the dashboard from /api/info
   heartbeat-interval-seconds: 60

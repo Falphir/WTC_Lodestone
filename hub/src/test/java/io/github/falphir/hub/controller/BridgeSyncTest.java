@@ -73,6 +73,27 @@ class BridgeSyncTest {
     }
 
     @Test
+    void whitelistStaysVisibleAsEmptyOnceItHasEverBeenPopulated() throws Exception {
+        String bearer = "Bearer " + servers.register(SERVER + "-empty", "Sync Test Empty").token();
+        String uuid = "0f3a1b2c-0000-4000-8000-0000000000c1";
+
+        whitelist.importEntries(List.of(new WhitelistService.Entry(uuid, "Carl")), "test");
+        mvc.perform(get("/api/bridge/whitelist").header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        whitelist.remove(uuid);
+
+        // The list is genuinely empty now, but it HAS been populated before -- unlike a fresh hub
+        // that's never had anyone added, this must come back as 200 + [], not 204, or servers would
+        // never learn the last player was removed (see HubClient.applyWhitelist on the mod side).
+        mvc.perform(get("/api/bridge/whitelist").header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(BridgeController.WHITELIST_VERSION_HEADER))
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
     void olderModsCanStillCheckInWithoutABody() throws Exception {
         String bearer = "Bearer " + servers.register(SERVER, "Sync Test").token();
         mvc.perform(post("/api/bridge/hello").header("Authorization", bearer)).andExpect(status().isOk());
