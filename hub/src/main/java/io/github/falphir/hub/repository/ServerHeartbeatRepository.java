@@ -18,4 +18,8 @@ public interface ServerHeartbeatRepository extends JpaRepository<ServerHeartbeat
     @Modifying
     @Query("delete from ServerHeartbeat h where h.recordedAt < :cutoff")
     int deleteByRecordedAtBefore(Instant cutoff);
+
+    @Modifying
+    @Query("delete from ServerHeartbeat h where h.serverId = :serverId")
+    int deleteByServerId(String serverId);
 }

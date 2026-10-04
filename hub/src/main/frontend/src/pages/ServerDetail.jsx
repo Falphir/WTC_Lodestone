@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
+import { api } from '../api'
 import { Badge, EmptyState, ErrorNote, Icon, LineChart, PageHead, Panel, StatusBadge } from '../components'
 import { formatDateTime, formatMemory, formatTps, relativeTime, statusOf, whitelistSync } from '../format'
-import { useApi, useHubInfo } from '../hooks'
+import { useAction, useApi, useHubInfo } from '../hooks'
 
 const RANGES = [
   { hours: 1, label: 'Last hour' },
@@ -20,6 +21,17 @@ export default function ServerDetail({ id }) {
     serverId: id,
   })
   const server = servers?.find((s) => s.id === id)
+  const { run, busy, error: removeError } = useAction()
+
+  function removeServer() {
+    if (!server) return
+    if (!window.confirm(`Remove ${server.name}? It'll need to be registered again to reconnect.`)) return
+    run(async () => {
+      await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      window.location.hash = '#/servers'
+      return null
+    })
+  }
 
   const series = useMemo(() => {
     const ascending = [...(heartbeats ?? [])].reverse()
@@ -67,6 +79,9 @@ export default function ServerDetail({ id }) {
             <div className="head-status">
               <StatusBadge status={statusOf(server)} />
               <small className="muted">Last heartbeat {relativeTime(server.lastSeen)}</small>
+              <button type="button" className="button button-quiet button-danger" disabled={busy} onClick={removeServer}>
+                Remove server
+              </button>
             </div>
           )
         }
@@ -75,7 +90,7 @@ export default function ServerDetail({ id }) {
         <p className="muted mono">{id}</p>
       </PageHead>
 
-      <ErrorNote>{serversError || error}</ErrorNote>
+      <ErrorNote>{serversError || error || removeError}</ErrorNote>
 
       {latest && (
         <dl className="figures">

@@ -112,6 +112,17 @@ public class ServerService {
         return repository.findAll();
     }
 
+    /** Removes a server and its heartbeat history. It stops being able to authenticate immediately. */
+    @Transactional
+    public void remove(String id) {
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown server '" + id + "'");
+        }
+        heartbeats.deleteByServerId(id); // the FK from server_heartbeats has no ON DELETE CASCADE
+        repository.deleteById(id);
+        events.publishEvent(HubEvent.servers(id));
+    }
+
     /** The one place that decides whether a server is up; the dashboard shows what this says. */
     public ServerStatus status(GameServer server, ServerHeartbeat latest) {
         if (!server.isEnabled()) return ServerStatus.DISABLED;
