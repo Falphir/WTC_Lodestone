@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { api } from '../api'
-import { Badge, CopyButton, ErrorNote, Icon, StatusBadge } from '../components'
+import { Badge, CopyButton, EmptyState, ErrorNote, Field, Icon, PageHead, Panel, StatusBadge } from '../components'
 import { formatDate, relativeTime, statusOf, whitelistSync } from '../format'
-import { useApi } from '../hooks'
+import { useAction, useApi } from '../hooks'
 
 export default function Servers() {
   const { data: servers, error, reload } = useApi('/api/admin/servers', { refreshMs: 60_000, topics: ['servers'] })
@@ -11,25 +11,26 @@ export default function Servers() {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div>
-          <h1>Servers</h1>
-          <p className="muted">Each server runs the WTC Lodestone mod with its own token.</p>
-        </div>
-        {!registering && (
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={() => {
-              setRegistering(true)
-              setRegistered(null)
-            }}
-          >
-            <Icon name="plus" />
-            Register server
-          </button>
-        )}
-      </header>
+      <PageHead
+        actions={
+          !registering && (
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => {
+                setRegistering(true)
+                setRegistered(null)
+              }}
+            >
+              <Icon name="plus" />
+              Register server
+            </button>
+          )
+        }
+      >
+        <h1>Servers</h1>
+        <p className="muted">Each server runs the WTC Lodestone mod with its own token.</p>
+      </PageHead>
 
       {registered && <TokenNotice server={registered} onDone={() => setRegistered(null)} />}
 
@@ -47,14 +48,11 @@ export default function Servers() {
       <ErrorNote>{error}</ErrorNote>
 
       {servers?.length === 0 && !registering && (
-        <div className="empty">
-          <h2>No servers yet</h2>
-          <p>Register your first server to get the token its mod needs.</p>
-        </div>
+        <EmptyState title="No servers yet">Register your first server to get the token its mod needs.</EmptyState>
       )}
 
       {servers?.length > 0 && (
-        <div className="panel">
+        <Panel>
           <table className="table">
             <thead>
               <tr>
@@ -90,7 +88,7 @@ export default function Servers() {
                 ))}
             </tbody>
           </table>
-        </div>
+        </Panel>
       )}
     </div>
   )
@@ -108,31 +106,24 @@ function WhitelistBadge({ server }) {
 function RegisterForm({ onCancel, onRegistered }) {
   const [id, setId] = useState('')
   const [name, setName] = useState('')
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
+  const { run, busy, error } = useAction()
 
-  async function submit(event) {
+  function submit(event) {
     event.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
+    run(async () => {
       onRegistered(await api('/api/admin/servers', { method: 'POST', body: { id, name: name.trim() } }))
-    } catch (err) {
-      setError(err.message)
-      setBusy(false)
-    }
+      return null
+    })
   }
 
   return (
-    <form className="panel panel-pad form" onSubmit={submit}>
+    <Panel as="form" pad className="form" onSubmit={submit}>
       <h2>Register a server</h2>
       <div className="form-row">
-        <label className="field">
-          <span>Display name</span>
+        <Field label="Display name">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="WTC Genesis" maxLength={100} required autoFocus />
-        </label>
-        <label className="field">
-          <span>Server ID</span>
+        </Field>
+        <Field label="Server ID" hint="Goes in the mod config as serverId. Lowercase letters, numbers, _ and -.">
           <input
             className="mono"
             value={id}
@@ -143,8 +134,7 @@ function RegisterForm({ onCancel, onRegistered }) {
             maxLength={64}
             required
           />
-          <small>Goes in the mod config as serverId. Lowercase letters, numbers, _ and -.</small>
-        </label>
+        </Field>
       </div>
       <ErrorNote>{error}</ErrorNote>
       <div className="form-actions">
@@ -155,14 +145,14 @@ function RegisterForm({ onCancel, onRegistered }) {
           Cancel
         </button>
       </div>
-    </form>
+    </Panel>
   )
 }
 
 function TokenNotice({ server, onDone }) {
   const config = `serverId = "${server.id}"\ntoken = "${server.token}"`
   return (
-    <section className="panel panel-pad token-notice" aria-live="polite">
+    <Panel as="section" pad className="token-notice" aria-live="polite">
       <h2>{server.name} is registered</h2>
       <p>
         Copy its token now. The hub only stores a hash of it, so it can't be shown again. Put these lines in{' '}
@@ -175,6 +165,6 @@ function TokenNotice({ server, onDone }) {
           Done
         </button>
       </div>
-    </section>
+    </Panel>
   )
 }

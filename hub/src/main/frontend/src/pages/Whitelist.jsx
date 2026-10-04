@@ -1,15 +1,15 @@
 import { useRef, useState } from 'react'
 import { api } from '../api'
-import { Badge, ErrorNote, Icon } from '../components'
+import { Badge, EmptyState, ErrorNote, Field, Icon, PageHead, Panel, PlayerHead } from '../components'
 import { formatDate, plural, whitelistSync } from '../format'
-import { useApi } from '../hooks'
+import { useAction, useApi } from '../hooks'
 
 /** Which servers have applied the current list; changes reach each one within a heartbeat. */
 function SyncPanel({ servers }) {
   const rows = servers.map((s) => ({ ...s, sync: whitelistSync(s) })).sort((a, b) => a.name.localeCompare(b.name))
   const current = rows.filter((s) => s.sync.tone === 'good').length
   return (
-    <section className="panel" aria-label="Sync status">
+    <Panel as="section" aria-label="Sync status">
       <p className="panel-note">
         Up to date on {current} of {plural(rows.length, 'server')}.
       </p>
@@ -22,7 +22,7 @@ function SyncPanel({ servers }) {
           </li>
         ))}
       </ul>
-    </section>
+    </Panel>
   )
 }
 
@@ -31,24 +31,8 @@ export default function Whitelist() {
   const { data: servers } = useApi('/api/admin/servers', { refreshMs: 60_000, topics: ['servers', 'whitelist'] })
   const [name, setName] = useState('')
   const [query, setQuery] = useState('')
-  const [message, setMessage] = useState(null)
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
+  const { run, busy, message, error } = useAction(reload)
   const fileInput = useRef(null)
-
-  async function run(action) {
-    setBusy(true)
-    setError(null)
-    setMessage(null)
-    try {
-      setMessage(await action())
-      reload()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
 
   function addPlayer(event) {
     event.preventDefault()
@@ -88,24 +72,24 @@ export default function Whitelist() {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div>
-          <h1>Whitelist</h1>
-          <p className="muted">
-            Shared by every server. Changes reach the servers within a minute.
-            {players && ` ${plural(players.length, 'player')}.`}
-          </p>
-        </div>
-        <button type="button" className="button" disabled={busy} onClick={() => fileInput.current.click()}>
-          <Icon name="upload" />
-          Import whitelist.json
-        </button>
-        <input ref={fileInput} type="file" accept=".json,application/json" onChange={importFile} hidden />
-      </header>
+      <PageHead
+        actions={
+          <button type="button" className="button" disabled={busy} onClick={() => fileInput.current.click()}>
+            <Icon name="upload" />
+            Import whitelist.json
+          </button>
+        }
+      >
+        <h1>Whitelist</h1>
+        <p className="muted">
+          Shared by every server. Changes reach the servers within a minute.
+          {players && ` ${plural(players.length, 'player')}.`}
+        </p>
+      </PageHead>
+      <input ref={fileInput} type="file" accept=".json,application/json" onChange={importFile} hidden />
 
       <form className="toolbar" onSubmit={addPlayer}>
-        <label className="field field-inline">
-          <span className="visually-hidden">Minecraft username</span>
+        <Field label="Minecraft username" hidden inline>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -114,18 +98,16 @@ export default function Whitelist() {
             pattern="[A-Za-z0-9_]{1,16}"
             title="Letters, numbers and _ only, up to 16 characters"
           />
-        </label>
+        </Field>
         <button type="submit" className="button button-primary" disabled={busy || !name.trim()}>
           <Icon name="plus" />
           Add player
         </button>
 
         {players?.length > 0 && (
-          <label className="field field-inline field-search">
-            <Icon name="search" />
-            <span className="visually-hidden">Search players</span>
+          <Field label="Search players" hidden inline search icon="search">
             <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" />
-          </label>
+          </Field>
         )}
       </form>
 
@@ -139,26 +121,23 @@ export default function Whitelist() {
       <ErrorNote>{error || loadError}</ErrorNote>
 
       {players?.length === 0 && (
-        <div className="empty">
-          <h2>The whitelist is empty</h2>
-          <p>
-            Import an existing server's <code>whitelist.json</code> to start, or add players one by one. Until the list has at
-            least one player, servers keep their own whitelist untouched.
-          </p>
-        </div>
+        <EmptyState title="The whitelist is empty">
+          Import an existing server's <code>whitelist.json</code> to start, or add players one by one. Until the list has at
+          least one player, servers keep their own whitelist untouched.
+        </EmptyState>
       )}
 
       {shown?.length === 0 && players.length > 0 && <p className="muted">No players match “{query}”.</p>}
 
       {shown?.length > 0 && (
-        <div className="panel">
-          <table className="table">
+        <Panel>
+          <table className="table table-cards">
             <thead>
               <tr>
                 <th>Player</th>
                 <th>Discord</th>
-                <th className="hide-sm">Added by</th>
-                <th className="hide-sm">Added</th>
+                <th>Added by</th>
+                <th>Added</th>
                 <th>
                   <span className="visually-hidden">Actions</span>
                 </th>
@@ -168,10 +147,15 @@ export default function Whitelist() {
               {shown.map((p) => (
                 <tr key={p.uuid}>
                   <td>
-                    <span className="cell-title">{p.name}</span>
-                    <span className="cell-sub mono">{p.uuid}</span>
+                    <div className="cell-player">
+                      <PlayerHead id={p.uuid} />
+                      <div>
+                        <span className="cell-title">{p.name}</span>
+                        <span className="cell-sub mono">{p.uuid}</span>
+                      </div>
+                    </div>
                   </td>
-                  <td>
+                  <td data-label="Discord">
                     {p.linkedDiscordId ? (
                       <a className="mono" href={`https://discord.com/users/${p.linkedDiscordId}`} target="_blank" rel="noreferrer">
                         {p.linkedDiscordId}
@@ -180,8 +164,8 @@ export default function Whitelist() {
                       <span className="muted">Not linked</span>
                     )}
                   </td>
-                  <td className="hide-sm muted">{p.addedBy}</td>
-                  <td className="hide-sm muted">{formatDate(p.addedAt)}</td>
+                  <td data-label="Added by" className="muted">{p.addedBy}</td>
+                  <td data-label="Added" className="muted">{formatDate(p.addedAt)}</td>
                   <td className="actions">
                     <button type="button" className="button button-quiet button-danger" disabled={busy} onClick={() => removePlayer(p)}>
                       Remove
@@ -191,7 +175,7 @@ export default function Whitelist() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Panel>
       )}
     </div>
   )

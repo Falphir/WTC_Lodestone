@@ -33,6 +33,12 @@
   color: var(--ink);
 }
 
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .brand-text {
   display: flex;
   flex-direction: column;
@@ -138,50 +144,99 @@
   opacity: 0.55;
 }
 
+/* The mobile nav drawer: a <dialog> (showModal()) pinned to the left edge instead of centered,
+   reusing the browser's own top-layer stacking, Escape-to-close, and focus trap for free. It stays
+   mounted at all times (see App.jsx) so these open/close transitions actually get to play instead
+   of the node disappearing mid-animation; allow-discrete keeps it rendered (and out of the a11y/
+   interaction tree only via [open]) for the transition's duration instead of snapping to display:
+   none immediately. */
+.nav-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(280px, 85vw);
+  height: 100svh;
+  height: 100dvh;
+  /* the UA stylesheet's own dialog defaults (meant for a centered modal, margined off the
+     screen edges) cap max-height/max-width well short of this -- drop them for a true edge-to-edge drawer. */
+  max-height: none;
+  max-width: none;
+  padding: 20px 14px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--ink);
+  flex-direction: column;
+  gap: 28px;
+  transform: translateX(-100%);
+  transition:
+    transform 0.25s ease,
+    overlay 0.25s ease allow-discrete,
+    display 0.25s ease allow-discrete;
+}
+
+/* display must stay conditional on [open] (not unconditional on .nav-drawer) so a closed dialog
+   keeps the UA's own display:none -- allow-discrete only defers *when* that flip happens, letting
+   the transform transition play both ways, it doesn't make the dialog visible/focusable while shut. */
+.nav-drawer[open] {
+  display: flex;
+  transform: translateX(0);
+}
+
+@starting-style {
+  .nav-drawer[open] {
+    transform: translateX(-100%);
+  }
+}
+
+.nav-drawer::backdrop {
+  background: rgba(12, 14, 18, 0);
+  transition:
+    background-color 0.25s ease,
+    overlay 0.25s ease allow-discrete,
+    display 0.25s ease allow-discrete;
+}
+
+.nav-drawer[open]::backdrop {
+  background: rgba(12, 14, 18, 0.5);
+}
+
+@starting-style {
+  .nav-drawer[open]::backdrop {
+    background: rgba(12, 14, 18, 0);
+  }
+}
+
+.mobile-bar {
+  display: none;
+}
+
 @media (max-width: 760px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
+    /* .mobile-bar and .main now stack into two implicit grid rows; without this, grid's default
+       stretch blows both up to fill the full min-height instead of hugging their own content
+       (desktop never hits this -- sidebar+main share a single row there via columns, not rows). */
+    align-content: start;
   }
 
   .sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
+    display: none;
+  }
+
+  .mobile-bar {
+    display: flex;
     align-items: center;
-    gap: 8px 12px;
+    justify-content: space-between;
+    gap: 12px;
     padding: 12px 16px;
-    border-right: 0;
     border-bottom: 1px solid var(--line);
+    background: var(--surface);
   }
 
-  .brand-text small {
-    display: none;
-  }
-
-  .nav {
-    order: 3;
-    flex-direction: row;
-    width: 100%;
-    overflow-x: auto;
-  }
-
-  .nav-link {
-    white-space: nowrap;
-  }
-
-  .nav-link[aria-current='page']::before {
-    display: none;
-  }
-
-  .sidebar-foot {
-    margin: 0 0 0 auto;
-    padding: 0;
-    border-top: 0;
-  }
-
-  .whoami {
-    display: none;
+  .mobile-bar .brand {
+    font-size: var(--fs-md);
   }
 
   .main {
@@ -248,6 +303,10 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow-x: auto;
+  /* a flex item (.page is a column flex) won't shrink below its content's width by default, so a
+     wide table inside would push the whole page wider instead of staying clipped and scrolling
+     here -- same reason .main has it against .shell's grid. */
+  min-width: 0;
 }
 
 .panel-pad {
@@ -368,6 +427,10 @@
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
+  /* every cell in this app holds a short label/id/date -- nowrap keeps rows one line tall and lets
+     the panel's own overflow-x scroll the table sideways on narrow screens instead of each cell
+     wrapping awkwardly (e.g. a UUID breaking across 4 lines at its hyphens). */
+  white-space: nowrap;
 }
 
 .table tbody tr:last-child td {
@@ -408,6 +471,18 @@
   color: var(--muted);
 }
 
+.cell-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-head {
+  border-radius: 6px;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
 .row-link {
   position: relative;
 }
@@ -441,6 +516,54 @@
   .table th,
   .table td {
     padding-inline: 12px;
+  }
+
+  /* .table-cards opts a table into a stacked-card mobile layout instead of scrolling sideways:
+     each row becomes a card, each cell a labelled line (label from data-label via ::before). The
+     first cell is left alone as the card's own header (e.g. a player's head + name + id). */
+  .table-cards thead {
+    display: none;
+  }
+
+  .table-cards,
+  .table-cards tbody {
+    display: block;
+  }
+
+  .table-cards tr {
+    display: block;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .table-cards tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table-cards td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 0;
+    white-space: normal;
+  }
+
+  .table-cards td[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .table-cards td:first-child {
+    padding-top: 0;
+  }
+
+  .table-cards td.actions {
+    justify-content: flex-end;
+    padding-top: 10px;
   }
 }
 
@@ -904,12 +1027,6 @@
 
 .live + .sidebar-foot {
   margin-top: 0;
-}
-
-@media (max-width: 760px) {
-  .live {
-    display: none;
-  }
 }
 
 /* ---------- server setup (what the mod reported) ---------- */

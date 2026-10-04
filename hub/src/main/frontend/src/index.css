@@ -94,6 +94,13 @@
   box-sizing: border-box;
 }
 
+html {
+  /* A wide table inside a scrollable .panel can still inflate the document's own scrollable
+     width even though the panel itself correctly clips and scrolls it -- this is the backstop so
+     the whole page never gains its own horizontal scroll; each panel keeps scrolling internally. */
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);

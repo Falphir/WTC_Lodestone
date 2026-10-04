@@ -1,4 +1,4 @@
-import { ErrorNote, Sparkline, StatusBadge } from '../components'
+import { EmptyState, ErrorNote, Panel, Sparkline, StatusBadge } from '../components'
 import { formatMemory, formatTps, isUp, plural, relativeTime, statusOf } from '../format'
 import { useApi } from '../hooks'
 
@@ -56,15 +56,11 @@ export default function Overview() {
       <ErrorNote>{error}</ErrorNote>
 
       {rows.length === 0 ? (
-        <div className="empty">
-          <h2>No servers yet</h2>
-          <p>
-            Register a server to get its token, then put the token in the mod config.{' '}
-            <a href="#/servers">Register a server</a>
-          </p>
-        </div>
+        <EmptyState title="No servers yet">
+          Register a server to get its token, then put the token in the mod config. <a href="#/servers">Register a server</a>
+        </EmptyState>
       ) : (
-        <div className="panel">
+        <Panel>
           <table className="table">
             <thead>
               <tr>
@@ -83,7 +79,7 @@ export default function Overview() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Panel>
       )}
     </div>
   )

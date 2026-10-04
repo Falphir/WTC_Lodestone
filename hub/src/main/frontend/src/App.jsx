@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
-import { currentAdmin, getToken, setSignedOutHandler, signOut } from './api'
-import { Icon, Mark } from './components'
+import { getToken, setSignedOutHandler } from './api'
+import { Icon, Mark, SidebarNav } from './components'
 import { useLiveStatus, useRoute, useTheme } from './hooks'
 import Admins from './pages/Admins'
 import Overview from './pages/Overview'
@@ -10,26 +10,32 @@ import Servers from './pages/Servers'
 import SignIn from './pages/SignIn'
 import Whitelist from './pages/Whitelist'
 
-const NAV = [
-  { path: '', label: 'Overview', icon: 'overview' },
-  { path: 'servers', label: 'Servers', icon: 'servers' },
-  { path: 'whitelist', label: 'Whitelist', icon: 'whitelist' },
-  { path: 'admins', label: 'Admins', icon: 'admins' },
-]
-
-const THEMES = [
-  { value: 'system', label: 'Match system', icon: 'system' },
-  { value: 'light', label: 'Light', icon: 'sun' },
-  { value: 'dark', label: 'Dark', icon: 'moon' },
-]
-
 function App() {
   const [signedIn, setSignedIn] = useState(() => getToken() !== null)
   const [theme, setTheme] = useTheme()
+  const [menuOpen, setMenuOpen] = useState(false)
   const route = useRoute()
   const live = useLiveStatus()
+  const drawer = useRef(null)
 
   useEffect(() => setSignedOutHandler(() => setSignedIn(false)), [])
+
+  // Close the mobile drawer on navigation (link click, or back/forward).
+  useEffect(() => {
+    const onHashChange = () => setMenuOpen(false)
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  // The dialog stays mounted at all times (never conditionally rendered) so its CSS open/close
+  // transition -- see .nav-drawer -- actually gets to play instead of the node being yanked out
+  // mid-animation; this effect just keeps it in sync with menuOpen via the imperative DOM API.
+  useEffect(() => {
+    const dialog = drawer.current
+    if (!dialog) return // not yet rendered, e.g. still on the sign-in screen
+    if (menuOpen && !dialog.open) dialog.showModal()
+    if (!menuOpen && dialog.open) dialog.close()
+  }, [menuOpen])
 
   if (!signedIn) return <SignIn onSignedIn={() => setSignedIn(true)} />
 
@@ -41,50 +47,32 @@ function App() {
   else if (section === 'admins') page = <Admins />
   else page = <Overview />
 
-  const themeNow = THEMES.find((t) => t.value === theme) ?? THEMES[0]
-  const nextTheme = THEMES[(THEMES.indexOf(themeNow) + 1) % THEMES.length]
-  const themeLabel = `Theme: ${themeNow.label}. Switch to ${nextTheme.label.toLowerCase()}.`
-
   return (
     <div className="shell">
       <aside className="sidebar">
-        <a href="#/" className="brand">
-          <Mark size={26} />
-          <span className="brand-text">
-            WTC Lodestone
-            <small>Network console</small>
-          </span>
-        </a>
-
-        <nav className="nav" aria-label="Main">
-          {NAV.map((item) => (
-            <a
-              key={item.label}
-              href={`#/${item.path}`}
-              className="nav-link"
-              aria-current={section === item.path ? 'page' : undefined}
-            >
-              <Icon name={item.icon} />
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <p className={`live${live ? ' is-live' : ''}`} title={live ? 'Changes appear as they happen' : 'Pages refresh every minute until the connection is back'}>
-          <span className="live-dot" aria-hidden="true" />
-          {live ? 'Live updates' : 'Reconnecting…'}
-        </p>
-
-        <div className="sidebar-foot">
-          <span className="whoami">{currentAdmin()}</span>
-          <button type="button" className="icon-button" onClick={() => setTheme(nextTheme.value)} title={themeLabel} aria-label={themeLabel}>
-            <Icon name={themeNow.icon} />
-          </button>
-          <button type="button" className="icon-button" onClick={signOut} title="Sign out" aria-label="Sign out">
-            <Icon name="signOut" />
-          </button>
-        </div>
+        <SidebarNav section={section} live={live} theme={theme} setTheme={setTheme} />
       </aside>
+
+      <header className="mobile-bar">
+        <a href="#/" className="brand">
+          <Mark size={24} />
+          WTC Lodestone
+        </a>
+        <button type="button" className="icon-button" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-haspopup="true">
+          <Icon name="menu" />
+        </button>
+      </header>
+
+      <dialog
+        ref={drawer}
+        className="nav-drawer"
+        onClose={() => setMenuOpen(false)}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) drawer.current.close()
+        }}
+      >
+        <SidebarNav section={section} live={live} theme={theme} setTheme={setTheme} onClose={() => setMenuOpen(false)} />
+      </dialog>
 
       <main className="main">{page}</main>
     </div>

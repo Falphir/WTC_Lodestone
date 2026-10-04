@@ -1,24 +1,20 @@
 import { useState } from 'react'
 import { signIn } from '../api'
-import { ErrorNote, Mark } from '../components'
+import { ErrorNote, Field, Mark } from '../components'
+import { useAction } from '../hooks'
 
 export default function SignIn({ onSignedIn }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
+  const { run, busy, error } = useAction()
 
-  async function submit(event) {
+  function submit(event) {
     event.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
+    run(async () => {
       await signIn(username.trim(), password)
       onSignedIn()
-    } catch (err) {
-      setError(err.message)
-      setBusy(false)
-    }
+      return null
+    })
   }
 
   return (
@@ -28,12 +24,10 @@ export default function SignIn({ onSignedIn }) {
         <h1>Sign in to WTC Lodestone</h1>
         <p className="muted">Staff console for the WTC Network servers.</p>
 
-        <label className="field">
-          <span>Username</span>
+        <Field label="Username">
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required autoFocus />
-        </label>
-        <label className="field">
-          <span>Password</span>
+        </Field>
+        <Field label="Password">
           <input
             type="password"
             value={password}
@@ -41,7 +35,7 @@ export default function SignIn({ onSignedIn }) {
             autoComplete="current-password"
             required
           />
-        </label>
+        </Field>
 
         <ErrorNote>{error}</ErrorNote>
 

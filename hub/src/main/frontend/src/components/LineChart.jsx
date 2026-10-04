@@ -58,7 +58,7 @@ function ChartTooltip({ active, payload, format }) {
  * One measure over time. `points` are { t: epoch ms, v } in ascending time order.
  * `gapMs` is the longest silence still drawn as a continuous line (the hub's offline threshold).
  */
-export default function LineChart({ title, points, from, to, yMax, format, gapMs, describe }) {
+export function LineChart({ title, points, from, to, yMax, format, gapMs, describe }) {
   const data = useMemo(() => {
     const shown = downsample(points, from, to)
     return withGaps(shown, Math.max(gapMs, ((to - from) / BUCKETS) * 2.5))

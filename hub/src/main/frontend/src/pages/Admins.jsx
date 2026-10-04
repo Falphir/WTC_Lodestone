@@ -1,33 +1,15 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { api, currentAdmin } from '../api'
-import { ErrorNote, Icon } from '../components'
+import { Dialog, ErrorNote, Field, Icon, PageHead, Panel } from '../components'
 import { formatDate } from '../format'
-import { useApi } from '../hooks'
+import { useAction, useApi } from '../hooks'
 
 export default function Admins() {
   const { data: admins, error: loadError, reload } = useApi('/api/admin/users', { topics: ['admins'] })
   const [creating, setCreating] = useState(false)
   const [passwordFor, setPasswordFor] = useState(null)
-  const [message, setMessage] = useState(null)
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
+  const { run, busy, message, error } = useAction(reload)
   const me = currentAdmin()
-
-  async function run(action) {
-    setBusy(true)
-    setError(null)
-    setMessage(null)
-    try {
-      setMessage(await action())
-      reload()
-      return true
-    } catch (err) {
-      setError(err.message)
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
 
   function toggle(admin) {
     const verb = admin.enabled ? 'Disable' : 'Enable'
@@ -48,18 +30,19 @@ export default function Admins() {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div>
-          <h1>Admins</h1>
-          <p className="muted">Everyone here can manage servers, the whitelist and other admins.</p>
-        </div>
-        {!creating && (
-          <button type="button" className="button button-primary" onClick={() => setCreating(true)}>
-            <Icon name="plus" />
-            Add admin
-          </button>
-        )}
-      </header>
+      <PageHead
+        actions={
+          !creating && (
+            <button type="button" className="button button-primary" onClick={() => setCreating(true)}>
+              <Icon name="plus" />
+              Add admin
+            </button>
+          )
+        }
+      >
+        <h1>Admins</h1>
+        <p className="muted">Everyone here can manage servers, the whitelist and other admins.</p>
+      </PageHead>
 
       {creating && (
         <CreateForm
@@ -83,7 +66,7 @@ export default function Admins() {
       <ErrorNote>{error || loadError}</ErrorNote>
 
       {admins && (
-        <div className="panel">
+        <Panel>
           <table className="table">
             <thead>
               <tr>
@@ -125,7 +108,7 @@ export default function Admins() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Panel>
       )}
 
       {passwordFor && (
@@ -151,8 +134,10 @@ function CreateForm({ onCreate, onCancel, busy }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   return (
-    <form
-      className="panel panel-pad form"
+    <Panel
+      as="form"
+      pad
+      className="form"
       onSubmit={(e) => {
         e.preventDefault()
         onCreate(username, password)
@@ -160,8 +145,7 @@ function CreateForm({ onCreate, onCancel, busy }) {
     >
       <h2>Add an admin</h2>
       <div className="form-row">
-        <label className="field">
-          <span>Username</span>
+        <Field label="Username">
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -171,12 +155,10 @@ function CreateForm({ onCreate, onCancel, busy }) {
             required
             autoFocus
           />
-        </label>
-        <label className="field">
-          <span>Password</span>
+        </Field>
+        <Field label="Password" hint="At least 8 characters. Share it with them privately.">
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} autoComplete="new-password" required />
-          <small>At least 8 characters. Share it with them privately.</small>
-        </label>
+        </Field>
       </div>
       <div className="form-actions">
         <button type="submit" className="button button-primary" disabled={busy}>
@@ -186,23 +168,15 @@ function CreateForm({ onCreate, onCancel, busy }) {
           Cancel
         </button>
       </div>
-    </form>
+    </Panel>
   )
 }
 
 function PasswordDialog({ admin, isMe, onSave, onClose, busy }) {
   const [password, setPassword] = useState('')
-  const dialog = useRef(null)
 
   return (
-    <dialog
-      ref={(node) => {
-        dialog.current = node
-        if (node && !node.open) node.showModal()
-      }}
-      className="dialog"
-      onClose={onClose}
-    >
+    <Dialog onClose={onClose}>
       <form
         className="form"
         onSubmit={(e) => {
@@ -211,20 +185,18 @@ function PasswordDialog({ admin, isMe, onSave, onClose, busy }) {
         }}
       >
         <h2>{isMe ? 'Change your password' : `Change password for ${admin.username}`}</h2>
-        <label className="field">
-          <span>New password</span>
+        <Field label="New password" hint={`At least 8 characters.${isMe ? ' You stay signed in on this browser.' : ''}`}>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} autoComplete="new-password" required autoFocus />
-          <small>At least 8 characters. {isMe && 'You stay signed in on this browser.'}</small>
-        </label>
+        </Field>
         <div className="form-actions">
           <button type="submit" className="button button-primary" disabled={busy}>
             Change password
           </button>
-          <button type="button" className="button" onClick={() => dialog.current.close()}>
+          <button type="button" className="button" onClick={onClose}>
             Cancel
           </button>
         </div>
       </form>
-    </dialog>
+    </Dialog>
   )
 }

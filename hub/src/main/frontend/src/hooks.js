@@ -57,6 +57,38 @@ export function useApi(path, { refreshMs, topics = [], serverId } = {}) {
   return { data: state.data, error: state.error, stale: state.path !== path, reload }
 }
 
+/**
+ * The busy/message/error dance every mutating form or action button here does: run `action`,
+ * show what it returns as a success message, show a thrown Error's message instead, and track
+ * busy throughout. Optionally reloads (e.g. a useApi `reload`) after a successful run.
+ */
+export function useAction(reload) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState(null)
+  const [error, setError] = useState(null)
+
+  const run = useCallback(
+    async (action) => {
+      setBusy(true)
+      setError(null)
+      setMessage(null)
+      try {
+        setMessage(await action())
+        reload?.()
+        return true
+      } catch (err) {
+        setError(err.message)
+        return false
+      } finally {
+        setBusy(false)
+      }
+    },
+    [reload],
+  )
+
+  return { run, busy, message, error, setError }
+}
+
 /** Whether live updates from the hub are currently connected. */
 export function useLiveStatus() {
   return useSyncExternalStore(subscribeStatus, isConnected)

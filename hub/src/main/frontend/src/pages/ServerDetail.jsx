@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Badge, ErrorNote, Icon, StatusBadge } from '../components'
+import { Badge, EmptyState, ErrorNote, Icon, LineChart, PageHead, Panel, StatusBadge } from '../components'
 import { formatDateTime, formatMemory, formatTps, relativeTime, statusOf, whitelistSync } from '../format'
 import { useApi, useHubInfo } from '../hooks'
-import LineChart from '../LineChart'
 
 const RANGES = [
   { hours: 1, label: 'Last hour' },
@@ -39,12 +38,9 @@ export default function ServerDetail({ id }) {
           <Icon name="back" />
           Servers
         </a>
-        <div className="empty">
-          <h2>No server called “{id}”</h2>
-          <p>
-            It may have been removed. <a href="#/servers">See all servers</a>
-          </p>
-        </div>
+        <EmptyState title={`No server called “${id}”`}>
+          It may have been removed. <a href="#/servers">See all servers</a>
+        </EmptyState>
       </div>
     )
   }
@@ -65,18 +61,19 @@ export default function ServerDetail({ id }) {
         Servers
       </a>
 
-      <header className="page-head">
-        <div>
-          <h1>{server?.name ?? id}</h1>
-          <p className="muted mono">{id}</p>
-        </div>
-        {server && (
-          <div className="head-status">
-            <StatusBadge status={statusOf(server)} />
-            <small className="muted">Last heartbeat {relativeTime(server.lastSeen)}</small>
-          </div>
-        )}
-      </header>
+      <PageHead
+        actions={
+          server && (
+            <div className="head-status">
+              <StatusBadge status={statusOf(server)} />
+              <small className="muted">Last heartbeat {relativeTime(server.lastSeen)}</small>
+            </div>
+          )
+        }
+      >
+        <h1>{server?.name ?? id}</h1>
+        <p className="muted mono">{id}</p>
+      </PageHead>
 
       <ErrorNote>{serversError || error}</ErrorNote>
 
@@ -194,7 +191,7 @@ function Setup({ server }) {
 function HeartbeatTable({ heartbeats }) {
   if (heartbeats.length === 0) return <p className="muted">No heartbeats in this range.</p>
   return (
-    <div className="panel">
+    <Panel>
       {heartbeats.length > TABLE_LIMIT && (
         <p className="panel-note muted">
           Showing the latest {TABLE_LIMIT} of {heartbeats.length.toLocaleString()} heartbeats. Pick a shorter range to see
@@ -227,6 +224,6 @@ function HeartbeatTable({ heartbeats }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </Panel>
   )
 }
