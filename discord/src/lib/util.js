@@ -1,6 +1,12 @@
 'use strict';
 
-const { ActionRowBuilder, ButtonBuilder, MessageFlags } = require('discord.js');
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  MessageFlags,
+  TextInputBuilder,
+  TextInputStyle,
+} = require('discord.js');
 const config = require('../config');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
@@ -22,4 +28,18 @@ function reviewedRow(label, style) {
   );
 }
 
-module.exports = { EPHEMERAL, isStaff, getField, reviewedRow };
+// One modal text input in the action row Discord requires around it. A `value` of 0 still
+// prefills (unlike a truthy check), which is what makes it usable for numeric settings.
+function inputRow(id, label, { value, max, required = true, placeholder } = {}) {
+  const input = new TextInputBuilder()
+    .setCustomId(id)
+    .setLabel(label)
+    .setStyle(TextInputStyle.Short)
+    .setRequired(required);
+  if (max) input.setMaxLength(max);
+  if (value !== undefined && value !== null && value !== '') input.setValue(String(value));
+  if (placeholder) input.setPlaceholder(placeholder);
+  return new ActionRowBuilder().addComponents(input);
+}
+
+module.exports = { EPHEMERAL, isStaff, getField, reviewedRow, inputRow };

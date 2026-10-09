@@ -46,13 +46,11 @@ These edit the hub's `discord_config` / `discord_servers` tables at runtime via 
   display info only; see `/serverinfo`).
 - `/server edit <id>` — edit display info (name, address, modpack, version, install URL).
 - `/server remove <id>` — stop listing a server in `/serverinfo`.
-- `/config view` — show current channels, roles and branding.
-- `/config channels [applications] [welcome] [serverinfo] [stafflog]` — set the bot's channels.
-- `/config member-role <role>` — set the approved-member role.
-- `/config staff <add|remove> <role>` — manage staff roles.
-- `/config min-age <age>` — set the minimum age to apply (default 18).
-- `/config apply-cooldown <days>` — set the re-apply cooldown after a denial (0 = off, default 7).
-- `/config brand [name] [color] [icon]` — set branding.
+- `/config` — opens a private, self-updating panel that configures everything: the four channels,
+  the member and staff roles, the application rules (minimum age, re-apply cooldown) and branding
+  (name, colour, logo). Pick a section with its buttons; channels and roles are set with Discord's own
+  pickers, the rules and branding through a short form. Every change saves to the hub immediately
+  and the panel's embed re-renders to show it — that's the confirmation, there's no "saved" reply.
 
 Visibility is controlled by Discord's **Administrator** permission (adjustable per-role under
 Server Settings → Integrations).
@@ -84,8 +82,8 @@ if you change **command or option descriptions**, also re-run `npm run deploy`.
 > `/server` edit); the Discord↔MC account links and in-flight applications that used to be a local
 > SQLite file (`links.db`) now live in `discord_links`/`discord_applications` and are read/written
 > per-call through `src/db.js` → `src/hub.js`, with no caching at all. A redeployed bot process has
-> nothing to lose. Run `/config channels ...`, `/config member-role ...` etc. once after first boot
-> against a fresh hub to populate it (there's no dashboard UI for this yet).
+> nothing to lose. Run `/config` once after first boot against a fresh hub and work through its
+> sections to populate it (there's no dashboard UI for this yet).
 
 ## Setup
 

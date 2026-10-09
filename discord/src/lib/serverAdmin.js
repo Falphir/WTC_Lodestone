@@ -2,29 +2,13 @@
 
 // Runtime server management: add / edit / remove / list. These servers are display-only
 // metadata for /serverinfo -- the bot no longer talks to them directly (see hub.js).
-const {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-} = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder } = require('discord.js');
 
 const config = require('../config');
 const { t } = require('../i18n');
 const { withIcon } = require('../icons');
-const { EPHEMERAL } = require('./util');
+const { EPHEMERAL, inputRow } = require('./util');
 const { brandEmbed } = require('./embeds');
-
-function inputRow(id, label, opts = {}) {
-  const { style = TextInputStyle.Short, required = true, value, max, placeholder } = opts;
-  const input = new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(required);
-  if (max) input.setMaxLength(max);
-  if (value !== undefined && value !== null && value !== '') input.setValue(String(value));
-  if (placeholder) input.setPlaceholder(placeholder);
-  return new ActionRowBuilder().addComponents(input);
-}
 
 // ---------- modal openers ----------
 
