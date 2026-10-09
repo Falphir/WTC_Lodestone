@@ -258,6 +258,14 @@
   margin-top: 4px;
 }
 
+/* the title with whatever badge belongs beside it */
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .head-status {
   display: flex;
   flex-direction: column;
@@ -484,7 +492,8 @@
   color: var(--muted);
 }
 
-.cell-player {
+.cell-player,
+.cell-server {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -757,6 +766,39 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* the modpack's own image, the same one Discord shows as a thumbnail */
+.server-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+
+/* bigger where it sits beside a page title rather than a table row */
+.page-head .server-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+
+/* names the block of values under it, in a form or on a page */
+.form h3,
+.section-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.form h3 {
+  margin-bottom: -8px;
+}
+
+.section-label {
+  margin: 0 0 8px 4px; /* 4px lines it up with .setup's own padding */
 }
 
 .form-row {
@@ -1067,6 +1109,20 @@
 
 .setup dd small {
   font-size: var(--fs-sm);
+}
+
+/* grid items default to min-width:auto, so one long unbreakable value (a modpack URL has
+   nowhere to wrap) would widen its column until the whole page scrolled sideways */
+.setup > div {
+  min-width: 0;
+}
+
+/* one line, cut with an ellipsis -- pair it with a title so the full value stays reachable */
+.ellipsis {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- whitelist sync list ---------- */

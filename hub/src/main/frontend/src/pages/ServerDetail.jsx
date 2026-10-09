@@ -1,6 +1,20 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api'
-import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorNote, Field, Icon, LineChart, PageHead, Panel, StatusBadge, TokenNotice } from '../components'
+import {
+  Badge,
+  ConfirmDialog,
+  Dialog,
+  EmptyState,
+  ErrorNote,
+  Field,
+  Icon,
+  LineChart,
+  ListingFields,
+  PageHead,
+  Panel,
+  StatusBadge,
+  TokenNotice,
+} from '../components'
 import { formatDateTime, formatMemory, formatTps, relativeTime, statusOf, whitelistSync } from '../format'
 import { useAction, useApi, useHubInfo } from '../hooks'
 
@@ -46,6 +60,14 @@ export default function ServerDetail({ id }) {
       return null
     })
     if (ok) setConfirmingReset(false)
+  }
+
+  // `published` on its own: the hub leaves every field the patch doesn't mention alone
+  function setPublished(published) {
+    runEdit(async () => {
+      await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'PATCH', body: { published } })
+      return null
+    })
   }
 
   const series = useMemo(() => {
@@ -97,6 +119,15 @@ export default function ServerDetail({ id }) {
                 <small className="muted">Last heartbeat {relativeTime(server.lastSeen)}</small>
               </div>
               <div className="button-row">
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  disabled={busy || editBusy}
+                  onClick={() => setPublished(!server.listing.published)}
+                >
+                  <Icon name={server.listing.published ? 'hide' : 'show'} />
+                  {server.listing.published ? 'Unpublish' : 'Publish'}
+                </button>
                 <button type="button" className="button button-quiet" disabled={busy || resetBusy} onClick={() => setEditing(true)}>
                   <Icon name="edit" />
                   Edit
@@ -119,8 +150,20 @@ export default function ServerDetail({ id }) {
           )
         }
       >
-        <h1>{server?.name ?? id}</h1>
-        <p className="muted mono">{id}</p>
+        <div className="cell-server">
+          {server?.listing.iconUrl && <img src={server.listing.iconUrl} alt="" className="server-icon" />}
+          <div>
+            <div className="page-title">
+              <h1>{server?.name ?? id}</h1>
+              {server && (
+                <Badge tone={server.listing.published ? 'good' : 'none'}>
+                  {server.listing.published ? 'Published' : 'Not published'}
+                </Badge>
+              )}
+            </div>
+            <p className="muted mono">{id}</p>
+          </div>
+        </div>
       </PageHead>
 
       <ErrorNote>{serversError || error}</ErrorNote>
@@ -159,9 +202,9 @@ export default function ServerDetail({ id }) {
           busy={editBusy}
           error={editError}
           onClose={() => setEditing(false)}
-          onSave={async (name, newId) => {
+          onSave={async (fields) => {
             const ok = await runEdit(async () => {
-              const updated = await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'PATCH', body: { name, id: newId } })
+              const updated = await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'PATCH', body: fields })
               if (updated.id !== id) window.location.hash = `#/servers/${encodeURIComponent(updated.id)}`
               return null
             })
@@ -195,7 +238,18 @@ export default function ServerDetail({ id }) {
         </dl>
       )}
 
-      {server && <Setup server={server} />}
+      {server && (
+        <section>
+          <h2 className="section-label">Server details</h2>
+          <Setup server={server} />
+        </section>
+      )}
+      {server && (
+        <section>
+          <h2 className="section-label">What players see</h2>
+          <Listing listing={server.listing} />
+        </section>
+      )}
 
       <div className="toolbar">
         <div className="segmented" role="group" aria-label="Time range">
@@ -253,8 +307,14 @@ export default function ServerDetail({ id }) {
 }
 
 function EditDialog({ server, busy, error, onClose, onSave }) {
-  const [name, setName] = useState(server.name)
-  const [id, setId] = useState(server.id)
+  // `published` is deliberately left out: it has its own button, and carrying a stale copy of it
+  // through this form would quietly undo a publish made while the dialog sat open.
+  const [fields, setFields] = useState(() => {
+    const listing = { ...server.listing, id: server.id, name: server.name }
+    delete listing.published
+    return listing
+  })
+  const change = (key, value) => setFields((f) => ({ ...f, [key]: value }))
 
   return (
     <Dialog onClose={onClose}>
@@ -262,19 +322,19 @@ function EditDialog({ server, busy, error, onClose, onSave }) {
         className="form"
         onSubmit={(e) => {
           e.preventDefault()
-          onSave(name.trim(), id)
+          onSave({ ...fields, name: fields.name.trim() })
         }}
       >
         <h2>Edit {server.name}</h2>
         <div className="form-row">
           <Field label="Display name">
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required autoFocus />
+            <input value={fields.name} onChange={(e) => change('name', e.target.value)} maxLength={100} required autoFocus />
           </Field>
           <Field label="Server ID" hint="Goes in the mod config as serverId. Changing it needs a matching update there.">
             <input
               className="mono"
-              value={id}
-              onChange={(e) => setId(e.target.value.toLowerCase())}
+              value={fields.id}
+              onChange={(e) => change('id', e.target.value.toLowerCase())}
               pattern="[a-z0-9_\-]{1,64}"
               title="Lowercase letters, numbers, _ and - only"
               maxLength={64}
@@ -282,6 +342,10 @@ function EditDialog({ server, busy, error, onClose, onSave }) {
             />
           </Field>
         </div>
+
+        <h3>What players see</h3>
+        <ListingFields values={fields} onChange={change} />
+
         <ErrorNote>{error}</ErrorNote>
         <div className="form-actions">
           <button type="submit" className="button button-primary" disabled={busy}>
@@ -323,6 +387,43 @@ function Setup({ server }) {
           <small className="muted">{sync.detail}</small>
         </dd>
       </div>
+    </dl>
+  )
+}
+
+/** What players are shown in Discord's /serverinfo. Whether they see it at all is the badge up top. */
+function Listing({ listing }) {
+  const { publicAddress, modpack, modpackUrl, modpackVersion, launcher } = listing
+  return (
+    <dl className="setup">
+      <div>
+        <dt>Address</dt>
+        <dd className="mono">{publicAddress || 'Not set'}</dd>
+      </div>
+      <div>
+        <dt>Modpack</dt>
+        <dd>
+          {modpack || 'Not set'}
+          {modpackVersion && <span className="muted mono"> {modpackVersion}</span>}
+        </dd>
+      </div>
+      <div>
+        <dt>Modpack link</dt>
+        <dd>
+          {modpackUrl ? (
+              <a href={modpackUrl} title={modpackUrl} className="ellipsis" target="_blank" rel="noreferrer noopener">
+                {modpackUrl}
+              </a>
+          ) : (
+              'Not set'
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt>Launcher</dt>
+        <dd>{launcher || 'Not set'}</dd>
+      </div>
+
     </dl>
   )
 }

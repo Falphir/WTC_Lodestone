@@ -16,6 +16,6 @@ public interface GameServerRepository extends JpaRepository<GameServer, String> 
      * context is unreliable (a later flush would still look for the row under its old id).
      */
     @Modifying
-    @Query("update GameServer g set g.name = :name, g.id = :newId where g.id = :oldId")
-    int edit(String oldId, String name, String newId);
+    @Query("update GameServer g set g.id = :newId where g.id = :oldId")
+    int changeId(String oldId, String newId);
 }

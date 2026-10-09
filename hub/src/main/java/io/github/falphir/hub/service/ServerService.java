@@ -55,14 +55,19 @@ public class ServerService {
         return heartbeatInterval.multipliedBy(MISSED_HEARTBEATS_OFFLINE);
     }
 
-    /** Registers a new server. The plain token is returned once and never stored. */
+    /**
+     * Registers a new server, with as much of its public listing as is known already ({@code
+     * listing} may be null, and its id/name are ignored in favour of the arguments). The plain
+     * token is returned once and never stored.
+     */
     @Transactional
-    public RegisteredServer register(String id, String name) {
+    public RegisteredServer register(String id, String name, Patch listing) {
         if (repository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Server '" + id + "' already exists");
         }
         String token = tokens.generateToken();
-        repository.save(new GameServer(id, name, tokens.hash(token)));
+        GameServer server = repository.save(new GameServer(id, name, tokens.hash(token)));
+        if (listing != null) applyListing(listing, server);
         events.publishEvent(HubEvent.servers(id));
         return new RegisteredServer(id, name, token);
     }
@@ -92,23 +97,46 @@ public class ServerService {
         events.publishEvent(HubEvent.servers(id));
     }
 
-    /** Changes a server's display name and/or id. The mod's config needs the new id to keep matching. */
+    /**
+     * Applies the non-null fields of {@code patch} to a server. A new id is a special case: it
+     * changes the row's own key, and the mod's config needs the same new id to keep matching.
+     */
     @Transactional
-    public GameServer edit(String id, String name, String newId) {
-        if (!repository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown server '" + id + "'");
+    public GameServer edit(String id, Patch patch) {
+        GameServer server = find(id);
+        String newId = patch.id();
+
+        if (newId != null && !newId.equals(id)) {
+            if (repository.existsById(newId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Server '" + newId + "' already exists");
+            }
+            repository.changeId(id, newId);
+            // changeId is a bulk update, so the copy loaded above still answers to the old id.
+            // Dropping it is what makes the reload below see the row as it now is.
+            entityManager.clear();
+            server = find(newId);
         }
-        if (!newId.equals(id) && repository.existsById(newId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Server '" + newId + "' already exists");
-        }
-        repository.edit(id, name, newId);
-        // repository.edit() is a bulk update -- it doesn't touch any GameServer already cached in
-        // this session, so without clearing, a stale copy (e.g. from the existsById check above,
-        // or a caller that loaded it earlier in this transaction) would be handed back below.
-        entityManager.clear();
-        events.publishEvent(HubEvent.servers(newId));
-        return find(newId);
+
+        applyListing(patch, server);
+        events.publishEvent(HubEvent.servers(server.getId()));
+        return server;
     }
+
+    /** Everything a patch can change except the id, which moves the row and is handled on its own. */
+    private void applyListing(Patch patch, GameServer server) {
+        if (patch.name() != null) server.setName(patch.name());
+        if (patch.publicAddress() != null) server.setPublicAddress(patch.publicAddress());
+        if (patch.modpack() != null) server.setModpack(patch.modpack());
+        if (patch.modpackUrl() != null) server.setModpackUrl(patch.modpackUrl());
+        if (patch.modpackVersion() != null) server.setModpackVersion(patch.modpackVersion());
+        if (patch.launcher() != null) server.setLauncher(patch.launcher());
+        if (patch.iconUrl() != null) server.setIconUrl(patch.iconUrl());
+        if (patch.published() != null) server.setPublished(patch.published());
+    }
+
+    /** Only non-null fields are changed, the same merge the Discord config patch uses. */
+    public record Patch(String id, String name, String publicAddress, String modpack, String modpackUrl,
+            String modpackVersion, String launcher, String iconUrl, Boolean published) {}
 
     /** Issues a new token for a server, invalidating the old one. Returned once and never stored. */
     @Transactional

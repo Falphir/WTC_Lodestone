@@ -9,12 +9,12 @@ function requireEnv(name) {
   return val;
 }
 
-// In-memory cache of the hub's discord_config/discord_servers tables. init() must be awaited
-// once at startup before anything below is read; every runtime edit (setConfig/addServer/
-// updateServer/removeServer) writes through to the hub first and only then updates this cache.
-// The hub is the only persistent store -- nothing here is ever written to disk.
+// In-memory cache of the hub's discord_config table. init() must be awaited once at startup
+// before anything below is read; every runtime edit (setConfig) writes through to the hub first
+// and only then updates this cache. The hub is the only persistent store -- nothing here is ever
+// written to disk. What /serverinfo shows players is NOT cached: it's a per-server listing an
+// admin publishes on the dashboard, so the bot reads it live (see hub.listPublishedServers).
 let cfg = {};
-let servers = [];
 
 module.exports = {
   // Immutable, from environment.
@@ -24,7 +24,6 @@ module.exports = {
 
   async init() {
     cfg = await hub.getDiscordConfig();
-    servers = await hub.listDiscordServers();
   },
 
   // Live getters so runtime edits are reflected everywhere without a restart.
@@ -65,31 +64,8 @@ module.exports = {
     };
   },
 
-  get servers() {
-    return servers;
-  },
-  serverById(id) {
-    return servers.find((s) => s.id === id);
-  },
-
-  // ---- runtime mutation (each writes through to the hub, then refreshes the cache) ----
+  // ---- runtime mutation (writes through to the hub, then refreshes the cache) ----
   async setConfig(patch) {
     cfg = await hub.updateDiscordConfig(patch);
-  },
-  async addServer(server) {
-    servers.push(await hub.addDiscordServer(server));
-  },
-  async updateServer(id, patch) {
-    const updated = await hub.updateDiscordServer(id, patch);
-    const i = servers.findIndex((s) => s.id === id);
-    if (i !== -1) servers[i] = updated;
-    return updated;
-  },
-  async removeServer(id) {
-    await hub.removeDiscordServer(id);
-    const i = servers.findIndex((s) => s.id === id);
-    if (i === -1) return false;
-    servers.splice(i, 1);
-    return true;
   },
 };

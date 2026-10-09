@@ -33,19 +33,17 @@ account, and vice-versa).
 - `/whois` (staff) — look up either direction of a link.
 - `/unlink` (staff) — remove a link + de-whitelist.
 - `/resetcooldown <user>` (staff) — clear a member's re-apply cooldown so they can `/apply` again.
-- `/serverinfo` — list servers, versions and install links (from the hub's server list).
+- `/serverinfo` — list the servers an admin has published: a card each with its IP, modpack,
+  version, launcher, download link and the modpack's image as a thumbnail. Edited per server on
+  the dashboard, not here; a server appears only once it's published there.
 - **Auto-sync** — leaving Discord or losing the member role auto-removes the player from the
   whitelist.
 
 ### Admin commands (Administrator only)
 
-These edit the hub's `discord_config` / `discord_servers` tables at runtime via its admin API — no restart needed, and no local state to lose.
+These edit the hub's `discord_config` table at runtime via its admin API — no restart needed, and
+no local state to lose.
 
-- `/server list` — show configured servers.
-- `/server add` — add a server via a private form (id, name, address, modpack, install URL —
-  display info only; see `/serverinfo`).
-- `/server edit <id>` — edit display info (name, address, modpack, version, install URL).
-- `/server remove <id>` — stop listing a server in `/serverinfo`.
 - `/config` — opens a private, self-updating panel that configures everything: the four channels,
   the member and staff roles, the application rules (minimum age, re-apply cooldown) and branding
   (name, colour, logo). Pick a section with its buttons; channels and roles are set with Discord's own
@@ -77,9 +75,10 @@ if you change **command or option descriptions**, also re-run `npm run deploy`.
 
 > The bot keeps **no local state at all** — the hub is the only persistent store, and this is
 > genuinely just an HTTP client: it requests, the hub replies. Channels/roles/branding/application
-> rules and the `/serverinfo` server list live in `discord_config`/`discord_servers`
-> (`src/config.js` caches them in memory, loaded on startup and kept live by every `/config`/
-> `/server` edit); the Discord↔MC account links and in-flight applications that used to be a local
+> rules live in `discord_config` (`src/config.js` caches them in memory, loaded on startup and kept
+> live by every `/config` edit); what `/serverinfo` shows players is each server's own listing in
+> `servers`, read live per invocation so a dashboard publish takes effect at once; the Discord↔MC
+> account links and in-flight applications that used to be a local
 > SQLite file (`links.db`) now live in `discord_links`/`discord_applications` and are read/written
 > per-call through `src/db.js` → `src/hub.js`, with no caching at all. A redeployed bot process has
 > nothing to lose. Run `/config` once after first boot against a fresh hub and work through its

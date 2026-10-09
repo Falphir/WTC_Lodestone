@@ -35,7 +35,6 @@ async function loadPanel() {
     loaded: true,
     exports: {
       getDiscordConfig: async () => ({ ...FIXTURE }),
-      listDiscordServers: async () => [],
       updateDiscordConfig: async (patch) => {
         patches.push(patch);
         return { ...FIXTURE, ...patch };

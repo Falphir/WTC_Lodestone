@@ -23,7 +23,7 @@ for (const file of fs.readdirSync(eventsDir).filter((f) => f.endsWith('.js'))) {
 }
 
 async function main() {
-  await config.init(); // bot config/server list now live on the hub -- nothing works without it
+  await config.init(); // the bot's config lives on the hub -- nothing works without it
   await client.login(config.token);
 }
 

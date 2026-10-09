@@ -109,47 +109,16 @@ async function updateDiscordConfig(patch) {
   return res.json();
 }
 
-/** Lists the display-only servers shown by /serverinfo. */
-async function listDiscordServers() {
-  const res = await withAuth((t) => fetch(`${baseUrl()}/api/admin/discord/servers`, { headers: { Authorization: `Bearer ${t}` } }));
-  if (!res.ok) throw new Error(`Could not load the Discord server list: ${await errorMessage(res)}`);
-  return res.json();
-}
-
-async function addDiscordServer(server) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/servers`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(server),
-    })
-  );
-  if (!res.ok) throw new Error(`Could not add server '${server.id}': ${await errorMessage(res)}`);
-  return res.json();
-}
-
-/** Merges `patch` into server `id` (only non-null fields are changed) and returns the result. */
-async function updateDiscordServer(id, patch) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/servers/${id}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    })
-  );
-  if (!res.ok) throw new Error(`Could not update server '${id}': ${await errorMessage(res)}`);
-  return res.json();
-}
-
-async function removeDiscordServer(id) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/servers/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${t}` },
-    })
-  );
-  if (res.ok || res.status === 404) return;
-  throw new Error(`Could not remove server '${id}': ${await errorMessage(res)}`);
+/**
+ * The servers an admin has published for players to see, each with the listing /serverinfo shows
+ * (address, modpack, version, launcher, link). Fetched per call rather than cached, since
+ * publishing happens on the dashboard and the bot would never hear about it.
+ */
+async function listPublishedServers() {
+  const res = await withAuth((t) => fetch(`${baseUrl()}/api/admin/servers`, { headers: { Authorization: `Bearer ${t}` } }));
+  if (!res.ok) throw new Error(`Could not load the server list: ${await errorMessage(res)}`);
+  const servers = await res.json();
+  return servers.filter((s) => s.listing.published);
 }
 
 /**
@@ -237,10 +206,7 @@ module.exports = {
   whitelistRemove,
   getDiscordConfig,
   updateDiscordConfig,
-  listDiscordServers,
-  addDiscordServer,
-  updateDiscordServer,
-  removeDiscordServer,
+  listPublishedServers,
   mojangLookup,
   getPlayerByUuid,
   getPlayerByDiscord,

@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.repository.GameServerRepository;
 import io.github.falphir.hub.repository.ServerHeartbeatRepository;
 
@@ -29,7 +30,7 @@ class ServerServiceTest {
 
     @Test
     void removeDeletesTheServerAndItsHeartbeats() {
-        service.register("remove-test", "Remove Test");
+        service.register("remove-test", "Remove Test", null);
         service.recordHeartbeat("remove-test", 1, 10, 20.0, 100, 200);
 
         service.remove("remove-test");
@@ -43,38 +44,84 @@ class ServerServiceTest {
         assertThatThrownBy(() -> service.remove("no-such-server")).isInstanceOf(ResponseStatusException.class);
     }
 
+    /** Only the fields under test; everything else stays as it is. */
+    private static ServerService.Patch patch(String id, String name) {
+        return new ServerService.Patch(id, name, null, null, null, null, null, null, null);
+    }
+
+    /** A full public listing, as the register form or edit dialog submits one. */
+    private static ServerService.Patch listing(Boolean published) {
+        return new ServerService.Patch(null, null, "play.example.com", "ATM10", "https://example.com/pack",
+                "0.7.1", "CurseForge", "https://example.com/icon.png", published);
+    }
+
+    @Test
+    void registerStoresThePublicListingButLeavesItUnpublished() {
+        service.register("register-test", "Register Test", listing(null));
+
+        GameServer server = servers.findById("register-test").orElseThrow();
+        assertThat(server.getPublicAddress()).isEqualTo("play.example.com");
+        assertThat(server.getModpack()).isEqualTo("ATM10");
+        assertThat(server.getModpackUrl()).isEqualTo("https://example.com/pack");
+        assertThat(server.getModpackVersion()).isEqualTo("0.7.1");
+        assertThat(server.getLauncher()).isEqualTo("CurseForge");
+        assertThat(server.getIconUrl()).isEqualTo("https://example.com/icon.png");
+        assertThat(server.isPublished()).isFalse();
+    }
+
     @Test
     void editChangesTheDisplayName() {
-        service.register("edit-test", "Old Name");
+        service.register("edit-test", "Old Name", null);
 
-        service.edit("edit-test", "New Name", "edit-test");
+        service.edit("edit-test", patch(null, "New Name"));
 
         assertThat(servers.findById("edit-test").orElseThrow().getName()).isEqualTo("New Name");
     }
 
     @Test
-    void editCanChangeTheIdAndCarriesItsHeartbeatsAlong() {
-        service.register("old-id", "Edit Test");
-        service.recordHeartbeat("old-id", 1, 10, 20.0, 100, 200);
+    void editLeavesOutTheFieldsItIsNotGiven() {
+        service.register("edit-test", "Edit Test", null);
+        service.edit("edit-test", listing(true));
 
-        service.edit("old-id", "Edit Test", "new-id");
+        service.edit("edit-test", patch(null, "Renamed"));
+
+        GameServer server = servers.findById("edit-test").orElseThrow();
+        assertThat(server.getName()).isEqualTo("Renamed");
+        assertThat(server.getPublicAddress()).isEqualTo("play.example.com");
+        assertThat(server.getModpackVersion()).isEqualTo("0.7.1");
+        assertThat(server.getLauncher()).isEqualTo("CurseForge");
+        assertThat(server.getIconUrl()).isEqualTo("https://example.com/icon.png");
+        assertThat(server.isPublished()).isTrue();
+    }
+
+    @Test
+    void editCanChangeTheIdAndCarriesTheRestOfTheRowAlong() {
+        service.register("old-id", "Edit Test", null);
+        service.recordHeartbeat("old-id", 1, 10, 20.0, 100, 200);
+        service.edit("old-id", listing(true));
+
+        service.edit("old-id", patch("new-id", null));
 
         assertThat(servers.existsById("old-id")).isFalse();
-        assertThat(servers.findById("new-id").orElseThrow().getName()).isEqualTo("Edit Test");
+        GameServer moved = servers.findById("new-id").orElseThrow();
+        assertThat(moved.getName()).isEqualTo("Edit Test");
+        assertThat(moved.getPublicAddress()).isEqualTo("play.example.com");
+        assertThat(moved.isPublished()).isTrue();
         assertThat(heartbeats.findByServerIdAndRecordedAtAfterOrderByRecordedAtDesc("new-id", Instant.EPOCH)).hasSize(1);
     }
 
     @Test
     void editThrowsWhenTheNewIdIsAlreadyTaken() {
-        service.register("edit-test", "Edit Test");
-        service.register("taken", "Taken");
+        service.register("edit-test", "Edit Test", null);
+        service.register("taken", "Taken", null);
 
-        assertThatThrownBy(() -> service.edit("edit-test", "Edit Test", "taken")).isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.edit("edit-test", patch("taken", null)))
+                .isInstanceOf(ResponseStatusException.class);
     }
 
     @Test
     void resetTokenIssuesANewTokenAndInvalidatesTheOld() {
-        var registered = service.register("reset-test", "Reset Test");
+        var registered = service.register("reset-test", "Reset Test", null);
 
         var reset = service.resetToken("reset-test");
 

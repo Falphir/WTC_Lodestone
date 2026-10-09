@@ -45,7 +45,7 @@ class BridgeSyncTest {
 
     @Test
     void serverReportsSetupAndWhitelistVersionUntilTheListChanges() throws Exception {
-        String bearer = "Bearer " + servers.register(SERVER, "Sync Test").token();
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
         String admin = adminToken();
 
         mvc.perform(post("/api/bridge/hello").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
@@ -74,7 +74,7 @@ class BridgeSyncTest {
 
     @Test
     void whitelistStaysVisibleAsEmptyOnceItHasEverBeenPopulated() throws Exception {
-        String bearer = "Bearer " + servers.register(SERVER + "-empty", "Sync Test Empty").token();
+        String bearer = "Bearer " + servers.register(SERVER + "-empty", "Sync Test Empty", null).token();
         String uuid = "0f3a1b2c-0000-4000-8000-0000000000c1";
 
         whitelist.importEntries(List.of(new WhitelistService.Entry(uuid, "Carl")), "test");
@@ -95,7 +95,7 @@ class BridgeSyncTest {
 
     @Test
     void olderModsCanStillCheckInWithoutABody() throws Exception {
-        String bearer = "Bearer " + servers.register(SERVER, "Sync Test").token();
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
         mvc.perform(post("/api/bridge/hello").header("Authorization", bearer)).andExpect(status().isOk());
     }
 

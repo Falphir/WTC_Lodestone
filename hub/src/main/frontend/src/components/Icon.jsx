@@ -5,6 +5,8 @@ import {
   faChevronLeft,
   faCopy,
   faDesktop,
+  faEye,
+  faEyeSlash,
   faGauge,
   faKey,
   faMagnifyingGlass,
@@ -41,6 +43,8 @@ const ICONS = {
   edit: faPen,
   key: faKey,
   trash: faTrashCan,
+  show: faEye,
+  hide: faEyeSlash,
 }
 
 export function Icon({ name, size = 16 }) {

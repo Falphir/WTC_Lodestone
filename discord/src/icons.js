@@ -17,7 +17,7 @@ const ICONS = {
   // accents
   welcome: '👋', // approval welcome embed title
   link: '🔗', // /whois "Account Link" title
-  servers: '🖥️', // /serverinfo and /server list titles
+  servers: '🖥️', // /serverinfo title
   config: '⚙️', // /config view title
 
   // status

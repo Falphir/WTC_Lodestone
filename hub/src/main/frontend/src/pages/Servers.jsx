@@ -1,6 +1,17 @@
 import { useState } from 'react'
 import { api } from '../api'
-import { Badge, EmptyState, ErrorNote, Field, Icon, PageHead, Panel, StatusBadge, TokenNotice } from '../components'
+import {
+  Badge,
+  EmptyState,
+  ErrorNote,
+  Field,
+  Icon,
+  ListingFields,
+  PageHead,
+  Panel,
+  StatusBadge,
+  TokenNotice,
+} from '../components'
 import { formatDate, relativeTime, statusOf, whitelistSync } from '../format'
 import { useAction, useApi } from '../hooks'
 
@@ -72,9 +83,12 @@ export default function Servers() {
                 .map((s) => (
                   <tr key={s.id} className="row-link">
                     <td>
-                      <a href={`#/servers/${encodeURIComponent(s.id)}`} className="row-anchor">
-                        <span className="cell-title">{s.name}</span>
-                        <span className="cell-sub mono">{s.id}</span>
+                      <a href={`#/servers/${encodeURIComponent(s.id)}`} className="row-anchor cell-server">
+                        {s.listing.iconUrl && <img src={s.listing.iconUrl} alt="" className="server-icon" />}
+                        <span>
+                          <span className="cell-title">{s.name}</span>
+                          <span className="cell-sub mono">{s.id}</span>
+                        </span>
                       </a>
                     </td>
                     <td>
@@ -108,12 +122,14 @@ function WhitelistBadge({ server }) {
 function RegisterForm({ onCancel, onRegistered }) {
   const [id, setId] = useState('')
   const [name, setName] = useState('')
+  const [listing, setListing] = useState({})
   const { run, busy, error } = useAction()
 
   function submit(event) {
     event.preventDefault()
     run(async () => {
-      onRegistered(await api('/api/admin/servers', { method: 'POST', body: { id, name: name.trim() } }))
+      const body = { ...listing, id, name: name.trim() }
+      onRegistered(await api('/api/admin/servers', { method: 'POST', body }))
       return null
     })
   }
@@ -138,6 +154,13 @@ function RegisterForm({ onCancel, onRegistered }) {
           />
         </Field>
       </div>
+
+      <h3>What players see</h3>
+      <p className="muted">
+        All optional, and editable later. Nobody sees any of it until you publish the server from its page.
+      </p>
+      <ListingFields values={listing} onChange={(key, value) => setListing((l) => ({ ...l, [key]: value }))} />
+
       <ErrorNote>{error}</ErrorNote>
       <div className="form-actions">
         <button type="submit" className="button button-primary" disabled={busy}>

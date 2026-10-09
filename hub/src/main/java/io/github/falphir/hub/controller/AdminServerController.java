@@ -59,12 +59,29 @@ public class AdminServerController {
                 serverService.status(s, latest), latest == null ? null : HeartbeatView.from(latest),
                 new ModView(s.getModVersion(), s.getMinecraftVersion(), s.getLoaderVersion()),
                 new WhitelistSyncView(s.getSyncWhitelist(), s.getWhitelistSyncedAt(),
-                        s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion)));
+                        s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion)),
+                ListingView.from(s));
     }
 
     public record ServerView(String id, String name, boolean enabled, Instant createdAt, Instant lastSeen,
             @Schema(description = "Decided by the hub from the last heartbeat") ServerService.ServerStatus status,
-            HeartbeatView latest, ModView mod, WhitelistSyncView whitelist) {}
+            HeartbeatView latest, ModView mod, WhitelistSyncView whitelist, ListingView listing) {}
+
+    /**
+     * What players are shown for this server, and whether they're shown it at all. Blank until an
+     * admin fills it in; `published` is what the Discord bot's /serverinfo filters on.
+     */
+    public record ListingView(boolean published, String publicAddress, String modpack, String modpackUrl,
+            @Schema(description = "The modpack's own version, not any of the versions the mod reports")
+            String modpackVersion,
+            @Schema(description = "Launcher players should install it with", example = "CurseForge") String launcher,
+            @Schema(description = "The modpack's image, used as the thumbnail wherever the listing is shown")
+            String iconUrl) {
+        static ListingView from(GameServer s) {
+            return new ListingView(s.isPublished(), s.getPublicAddress(), s.getModpack(), s.getModpackUrl(),
+                    s.getModpackVersion(), s.getLauncher(), s.getIconUrl());
+        }
+    }
 
     /** What the mod reported on its last check-in; all null until it has checked in with a mod that reports them. */
     public record ModView(String version, String minecraftVersion, String loaderVersion) {}
@@ -79,9 +96,13 @@ public class AdminServerController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Register a game server",
-            description = "Creates a server and returns its token. The token is shown only once.")
+            description = "Creates a server and returns its token. The token is shown only once. The public "
+                    + "listing fields are optional here and can be filled in later; a new server is never "
+                    + "published until an admin says so.")
     public ServerService.RegisteredServer register(@Valid @RequestBody RegisterServerRequest request) {
-        return serverService.register(request.id(), request.name());
+        return serverService.register(request.id(), request.name(), new ServerService.Patch(null, null,
+                request.publicAddress(), request.modpack(), request.modpackUrl(), request.modpackVersion(),
+                request.launcher(), request.iconUrl(), null));
     }
 
     public record RegisterServerRequest(
@@ -89,22 +110,54 @@ public class AdminServerController {
             @NotBlank @Pattern(regexp = "[a-z0-9_-]{1,64}", message = "lowercase letters, numbers, _ and - only") String id,
 
             @Schema(description = "Display name shown on the dashboard and in Discord", example = "Example Server")
-            @NotBlank @Size(max = 100) String name) {}
+            @NotBlank @Size(max = 100) String name,
+
+            @Schema(description = "Address players connect to", example = "play.example.com:25565")
+            @Size(max = 100) String publicAddress,
+
+            @Schema(description = "Modpack name", example = "All The Mods 10") @Size(max = 100) String modpack,
+
+            @Schema(description = "Where players download the modpack") @Size(max = 300) String modpackUrl,
+
+            @Schema(description = "The modpack's own version", example = "0.7.1") @Size(max = 32) String modpackVersion,
+
+            @Schema(description = "Launcher players should install it with", example = "CurseForge")
+            @Size(max = 32) String launcher,
+
+            @Schema(description = "The modpack's image") @Size(max = 300) String iconUrl) {}
 
     @PatchMapping("/{id}")
     @Operation(summary = "Edit a server",
-            description = "Changes the display name and/or id. Changing the id also needs a matching update "
-                    + "to serverId in that server's mod config.")
+            description = "Only non-null fields are changed, so a lone `published` publishes or hides a server. "
+                    + "Changing the id also needs a matching update to serverId in that server's mod config.")
     public ServerView edit(@PathVariable String id, @Valid @RequestBody EditServerRequest request) {
-        return toView(serverService.edit(id, request.name(), request.id()), whitelistService.version());
+        return toView(serverService.edit(id, new ServerService.Patch(request.id(), request.name(),
+                request.publicAddress(), request.modpack(), request.modpackUrl(), request.modpackVersion(),
+                request.launcher(), request.iconUrl(), request.published())), whitelistService.version());
     }
 
     public record EditServerRequest(
-            @Schema(description = "Display name shown on the dashboard and in Discord", example = "Example Server")
-            @NotBlank @Size(max = 100) String name,
-
             @Schema(description = "Unique server id, also used as serverId in the mod config", example = "exampleserver")
-            @NotBlank @Pattern(regexp = "[a-z0-9_-]{1,64}", message = "lowercase letters, numbers, _ and - only") String id) {}
+            @Pattern(regexp = "[a-z0-9_-]{1,64}", message = "lowercase letters, numbers, _ and - only") String id,
+
+            @Schema(description = "Display name shown on the dashboard and in Discord", example = "Example Server")
+            @Size(min = 1, max = 100) String name,
+
+            @Schema(description = "Address players connect to", example = "play.example.com:25565")
+            @Size(max = 100) String publicAddress,
+
+            @Schema(description = "Modpack name", example = "All The Mods 10") @Size(max = 100) String modpack,
+
+            @Schema(description = "Where players download the modpack") @Size(max = 300) String modpackUrl,
+
+            @Schema(description = "The modpack's own version", example = "0.7.1") @Size(max = 32) String modpackVersion,
+
+            @Schema(description = "Launcher players should install it with", example = "CurseForge")
+            @Size(max = 32) String launcher,
+
+            @Schema(description = "The modpack's image") @Size(max = 300) String iconUrl,
+
+            @Schema(description = "Whether players see this server in Discord's /serverinfo") Boolean published) {}
 
     @PostMapping("/{id}/reset-token")
     @Operation(summary = "Reset a server's token",

@@ -1,7 +1,6 @@
 {
   "common": {
     "unknownCommand": "Unknown command.",
-    "unknownSubcommand": "Unknown subcommand.",
     "staffOnly": "Staff only.",
     "interactionError": "Something went wrong handling that."
   },
@@ -115,43 +114,14 @@
     "commandDescription": "Show servers, versions and install links",
     "embedTitle": "{brand} — Servers",
     "embedDescription": "Connect with the Java Edition of Minecraft using the addresses below.",
-    "serverName": "{name}",
-    "serverValue": "> **Address:** `{address}`\n> **Modpack:** {modpack} `v{version}`",
-    "installLine": "\n> **Install:** [Download & install]({url})"
-  },
-
-  "server": {
-    "commandDescription": "Manage the servers shown in /serverinfo",
-    "subListDescription": "List configured servers",
-    "subAddDescription": "Add a server (opens a form)",
-    "subEditDescription": "Edit a server's display info",
-    "subRemoveDescription": "Remove a server",
-    "optionIdDescription": "Server id",
-
-    "noSuchServer": "No server with id `{id}`.",
-    "addModalTitle": "Add Server",
-    "labelId": "Server ID (short, unique, no spaces)",
-    "placeholderId": "e.g. packa",
-    "labelName": "Display name",
-    "placeholderName": "e.g. Pack A — Adventure",
-    "editModalTitle": "Edit {id}",
-    "labelPublicAddress": "Public address (ip:port)",
-    "labelModpack": "Modpack name",
-    "labelVersion": "Version",
-    "labelInstallUrl": "Install URL",
-
-    "idInvalid": "ID must be letters, numbers, `-` or `_` (no spaces).",
-    "idExists": "A server with id `{id}` already exists.",
-    "added": "Added server `{id}`. Set its display info with `/server edit id:{id}`.",
-    "updated": "Updated `{id}`.",
-    "removePrompt": "Remove server `{id}` from /serverinfo? (Its whitelist entries on the hub are untouched.)",
-    "removeButton": "Delete {id}",
-    "removed": "Removed server `{id}`.",
-    "listEmpty": "No servers configured yet. Add one with `/server add`.",
-    "listTitle": "Configured servers",
-    "listItemName": "{id} — {name}",
-    "listItemNoName": "(no name)",
-    "listItemValue": "Address `{address}` • {modpack} `{version}`"
+    "lineAddress": "> **IP:** `{address}`",
+    "lineModpack": "> **Modpack:** {modpack}",
+    "lineVersion": "> **Version:** `{version}`",
+    "lineLauncher": "> **Launcher:** {launcher}",
+    "lineModpackUrl": "> **Modpack link:** [Download & install]({url})",
+    "noDetails": "> No details yet.",
+    "empty": "No servers are published yet. An admin publishes one from the dashboard.",
+    "truncated": "Showing the first {shown}."
   },
 
   "config": {

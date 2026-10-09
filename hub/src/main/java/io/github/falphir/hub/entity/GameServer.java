@@ -50,6 +50,32 @@ public class GameServer {
     @Column(name = "whitelist_synced_at")
     private Instant whitelistSyncedAt;
 
+    // ---- public listing: what the Discord bot's /serverinfo shows players, blank until filled in ----
+
+    @Column(name = "public_address", nullable = false, length = 100)
+    private String publicAddress = "";
+
+    @Column(nullable = false, length = 100)
+    private String modpack = "";
+
+    @Column(name = "modpack_url", nullable = false, length = 300)
+    private String modpackUrl = "";
+
+    /** The modpack's own version, which is not any of the versions the mod reports. */
+    @Column(name = "modpack_version", nullable = false, length = 32)
+    private String modpackVersion = "";
+
+    @Column(nullable = false, length = 32)
+    private String launcher = "";
+
+    /** The modpack's image, used as the thumbnail wherever the listing is shown. */
+    @Column(name = "icon_url", nullable = false, length = 300)
+    private String iconUrl = "";
+
+    /** Whether players can see this server at all; nothing else here is public. */
+    @Column(nullable = false)
+    private boolean published = false;
+
     protected GameServer() {
         // required by JPA
     }
@@ -85,6 +111,7 @@ public class GameServer {
 
     public String getId() { return id; }
     public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
     public boolean isEnabled() { return enabled; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getLastSeen() { return lastSeen; }
@@ -94,4 +121,19 @@ public class GameServer {
     public Boolean getSyncWhitelist() { return syncWhitelist; }
     public String getWhitelistVersion() { return whitelistVersion; }
     public Instant getWhitelistSyncedAt() { return whitelistSyncedAt; }
+
+    public String getPublicAddress() { return publicAddress; }
+    public void setPublicAddress(String publicAddress) { this.publicAddress = publicAddress; }
+    public String getModpack() { return modpack; }
+    public void setModpack(String modpack) { this.modpack = modpack; }
+    public String getModpackUrl() { return modpackUrl; }
+    public void setModpackUrl(String modpackUrl) { this.modpackUrl = modpackUrl; }
+    public String getModpackVersion() { return modpackVersion; }
+    public void setModpackVersion(String modpackVersion) { this.modpackVersion = modpackVersion; }
+    public String getLauncher() { return launcher; }
+    public void setLauncher(String launcher) { this.launcher = launcher; }
+    public String getIconUrl() { return iconUrl; }
+    public void setIconUrl(String iconUrl) { this.iconUrl = iconUrl; }
+    public boolean isPublished() { return published; }
+    public void setPublished(boolean published) { this.published = published; }
 }
