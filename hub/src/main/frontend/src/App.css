@@ -132,8 +132,13 @@
   padding: 40px 48px 64px;
 }
 
+/* The one knob for how wide the dashboard gets. Centred rather than left-aligned so the leftover
+   space on a very wide screen is split either side instead of pooling in one slab on the right.
+   Capped rather than fluid because a table row spanning 2500px is a long way for an eye to travel;
+   what fills the extra width instead is more charts per row (.charts) and roomier tables. */
 .page {
-  max-width: 1040px;
+  max-width: 1760px;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -762,10 +767,12 @@
   padding-left: 32px;
 }
 
+
 .form {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 880px;
 }
 
 /* the modpack's own image, the same one Discord shows as a thumbnail */
@@ -904,9 +911,12 @@
   }
 }
 
+/* Charts keep a fixed 190px height (LineChart), so left to span the full page they flatten into
+   strips. Two-up once there's room for it instead; min() keeps the track from forcing 600px of
+   overflow on a phone, which a bare minmax(600px, 1fr) would. */
 .charts {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr));
   gap: 16px;
   transition: opacity 0.2s;
 }
