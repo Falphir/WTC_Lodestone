@@ -39,9 +39,10 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
-      - name: Upload mod jar
+      - name: Upload mod jars
         uses: actions/upload-artifact@v4
         with:
           name: wtc_lodestone-mod
-          path: mod/build/libs/*.jar
+          # one jar per loader subproject
+          path: mod/*/build/libs/*.jar
           if-no-files-found: error

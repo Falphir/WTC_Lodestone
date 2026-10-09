@@ -7,3 +7,8 @@ pluginManagement {
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
+
+// One subproject per mod loader. They all compile the same common/ sources (see their
+// build.gradle), so common/ is a source directory rather than a project of its own --
+// there is nothing to build without a loader to build it against.
+include 'neoforge'

@@ -1,0 +1,79 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.147'
+    id 'idea'
+}
+
+base {
+    archivesName = "${mod_id}-neoforge-${minecraft_version}"
+}
+
+// The loader-free core, compiled into this jar. Every loader subproject does this with the same
+// directory, which is what keeps the jars self-contained and the core honest: anything in here
+// that reached for a NeoForge class would stop the next loader's build dead.
+sourceSets.main.java.srcDir '../common/src/main/java'
+sourceSets.test.java.srcDir '../common/src/test/java'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    // Server-side only: there is no client half of this mod to run.
+    runs {
+        server {
+            server()
+            programArgument '--nogui'
+            gameDirectory = project.file('../run')
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+// Expands ${...} in the metadata template, so the versions live only in gradle.properties.
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

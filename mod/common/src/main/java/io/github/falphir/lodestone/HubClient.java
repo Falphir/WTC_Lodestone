@@ -49,8 +49,8 @@ public final class HubClient {
     public static void hello(String modVersion, String minecraftVersion, String loaderVersion) {
         String url = baseUrl() + "/api/bridge/hello";
 
-        if (Config.DRY_RUN.get()) {
-            WTCLodestone.LOGGER.info("[dry run] Would check in with hub at {}", url);
+        if (LodestoneConfig.dryRun()) {
+            Lodestone.LOGGER.info("[dry run] Would check in with hub at {}", url);
             return;
         }
 
@@ -58,11 +58,11 @@ public final class HubClient {
         body.addProperty("modVersion", modVersion);
         body.addProperty("minecraftVersion", minecraftVersion);
         body.addProperty("loaderVersion", loaderVersion);
-        body.addProperty("syncWhitelist", Config.SYNC_WHITELIST.get());
+        body.addProperty("syncWhitelist", LodestoneConfig.syncWhitelist());
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + Config.TOKEN.get())
+                .header("Authorization", "Bearer " + LodestoneConfig.token())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
@@ -70,7 +70,7 @@ public final class HubClient {
         HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(HubClient::handleHelloResponse)
                 .exceptionally(error -> {
-                    WTCLodestone.LOGGER.warn("WTC Lodestone hub unreachable at {}: {}", url, error.getMessage());
+                    Lodestone.LOGGER.warn("WTC Lodestone hub unreachable at {}: {}", url, error.getMessage());
                     return null;
                 });
     }
@@ -81,7 +81,7 @@ public final class HubClient {
         if (status == 200) {
             JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
             String hubServerId = body.get("serverId").getAsString();
-            WTCLodestone.LOGGER.info("Connected to WTC Lodestone hub as '{}' ({})",
+            Lodestone.LOGGER.info("Connected to WTC Lodestone hub as '{}' ({})",
                     hubServerId, body.get("name").getAsString());
 
             // older hubs don't send it; keep the default then
@@ -90,14 +90,14 @@ public final class HubClient {
                 heartbeatIntervalTicks = Math.max(20 * 10, seconds * 20);
             }
 
-            if (!hubServerId.equals(Config.SERVER_ID.get())) {
-                WTCLodestone.LOGGER.warn("Config says serverId '{}' but this token belongs to '{}'. Check the config.",
-                        Config.SERVER_ID.get(), hubServerId);
+            if (!hubServerId.equals(LodestoneConfig.serverId())) {
+                Lodestone.LOGGER.warn("Config says serverId '{}' but this token belongs to '{}'. Check the config.",
+                        LodestoneConfig.serverId(), hubServerId);
             }
         } else if (status == 401 || status == 403) {
-            WTCLodestone.LOGGER.warn("WTC Lodestone hub rejected this server's token (HTTP {}). Check 'token' in the config.", status);
+            Lodestone.LOGGER.warn("WTC Lodestone hub rejected this server's token (HTTP {}). Check 'token' in the config.", status);
         } else {
-            WTCLodestone.LOGGER.warn("WTC Lodestone hub check-in failed (HTTP {})", status);
+            Lodestone.LOGGER.warn("WTC Lodestone hub check-in failed (HTTP {})", status);
         }
     }
 
@@ -105,8 +105,8 @@ public final class HubClient {
     public static void heartbeat(MinecraftServer server) {
         String url = baseUrl() + "/api/bridge/heartbeat";
 
-        if (Config.DRY_RUN.get()) {
-            WTCLodestone.LOGGER.info("[dry run] Would send heartbeat to hub at {}", url);
+        if (LodestoneConfig.dryRun()) {
+            Lodestone.LOGGER.info("[dry run] Would send heartbeat to hub at {}", url);
             return;
         }
 
@@ -124,14 +124,14 @@ public final class HubClient {
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + Config.TOKEN.get())
+                .header("Authorization", "Bearer " + LodestoneConfig.token())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
 
         HTTP.sendAsync(request, HttpResponse.BodyHandlers.discarding())
                 .exceptionally(error -> {
-                    WTCLodestone.LOGGER.warn("WTC Lodestone heartbeat failed: {}", error.getMessage());
+                    Lodestone.LOGGER.warn("WTC Lodestone heartbeat failed: {}", error.getMessage());
                     return null;
                 });
     }
@@ -140,14 +140,14 @@ public final class HubClient {
     public static void syncWhitelist(MinecraftServer server) {
         String url = baseUrl() + "/api/bridge/whitelist";
 
-        if (Config.DRY_RUN.get()) {
-            WTCLodestone.LOGGER.info("[dry run] Would sync whitelist from hub at {}", url);
+        if (LodestoneConfig.dryRun()) {
+            Lodestone.LOGGER.info("[dry run] Would sync whitelist from hub at {}", url);
             return;
         }
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + Config.TOKEN.get())
+                .header("Authorization", "Bearer " + LodestoneConfig.token())
                 .GET()
                 .build();
 
@@ -157,13 +157,13 @@ public final class HubClient {
                     // rather than wipe it (see WhitelistService.everPopulated() on the hub).
                     if (response.statusCode() == 204) {
                         if (!warnedEmptyWhitelist) {
-                            WTCLodestone.LOGGER.warn("Hub whitelist is empty - leaving this server's whitelist untouched. Import it on the dashboard.");
+                            Lodestone.LOGGER.warn("Hub whitelist is empty - leaving this server's whitelist untouched. Import it on the dashboard.");
                             warnedEmptyWhitelist = true;
                         }
                         return;
                     }
                     if (response.statusCode() != 200) {
-                        WTCLodestone.LOGGER.warn("WTC Lodestone whitelist sync failed (HTTP {})", response.statusCode());
+                        Lodestone.LOGGER.warn("WTC Lodestone whitelist sync failed (HTTP {})", response.statusCode());
                         return;
                     }
                     List<GameProfile> players = parseWhitelist(response.body());
@@ -174,7 +174,7 @@ public final class HubClient {
                     });
                 })
                 .exceptionally(error -> {
-                    WTCLodestone.LOGGER.warn("WTC Lodestone whitelist sync failed: {}", error.getMessage());
+                    Lodestone.LOGGER.warn("WTC Lodestone whitelist sync failed: {}", error.getMessage());
                     return null;
                 });
     }
@@ -200,6 +200,9 @@ public final class HubClient {
         int added = 0;
 
         for (UserWhiteListEntry entry : List.copyOf(whitelist.getEntries())) {
+            // getUser() is protected in vanilla; each loader module widens it with an access
+            // transformer. That file is the one thing here a loader has to provide -- Forge takes
+            // the same one, but a Fabric module would need an access widener in its place.
             GameProfile user = entry.getUser();
             if (user != null && !wanted.contains(user.getId())) {
                 whitelist.remove(user);
@@ -214,7 +217,7 @@ public final class HubClient {
         }
 
         if (added + removed > 0) {
-            WTCLodestone.LOGGER.info("Whitelist synced from hub: {} added, {} removed", added, removed);
+            Lodestone.LOGGER.info("Whitelist synced from hub: {} added, {} removed", added, removed);
             // Same as vanilla /whitelist remove: only kicks when enforce-whitelist is on
             server.kickUnlistedPlayers(server.createCommandSourceStack());
         }
@@ -228,7 +231,7 @@ public final class HubClient {
         body.addProperty("version", version);
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/bridge/whitelist/applied"))
                 .timeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + Config.TOKEN.get())
+                .header("Authorization", "Bearer " + LodestoneConfig.token())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
@@ -237,17 +240,17 @@ public final class HubClient {
         HTTP.sendAsync(request, HttpResponse.BodyHandlers.discarding())
                 .thenAccept(response -> {
                     if (response.statusCode() >= 300) {
-                        WTCLodestone.LOGGER.warn("WTC Lodestone could not report the applied whitelist (HTTP {})", response.statusCode());
+                        Lodestone.LOGGER.warn("WTC Lodestone could not report the applied whitelist (HTTP {})", response.statusCode());
                     }
                 })
                 .exceptionally(error -> {
-                    WTCLodestone.LOGGER.warn("WTC Lodestone could not report the applied whitelist: {}", error.getMessage());
+                    Lodestone.LOGGER.warn("WTC Lodestone could not report the applied whitelist: {}", error.getMessage());
                     return null;
                 });
     }
 
     private static String baseUrl() {
-        String url = Config.HUB_URL.get();
+        String url = LodestoneConfig.hubUrl();
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }
