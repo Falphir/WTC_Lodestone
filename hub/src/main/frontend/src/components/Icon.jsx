@@ -6,13 +6,16 @@ import {
   faCopy,
   faDesktop,
   faGauge,
+  faKey,
   faMagnifyingGlass,
   faMoon,
+  faPen,
   faPlus,
   faRightFromBracket,
   faServer,
   faShieldHalved,
   faSun,
+  faTrashCan,
   faUpload,
   faUserCheck,
   faXmark,
@@ -35,6 +38,9 @@ const ICONS = {
   upload: faUpload,
   menu: faBars,
   close: faXmark,
+  edit: faPen,
+  key: faKey,
+  trash: faTrashCan,
 }
 
 export function Icon({ name, size = 16 }) {

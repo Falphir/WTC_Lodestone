@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api'
-import { Badge, EmptyState, ErrorNote, Icon, LineChart, PageHead, Panel, StatusBadge } from '../components'
+import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorNote, Field, Icon, LineChart, PageHead, Panel, StatusBadge, TokenNotice } from '../components'
 import { formatDateTime, formatMemory, formatTps, relativeTime, statusOf, whitelistSync } from '../format'
 import { useAction, useApi, useHubInfo } from '../hooks'
 
@@ -14,7 +14,10 @@ export default function ServerDetail({ id }) {
   const [hours, setHours] = useState(24)
   const [showTable, setShowTable] = useState(false)
   const info = useHubInfo()
-  const { data: servers, error: serversError } = useApi('/api/admin/servers', { refreshMs: 60_000, topics: ['servers'] })
+  const { data: servers, error: serversError, reload: reloadServers } = useApi('/api/admin/servers', {
+    refreshMs: 60_000,
+    topics: ['servers'],
+  })
   const { data: heartbeats, error, stale } = useApi(`/api/admin/servers/${encodeURIComponent(id)}/heartbeats?hours=${hours}`, {
     refreshMs: 120_000,
     topics: ['servers'],
@@ -22,15 +25,27 @@ export default function ServerDetail({ id }) {
   })
   const server = servers?.find((s) => s.id === id)
   const { run, busy, error: removeError } = useAction()
+  const { run: runEdit, busy: editBusy, error: editError } = useAction(reloadServers)
+  const { run: runResetToken, busy: resetBusy, error: resetError } = useAction()
+  const [editing, setEditing] = useState(false)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [confirmingReset, setConfirmingReset] = useState(false)
+  const [newToken, setNewToken] = useState(null)
 
-  function removeServer() {
-    if (!server) return
-    if (!window.confirm(`Remove ${server.name}? It'll need to be registered again to reconnect.`)) return
-    run(async () => {
+  async function removeServer() {
+    const ok = await run(async () => {
       await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'DELETE' })
-      window.location.hash = '#/servers'
       return null
     })
+    if (ok) window.location.hash = '#/servers'
+  }
+
+  async function resetToken() {
+    const ok = await runResetToken(async () => {
+      setNewToken(await api(`/api/admin/servers/${encodeURIComponent(id)}/reset-token`, { method: 'POST' }))
+      return null
+    })
+    if (ok) setConfirmingReset(false)
   }
 
   const series = useMemo(() => {
@@ -77,11 +92,29 @@ export default function ServerDetail({ id }) {
         actions={
           server && (
             <div className="head-status">
-              <StatusBadge status={statusOf(server)} />
-              <small className="muted">Last heartbeat {relativeTime(server.lastSeen)}</small>
-              <button type="button" className="button button-quiet button-danger" disabled={busy} onClick={removeServer}>
-                Remove server
-              </button>
+              <div className="head-status-info">
+                <StatusBadge status={statusOf(server)} />
+                <small className="muted">Last heartbeat {relativeTime(server.lastSeen)}</small>
+              </div>
+              <div className="button-row">
+                <button type="button" className="button button-quiet" disabled={busy || resetBusy} onClick={() => setEditing(true)}>
+                  <Icon name="edit" />
+                  Edit
+                </button>
+                <button type="button" className="button button-quiet" disabled={busy || resetBusy} onClick={() => setConfirmingReset(true)}>
+                  <Icon name="key" />
+                  Reset token
+                </button>
+                <button
+                  type="button"
+                  className="button button-quiet button-danger"
+                  disabled={busy}
+                  onClick={() => setConfirmingRemove(true)}
+                >
+                  <Icon name="trash" />
+                  Remove server
+                </button>
+              </div>
             </div>
           )
         }
@@ -90,7 +123,54 @@ export default function ServerDetail({ id }) {
         <p className="muted mono">{id}</p>
       </PageHead>
 
-      <ErrorNote>{serversError || error || removeError}</ErrorNote>
+      <ErrorNote>{serversError || error}</ErrorNote>
+
+      {confirmingRemove && server && (
+        <ConfirmDialog
+          title="Remove server?"
+          confirmLabel="Remove server"
+          danger
+          busy={busy}
+          error={removeError}
+          onCancel={() => setConfirmingRemove(false)}
+          onConfirm={removeServer}
+        >
+          Remove {server.name}? It'll need to be registered again to reconnect.
+        </ConfirmDialog>
+      )}
+
+      {confirmingReset && server && (
+        <ConfirmDialog
+          title="Reset token?"
+          confirmLabel="Reset token"
+          danger
+          busy={resetBusy}
+          error={resetError}
+          onCancel={() => setConfirmingReset(false)}
+          onConfirm={resetToken}
+        >
+          Reset the token for {server.name}? The old token stops working immediately.
+        </ConfirmDialog>
+      )}
+
+      {editing && server && (
+        <EditDialog
+          server={server}
+          busy={editBusy}
+          error={editError}
+          onClose={() => setEditing(false)}
+          onSave={async (name, newId) => {
+            const ok = await runEdit(async () => {
+              const updated = await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'PATCH', body: { name, id: newId } })
+              if (updated.id !== id) window.location.hash = `#/servers/${encodeURIComponent(updated.id)}`
+              return null
+            })
+            if (ok) setEditing(false)
+          }}
+        />
+      )}
+
+      {newToken && <TokenNotice title={`New token for ${newToken.name}`} server={newToken} onDone={() => setNewToken(null)} />}
 
       {latest && (
         <dl className="figures">
@@ -169,6 +249,50 @@ export default function ServerDetail({ id }) {
         </div>
       )}
     </div>
+  )
+}
+
+function EditDialog({ server, busy, error, onClose, onSave }) {
+  const [name, setName] = useState(server.name)
+  const [id, setId] = useState(server.id)
+
+  return (
+    <Dialog onClose={onClose}>
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          onSave(name.trim(), id)
+        }}
+      >
+        <h2>Edit {server.name}</h2>
+        <div className="form-row">
+          <Field label="Display name">
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required autoFocus />
+          </Field>
+          <Field label="Server ID" hint="Goes in the mod config as serverId. Changing it needs a matching update there.">
+            <input
+              className="mono"
+              value={id}
+              onChange={(e) => setId(e.target.value.toLowerCase())}
+              pattern="[a-z0-9_\-]{1,64}"
+              title="Lowercase letters, numbers, _ and - only"
+              maxLength={64}
+              required
+            />
+          </Field>
+        </div>
+        <ErrorNote>{error}</ErrorNote>
+        <div className="form-actions">
+          <button type="submit" className="button button-primary" disabled={busy}>
+            Save
+          </button>
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Dialog>
   )
 }
 

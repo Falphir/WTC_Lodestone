@@ -78,6 +78,11 @@ public class GameServer {
         this.whitelistSyncedAt = Instant.now();
     }
 
+    /** Swaps the stored token hash; the old token stops authenticating immediately. */
+    public void rotateToken(String tokenHash) {
+        this.tokenHash = tokenHash;
+    }
+
     public String getId() { return id; }
     public String getName() { return name; }
     public boolean isEnabled() { return enabled; }

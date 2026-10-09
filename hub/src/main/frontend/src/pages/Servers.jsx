@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api'
-import { Badge, CopyButton, EmptyState, ErrorNote, Field, Icon, PageHead, Panel, StatusBadge } from '../components'
+import { Badge, EmptyState, ErrorNote, Field, Icon, PageHead, Panel, StatusBadge, TokenNotice } from '../components'
 import { formatDate, relativeTime, statusOf, whitelistSync } from '../format'
 import { useAction, useApi } from '../hooks'
 
@@ -32,7 +32,9 @@ export default function Servers() {
         <p className="muted">Each server runs the WTC Lodestone mod with its own token.</p>
       </PageHead>
 
-      {registered && <TokenNotice server={registered} onDone={() => setRegistered(null)} />}
+      {registered && (
+        <TokenNotice title={`${registered.name} is registered`} server={registered} onDone={() => setRegistered(null)} />
+      )}
 
       {registering && (
         <RegisterForm
@@ -143,26 +145,6 @@ function RegisterForm({ onCancel, onRegistered }) {
         </button>
         <button type="button" className="button" onClick={onCancel}>
           Cancel
-        </button>
-      </div>
-    </Panel>
-  )
-}
-
-function TokenNotice({ server, onDone }) {
-  const config = `serverId = "${server.id}"\ntoken = "${server.token}"`
-  return (
-    <Panel as="section" pad className="token-notice" aria-live="polite">
-      <h2>{server.name} is registered</h2>
-      <p>
-        Copy its token now. The hub only stores a hash of it, so it can't be shown again. Put these lines in{' '}
-        <code>config/wtc_lodestone-common.toml</code> on that server and restart it.
-      </p>
-      <pre className="codeblock">{config}</pre>
-      <div className="form-actions">
-        <CopyButton text={config} label="Copy config" />
-        <button type="button" className="button" onClick={onDone}>
-          Done
         </button>
       </div>
     </Panel>

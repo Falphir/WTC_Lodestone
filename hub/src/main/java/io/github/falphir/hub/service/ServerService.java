@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -30,6 +32,9 @@ public class ServerService {
     private final ServerHeartbeatRepository heartbeats;
     private final ApplicationEventPublisher events;
     private final Duration heartbeatInterval;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public ServerService(GameServerRepository repository, TokenService tokens, ServerHeartbeatRepository heartbeats,
             ApplicationEventPublisher events,
@@ -85,6 +90,34 @@ public class ServerService {
         find(id).markSeen();
         heartbeats.save(new ServerHeartbeat(id, playerCount, maxPlayers, tps, memoryUsedMb, memoryMaxMb));
         events.publishEvent(HubEvent.servers(id));
+    }
+
+    /** Changes a server's display name and/or id. The mod's config needs the new id to keep matching. */
+    @Transactional
+    public GameServer edit(String id, String name, String newId) {
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown server '" + id + "'");
+        }
+        if (!newId.equals(id) && repository.existsById(newId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Server '" + newId + "' already exists");
+        }
+        repository.edit(id, name, newId);
+        // repository.edit() is a bulk update -- it doesn't touch any GameServer already cached in
+        // this session, so without clearing, a stale copy (e.g. from the existsById check above,
+        // or a caller that loaded it earlier in this transaction) would be handed back below.
+        entityManager.clear();
+        events.publishEvent(HubEvent.servers(newId));
+        return find(newId);
+    }
+
+    /** Issues a new token for a server, invalidating the old one. Returned once and never stored. */
+    @Transactional
+    public RegisteredServer resetToken(String id) {
+        GameServer server = find(id);
+        String token = tokens.generateToken();
+        server.rotateToken(tokens.hash(token));
+        events.publishEvent(HubEvent.servers(id));
+        return new RegisteredServer(server.getId(), server.getName(), token);
     }
 
     /** The mod applied this version of the network whitelist. */

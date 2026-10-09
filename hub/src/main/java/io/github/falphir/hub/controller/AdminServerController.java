@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.entity.ServerHeartbeat;
 import io.github.falphir.hub.service.ServerService;
 import io.github.falphir.hub.service.WhitelistService;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,16 +50,16 @@ public class AdminServerController {
     @Operation(summary = "List servers", description = "All registered servers, each with its most recent heartbeat (null if none yet).")
     public List<ServerView> list() {
         String whitelistVersion = whitelistService.version();
-        return serverService.listServers().stream()
-                .map(s -> {
-                    ServerHeartbeat latest = serverService.latestHeartbeat(s.getId()).orElse(null);
-                    return new ServerView(s.getId(), s.getName(), s.isEnabled(), s.getCreatedAt(), s.getLastSeen(),
-                            serverService.status(s, latest), latest == null ? null : HeartbeatView.from(latest),
-                            new ModView(s.getModVersion(), s.getMinecraftVersion(), s.getLoaderVersion()),
-                            new WhitelistSyncView(s.getSyncWhitelist(), s.getWhitelistSyncedAt(),
-                                    s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion)));
-                })
-                .toList();
+        return serverService.listServers().stream().map(s -> toView(s, whitelistVersion)).toList();
+    }
+
+    private ServerView toView(GameServer s, String whitelistVersion) {
+        ServerHeartbeat latest = serverService.latestHeartbeat(s.getId()).orElse(null);
+        return new ServerView(s.getId(), s.getName(), s.isEnabled(), s.getCreatedAt(), s.getLastSeen(),
+                serverService.status(s, latest), latest == null ? null : HeartbeatView.from(latest),
+                new ModView(s.getModVersion(), s.getMinecraftVersion(), s.getLoaderVersion()),
+                new WhitelistSyncView(s.getSyncWhitelist(), s.getWhitelistSyncedAt(),
+                        s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion)));
     }
 
     public record ServerView(String id, String name, boolean enabled, Instant createdAt, Instant lastSeen,
@@ -88,6 +90,28 @@ public class AdminServerController {
 
             @Schema(description = "Display name shown on the dashboard and in Discord", example = "Example Server")
             @NotBlank @Size(max = 100) String name) {}
+
+    @PatchMapping("/{id}")
+    @Operation(summary = "Edit a server",
+            description = "Changes the display name and/or id. Changing the id also needs a matching update "
+                    + "to serverId in that server's mod config.")
+    public ServerView edit(@PathVariable String id, @Valid @RequestBody EditServerRequest request) {
+        return toView(serverService.edit(id, request.name(), request.id()), whitelistService.version());
+    }
+
+    public record EditServerRequest(
+            @Schema(description = "Display name shown on the dashboard and in Discord", example = "Example Server")
+            @NotBlank @Size(max = 100) String name,
+
+            @Schema(description = "Unique server id, also used as serverId in the mod config", example = "exampleserver")
+            @NotBlank @Pattern(regexp = "[a-z0-9_-]{1,64}", message = "lowercase letters, numbers, _ and - only") String id) {}
+
+    @PostMapping("/{id}/reset-token")
+    @Operation(summary = "Reset a server's token",
+            description = "Generates a new token and invalidates the old one immediately. The token is shown only once.")
+    public ServerService.RegisteredServer resetToken(@PathVariable String id) {
+        return serverService.resetToken(id);
+    }
 
     @GetMapping("/{id}/heartbeats")
     @Operation(summary = "Server heartbeat history", description = "Heartbeats from the last `hours` hours (1-168), most recent first.")
