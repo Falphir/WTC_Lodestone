@@ -10,12 +10,13 @@ import {
   Icon,
   LineChart,
   ListingFields,
+  OnlinePlayers,
   PageHead,
   Panel,
   StatusBadge,
   TokenNotice,
 } from '../components'
-import { formatDateTime, formatMemory, formatTps, relativeTime, statusOf, whitelistSync } from '../format'
+import { formatDateTime, formatMemory, formatMspt, formatTps, relativeTime, statusOf, whitelistSync } from '../format'
 import { useAction, useApi, useHubInfo } from '../hooks'
 
 const RANGES = [
@@ -76,6 +77,9 @@ export default function ServerDetail({ id }) {
     return {
       players: ascending.map((h) => ({ t: at(h), v: h.playerCount })),
       tps: ascending.map((h) => ({ t: at(h), v: h.tps })),
+      // 0 for heartbeats recorded before the mod reported tick time, so don't draw the chart at all
+      // until there is something real in it rather than a flat line along the axis
+      mspt: ascending.some((h) => h.msptAvg > 0) ? ascending.map((h) => ({ t: at(h), v: h.msptAvg })) : [],
       memory: ascending.map((h) => ({ t: at(h), v: h.memoryUsedMb })),
     }
   }, [heartbeats])
@@ -226,7 +230,10 @@ export default function ServerDetail({ id }) {
           </div>
           <div>
             <dt>TPS</dt>
-            <dd>{formatTps(latest.tps)}</dd>
+            <dd>
+              {formatTps(latest.tps)}
+              {latest.msptAvg > 0 && <span className="muted"> {formatMspt(latest.msptAvg)}/tick</span>}
+            </dd>
           </div>
           <div>
             <dt>Memory</dt>
@@ -236,6 +243,15 @@ export default function ServerDetail({ id }) {
             </dd>
           </div>
         </dl>
+      )}
+
+      {server?.online?.length > 0 && (
+        <section>
+          <h2 className="section-label">Online now</h2>
+          <Panel pad>
+            <OnlinePlayers players={server.online} />
+          </Panel>
+        </section>
       )}
 
       {server && (
@@ -290,6 +306,18 @@ export default function ServerDetail({ id }) {
             gapMs={gapMs}
             describe={describe}
           />
+          {series.mspt.length > 0 && (
+            <LineChart
+              title="Tick time"
+              points={series.mspt}
+              from={from}
+              to={to}
+              yMax={50}
+              format={formatMspt}
+              gapMs={gapMs}
+              describe={describe}
+            />
+          )}
           <LineChart
             title="Memory used"
             points={series.memory}
@@ -445,6 +473,7 @@ function HeartbeatTable({ heartbeats }) {
               <th>Time</th>
               <th className="num">Players</th>
               <th className="num">TPS</th>
+              <th className="num">Tick time</th>
               <th className="num">Memory</th>
             </tr>
           </thead>
@@ -456,6 +485,7 @@ function HeartbeatTable({ heartbeats }) {
                   {h.playerCount} / {h.maxPlayers}
                 </td>
                 <td className="num">{formatTps(h.tps)}</td>
+                <td className="num">{h.msptAvg > 0 ? formatMspt(h.msptAvg) : '–'}</td>
                 <td className="num">
                   {formatMemory(h.memoryUsedMb)} / {formatMemory(h.memoryMaxMb)}
                 </td>

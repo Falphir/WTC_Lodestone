@@ -43,7 +43,12 @@ public final class Lodestone {
         }
         LOGGER.info("WTC Lodestone ready: server '{}' -> {}{}",
                 LodestoneConfig.serverId(), LodestoneConfig.hubUrl(), LodestoneConfig.dryRun() ? " (dry run)" : "");
-        HubClient.hello(platform.modVersion(), platform.minecraftVersion(), platform.loaderVersion());
+        if (LodestoneConfig.syncWhitelist() && !server.isEnforceWhitelist()) {
+            LOGGER.warn("syncWhitelist is on but enforce-whitelist is false in server.properties - "
+                    + "players removed from the hub whitelist will stay connected until they disconnect");
+        }
+        HubClient.hello(platform.modVersion(), platform.minecraftVersion(), platform.loaderVersion(),
+                server.isEnforceWhitelist());
         if (LodestoneConfig.syncWhitelist()) HubClient.syncWhitelist(server);
     }
 

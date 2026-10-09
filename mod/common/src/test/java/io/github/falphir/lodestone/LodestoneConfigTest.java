@@ -71,6 +71,15 @@ class LodestoneConfigTest {
     }
 
     @Test
+    void decodesLineBreaksInTheWhitelistMessage() {
+        var values = parse("whitelistMessage = \"Not whitelisted yet.\\nApply at discord.gg/wtc\"");
+
+        assertEquals("Not whitelisted yet.\nApply at discord.gg/wtc", values.whitelistMessage());
+        assertEquals("", parse("serverId = genesis").whitelistMessage(), "empty means: keep vanilla's message");
+        assertEquals(List.of(), problems);
+    }
+
+    @Test
     void readsValuesWhetherOrNotTheyAreQuoted() {
         assertEquals("genesis", parse("serverId = genesis").serverId());
         assertEquals("genesis", parse("serverId = 'genesis'").serverId());

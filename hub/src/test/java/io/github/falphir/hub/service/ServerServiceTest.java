@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,8 @@ import org.springframework.web.server.ResponseStatusException;
 import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.repository.GameServerRepository;
 import io.github.falphir.hub.repository.ServerHeartbeatRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 @SpringBootTest
 @Transactional
@@ -28,15 +31,41 @@ class ServerServiceTest {
     @Autowired
     private ServerHeartbeatRepository heartbeats;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Test
     void removeDeletesTheServerAndItsHeartbeats() {
         service.register("remove-test", "Remove Test", null);
-        service.recordHeartbeat("remove-test", 1, 10, 20.0, 100, 200);
+        service.recordHeartbeat("remove-test", 1, 10, 20.0, 4.2, 100, 200, List.of());
 
         service.remove("remove-test");
 
         assertThat(servers.existsById("remove-test")).isFalse();
         assertThat(heartbeats.findByServerIdAndRecordedAtAfterOrderByRecordedAtDesc("remove-test", Instant.EPOCH)).isEmpty();
+    }
+
+    @Test
+    void onlinePlayersComeFromTheLastHeartbeatAndStopBeingReportedOnceTheServerGoesQuiet() {
+        service.register("presence-test", "Presence Test", null);
+        service.recordHeartbeat("presence-test", 1, 10, 20.0, 4.2, 100, 200,
+                List.of(new ServerService.OnlinePlayer("069a79f4-44e9-4726-a5be-fca90e38aaf5", "Notch")));
+
+        assertThat(service.onlinePlayers(server("presence-test")))
+                .extracting(ServerService.OnlinePlayer::name).containsExactly("Notch");
+
+        // The snapshot is only as good as the heartbeat it came from: once the server has been quiet
+        // long enough to count as offline, it must not still be reported as having players on.
+        entityManager.createQuery("update GameServer s set s.lastSeen = :old where s.id = 'presence-test'")
+                .setParameter("old", Instant.now().minus(service.offlineAfter()).minusSeconds(1))
+                .executeUpdate();
+        entityManager.clear();
+
+        assertThat(service.onlinePlayers(server("presence-test"))).isEmpty();
+    }
+
+    private GameServer server(String id) {
+        return servers.findById(id).orElseThrow();
     }
 
     @Test
@@ -97,7 +126,7 @@ class ServerServiceTest {
     @Test
     void editCanChangeTheIdAndCarriesTheRestOfTheRowAlong() {
         service.register("old-id", "Edit Test", null);
-        service.recordHeartbeat("old-id", 1, 10, 20.0, 100, 200);
+        service.recordHeartbeat("old-id", 1, 10, 20.0, 4.2, 100, 200, List.of());
         service.edit("old-id", listing(true));
 
         service.edit("old-id", patch("new-id", null));

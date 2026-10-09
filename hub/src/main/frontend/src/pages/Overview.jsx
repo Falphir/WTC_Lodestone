@@ -1,4 +1,4 @@
-import { EmptyState, ErrorNote, Panel, Sparkline, StatusBadge } from '../components'
+import { EmptyState, ErrorNote, OnlinePlayers, Panel, Sparkline, StatusBadge } from '../components'
 import { formatMemory, formatTps, isUp, plural, relativeTime, statusOf } from '../format'
 import { useApi } from '../hooks'
 
@@ -22,6 +22,8 @@ export default function Overview() {
   const up = rows.filter((s) => isUp(s.status))
   const players = up.reduce((sum, s) => sum + (s.latest?.playerCount ?? 0), 0)
   const down = rows.filter((s) => s.status === 'offline')
+  // who is on, across the whole network, tagged with the server they're on
+  const online = up.flatMap((s) => (s.online ?? []).map((p) => ({ ...p, note: s.name })))
 
   return (
     <div className={`page${stale ? ' is-stale' : ''}`}>
@@ -54,6 +56,15 @@ export default function Overview() {
       </section>
 
       <ErrorNote>{error}</ErrorNote>
+
+      {online.length > 0 && (
+        <section>
+          <h2 className="section-label">Online now</h2>
+          <Panel pad>
+            <OnlinePlayers players={online} />
+          </Panel>
+        </section>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState title="No servers yet">

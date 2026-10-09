@@ -36,15 +36,18 @@ public final class LodestoneConfig {
             #If true, this server's whitelist mirrors the network whitelist managed on the hub.
             #Local /whitelist add and remove changes are overwritten on the next sync (every minute).
             syncWhitelist = true
+            #Kick message for players who are not on the whitelist. Empty keeps Minecraft's own
+            #message. Use \\n for a line break.
+            whitelistMessage = ""
             """.formatted(DEFAULT_HUB_URL);
 
-    private static Values values = new Values(true, false, DEFAULT_HUB_URL, "", "", true);
+    private static Values values = new Values(true, false, DEFAULT_HUB_URL, "", "", true, "");
 
     private LodestoneConfig() {}
 
     /** Every setting, as read from the file. */
     public record Values(boolean enabled, boolean dryRun, String hubUrl, String serverId, String token,
-            boolean syncWhitelist) {}
+            boolean syncWhitelist, String whitelistMessage) {}
 
     public static boolean enabled() { return values.enabled(); }
     public static boolean dryRun() { return values.dryRun(); }
@@ -52,6 +55,9 @@ public final class LodestoneConfig {
     public static String serverId() { return values.serverId(); }
     public static String token() { return values.token(); }
     public static boolean syncWhitelist() { return values.syncWhitelist(); }
+
+    /** Kick message for players who are not whitelisted, with line breaks already decoded. Blank means "leave vanilla's alone". */
+    public static String whitelistMessage() { return values.whitelistMessage(); }
 
     /** True when the mod is enabled and has everything it needs to talk to the hub. */
     public static boolean isReady() {
@@ -106,7 +112,9 @@ public final class LodestoneConfig {
                 hubUrl,
                 serverId,
                 string(raw, "token", "", problems, value -> true, ""),
-                bool(raw, "syncWhitelist", true, problems));
+                bool(raw, "syncWhitelist", true, problems),
+                // the file is one line per key, so a multi-line kick message is written as \n
+                string(raw, "whitelistMessage", "", problems, value -> true, "").replace("\\n", "\n"));
     }
 
     /** Strips the quotes TOML puts around string values; other values are left as they are. */

@@ -54,9 +54,9 @@ description='''
 Server-side bridge that connects WTC Network servers to the WTC Lodestone hub for cross-server presence, events and announcements.
 '''
 
-# The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.
-#[[mixins]]
-#config="${mod_id}.mixins.json"
+# One mixin, for the custom not-whitelisted kick message (see PlayerListMixin).
+[[mixins]]
+config="${mod_id}.mixins.json"
 
 # The [[accessTransformers]] block allows you to declare where your AT file is.
 # If this block is omitted, a fallback attempt will be made to load an AT from META-INF/accesstransformer.cfg

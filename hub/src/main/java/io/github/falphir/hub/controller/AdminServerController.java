@@ -59,13 +59,17 @@ public class AdminServerController {
                 serverService.status(s, latest), latest == null ? null : HeartbeatView.from(latest),
                 new ModView(s.getModVersion(), s.getMinecraftVersion(), s.getLoaderVersion()),
                 new WhitelistSyncView(s.getSyncWhitelist(), s.getWhitelistSyncedAt(),
-                        s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion)),
-                ListingView.from(s));
+                        s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion),
+                        s.getEnforceWhitelist()),
+                ListingView.from(s),
+                serverService.onlinePlayers(s));
     }
 
     public record ServerView(String id, String name, boolean enabled, Instant createdAt, Instant lastSeen,
             @Schema(description = "Decided by the hub from the last heartbeat") ServerService.ServerStatus status,
-            HeartbeatView latest, ModView mod, WhitelistSyncView whitelist, ListingView listing) {}
+            HeartbeatView latest, ModView mod, WhitelistSyncView whitelist, ListingView listing,
+            @Schema(description = "Who was on at the last heartbeat; empty for a server that isn't up, and after a hub restart until its next heartbeat")
+            List<ServerService.OnlinePlayer> online) {}
 
     /**
      * What players are shown for this server, and whether they're shown it at all. Blank until an
@@ -90,8 +94,10 @@ public class AdminServerController {
      * @param enabled  the server's syncWhitelist setting, null until reported
      * @param syncedAt when it last applied a whitelist from the hub
      * @param current  whether what it applied is the hub's current whitelist
+     * @param enforced the server's own enforce-whitelist setting, null until reported. False while
+     *                 {@code enabled} is true means removals reach the server but never kick anyone.
      */
-    public record WhitelistSyncView(Boolean enabled, Instant syncedAt, boolean current) {}
+    public record WhitelistSyncView(Boolean enabled, Instant syncedAt, boolean current, Boolean enforced) {}
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -174,10 +180,13 @@ public class AdminServerController {
     }
 
     public record HeartbeatView(
-            Instant recordedAt, int playerCount, int maxPlayers, double tps, int memoryUsedMb, int memoryMaxMb) {
+            Instant recordedAt, int playerCount, int maxPlayers, double tps,
+            @Schema(description = "Average ms per tick; unlike tps it keeps moving while the server is still keeping up. 0 for heartbeats recorded before the mod reported it")
+            double msptAvg,
+            int memoryUsedMb, int memoryMaxMb) {
         static HeartbeatView from(ServerHeartbeat h) {
             return new HeartbeatView(h.getRecordedAt(), h.getPlayerCount(), h.getMaxPlayers(), h.getTps(),
-                    h.getMemoryUsedMb(), h.getMemoryMaxMb());
+                    h.getMsptAvg(), h.getMemoryUsedMb(), h.getMemoryMaxMb());
         }
     }
 

@@ -16,7 +16,9 @@ import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ServerService {
@@ -32,6 +34,16 @@ public class ServerService {
     private final ServerHeartbeatRepository heartbeats;
     private final ApplicationEventPublisher events;
     private final Duration heartbeatInterval;
+
+    /**
+     * Who was on each server as of its last heartbeat. Deliberately not a table: presence is only
+     * ever interesting live, one heartbeat refills it after a hub restart, and keeping it out of the
+     * database avoids a write per server per minute plus a history nobody asked for.
+     * <p>
+     * ponytail: in-memory, so it is per-process -- if the hub ever runs as more than one instance,
+     * this becomes a column on servers (or Redis) rather than a map.
+     */
+    private final Map<String, List<OnlinePlayer>> online = new ConcurrentHashMap<>();
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -81,21 +93,34 @@ public class ServerService {
 
     /** Check-in from the mod: marks the server seen and stores what it reported about itself. */
     @Transactional
-    public GameServer checkIn(String id, String modVersion, String minecraftVersion, String loaderVersion, Boolean syncWhitelist) {
+    public GameServer checkIn(String id, String modVersion, String minecraftVersion, String loaderVersion,
+            Boolean syncWhitelist, Boolean enforceWhitelist) {
         GameServer server = find(id);
         server.markSeen();
-        server.reportSetup(modVersion, minecraftVersion, loaderVersion, syncWhitelist);
+        server.reportSetup(modVersion, minecraftVersion, loaderVersion, syncWhitelist, enforceWhitelist);
         events.publishEvent(HubEvent.servers(id));
         return server;
     }
 
-    /** Records a periodic heartbeat: marks the server seen and appends a row to its stats history. */
+    /** Records a periodic heartbeat: marks the server seen, appends a row to its stats history and replaces who is on. */
     @Transactional
-    public void recordHeartbeat(String id, int playerCount, int maxPlayers, double tps, int memoryUsedMb, int memoryMaxMb) {
+    public void recordHeartbeat(String id, int playerCount, int maxPlayers, double tps, double msptAvg,
+            int memoryUsedMb, int memoryMaxMb, List<OnlinePlayer> players) {
         find(id).markSeen();
-        heartbeats.save(new ServerHeartbeat(id, playerCount, maxPlayers, tps, memoryUsedMb, memoryMaxMb));
+        heartbeats.save(new ServerHeartbeat(id, playerCount, maxPlayers, tps, msptAvg, memoryUsedMb, memoryMaxMb));
+        online.put(id, players == null ? List.of() : List.copyOf(players));
         events.publishEvent(HubEvent.servers(id));
     }
+
+    /** Who is on this server, empty once it has been quiet long enough to count as offline. */
+    public List<OnlinePlayer> onlinePlayers(GameServer server) {
+        if (server.getLastSeen() == null || server.getLastSeen().isBefore(Instant.now().minus(offlineAfter()))) {
+            return List.of();
+        }
+        return online.getOrDefault(server.getId(), List.of());
+    }
+
+    public record OnlinePlayer(String uuid, String name) {}
 
     /**
      * Applies the non-null fields of {@code patch} to a server. A new id is a special case: it
@@ -115,6 +140,10 @@ public class ServerService {
             // Dropping it is what makes the reload below see the row as it now is.
             entityManager.clear();
             server = find(newId);
+            // presence is keyed by server id, so it has to move with the row or the renamed
+            // server looks empty until its next heartbeat
+            List<OnlinePlayer> wasOnline = online.remove(id);
+            if (wasOnline != null) online.put(newId, wasOnline);
         }
 
         applyListing(patch, server);
@@ -180,6 +209,7 @@ public class ServerService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown server '" + id + "'");
         }
         heartbeats.deleteByServerId(id); // the FK from server_heartbeats has no ON DELETE CASCADE
+        online.remove(id);
         repository.deleteById(id);
         events.publishEvent(HubEvent.servers(id));
     }

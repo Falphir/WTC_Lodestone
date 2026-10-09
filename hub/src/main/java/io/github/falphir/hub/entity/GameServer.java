@@ -43,6 +43,13 @@ public class GameServer {
     @Column(name = "sync_whitelist")
     private Boolean syncWhitelist;
 
+    /**
+     * The server's own enforce-whitelist setting, from server.properties. Null until it reports.
+     * False while {@link #syncWhitelist} is true means removals never actually kick anyone.
+     */
+    @Column(name = "enforce_whitelist")
+    private Boolean enforceWhitelist;
+
     /** Version (content hash) of the network whitelist this server last applied. */
     @Column(name = "whitelist_version", length = 64)
     private String whitelistVersion;
@@ -92,11 +99,13 @@ public class GameServer {
     }
 
     /** Stores what the mod reported about itself on check-in. */
-    public void reportSetup(String modVersion, String minecraftVersion, String loaderVersion, Boolean syncWhitelist) {
+    public void reportSetup(String modVersion, String minecraftVersion, String loaderVersion, Boolean syncWhitelist,
+            Boolean enforceWhitelist) {
         this.modVersion = modVersion;
         this.minecraftVersion = minecraftVersion;
         this.loaderVersion = loaderVersion;
         this.syncWhitelist = syncWhitelist;
+        this.enforceWhitelist = enforceWhitelist;
     }
 
     public void whitelistApplied(String version) {
@@ -119,6 +128,7 @@ public class GameServer {
     public String getMinecraftVersion() { return minecraftVersion; }
     public String getLoaderVersion() { return loaderVersion; }
     public Boolean getSyncWhitelist() { return syncWhitelist; }
+    public Boolean getEnforceWhitelist() { return enforceWhitelist; }
     public String getWhitelistVersion() { return whitelistVersion; }
     public Instant getWhitelistSyncedAt() { return whitelistSyncedAt; }
 

@@ -1165,3 +1165,20 @@
     grid-column: 1 / -1;
   }
 }
+
+/* Who's on right now: a wrapping row of skin heads, on the Overview and each server's page. */
+.online-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.online-players li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}

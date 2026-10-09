@@ -31,8 +31,8 @@ class ServerHeartbeatRepositoryTest {
     void deletesOnlyHeartbeatsOlderThanCutoff() {
         servers.save(new GameServer("retention-test", "Retention Test", "hash"));
 
-        ServerHeartbeat old = heartbeats.save(new ServerHeartbeat("retention-test", 1, 10, 20.0, 100, 200));
-        ServerHeartbeat recent = heartbeats.save(new ServerHeartbeat("retention-test", 2, 10, 20.0, 100, 200));
+        ServerHeartbeat old = heartbeats.save(new ServerHeartbeat("retention-test", 1, 10, 20.0, 4.2, 100, 200));
+        ServerHeartbeat recent = heartbeats.save(new ServerHeartbeat("retention-test", 2, 10, 20.0, 4.2, 100, 200));
         entityManager.flush();
 
         entityManager.createQuery("update ServerHeartbeat h set h.recordedAt = :cutoff where h.id = :id")

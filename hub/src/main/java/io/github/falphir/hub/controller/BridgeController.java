@@ -43,9 +43,9 @@ public class BridgeController {
     @Operation(summary = "Server check-in",
             description = "Called by the mod on startup with its versions and settings. Returns how often to send heartbeats.")
     public HelloResponse hello(Authentication authentication, @Valid @RequestBody(required = false) HelloRequest request) {
-        HelloRequest r = request != null ? request : new HelloRequest(null, null, null, null);
+        HelloRequest r = request != null ? request : new HelloRequest(null, null, null, null, null);
         GameServer server = serverService.checkIn(authentication.getName(),
-                r.modVersion(), r.minecraftVersion(), r.loaderVersion(), r.syncWhitelist());
+                r.modVersion(), r.minecraftVersion(), r.loaderVersion(), r.syncWhitelist(), r.enforceWhitelist());
         return new HelloResponse(server.getId(), server.getName(), "Connected to WTC Lodestone",
                 serverService.heartbeatInterval().toSeconds());
     }
@@ -54,23 +54,33 @@ public class BridgeController {
             @Size(max = 32) String modVersion,
             @Size(max = 32) String minecraftVersion,
             @Size(max = 32) String loaderVersion,
-            Boolean syncWhitelist) {}
+            Boolean syncWhitelist,
+            /** The server's own enforce-whitelist setting; null from mods older than this field. */
+            Boolean enforceWhitelist) {}
 
     public record HelloResponse(String serverId, String name, String message, long heartbeatIntervalSeconds) {}
 
     @PostMapping("/heartbeat")
     @Operation(summary = "Server heartbeat", description = "Called periodically by the mod with the server's current stats.")
     public void heartbeat(Authentication authentication, @Valid @RequestBody HeartbeatRequest request) {
+        List<ServerService.OnlinePlayer> players = request.players() == null ? List.of()
+                : request.players().stream().map(p -> new ServerService.OnlinePlayer(p.uuid(), p.name())).toList();
         serverService.recordHeartbeat(authentication.getName(), request.playerCount(), request.maxPlayers(),
-                request.tps(), request.memoryUsedMb(), request.memoryMaxMb());
+                request.tps(), request.msptAvg(), request.memoryUsedMb(), request.memoryMaxMb(), players);
     }
 
     public record HeartbeatRequest(
             @Min(0) int playerCount,
             @Min(0) int maxPlayers,
             @Min(0) double tps,
+            /** Average ms per tick. 0 from mods older than this field, which only sent the derived tps. */
+            @Min(0) double msptAvg,
             @Min(0) int memoryUsedMb,
-            @Min(0) int memoryMaxMb) {}
+            @Min(0) int memoryMaxMb,
+            /** Who is on right now. Null from mods older than this field; the hub keeps it in memory only. */
+            @Size(max = 1000) List<@Valid OnlinePlayerRequest> players) {}
+
+    public record OnlinePlayerRequest(@NotBlank @Size(max = 36) String uuid, @NotBlank @Size(max = 16) String name) {}
 
     @GetMapping("/whitelist")
     @Operation(summary = "Network whitelist",

@@ -33,6 +33,10 @@ public class ServerHeartbeat {
     @Column(nullable = false)
     private double tps;
 
+    /** Average milliseconds per tick: unlike tps, it keeps moving while the server is still keeping up. */
+    @Column(name = "mspt_avg", nullable = false)
+    private double msptAvg;
+
     @Column(name = "memory_used_mb", nullable = false)
     private int memoryUsedMb;
 
@@ -43,12 +47,14 @@ public class ServerHeartbeat {
         // required by JPA
     }
 
-    public ServerHeartbeat(String serverId, int playerCount, int maxPlayers, double tps, int memoryUsedMb, int memoryMaxMb) {
+    public ServerHeartbeat(String serverId, int playerCount, int maxPlayers, double tps, double msptAvg,
+            int memoryUsedMb, int memoryMaxMb) {
         this.serverId = serverId;
         this.recordedAt = Instant.now();
         this.playerCount = playerCount;
         this.maxPlayers = maxPlayers;
         this.tps = tps;
+        this.msptAvg = msptAvg;
         this.memoryUsedMb = memoryUsedMb;
         this.memoryMaxMb = memoryMaxMb;
     }
@@ -58,6 +64,7 @@ public class ServerHeartbeat {
     public int getPlayerCount() { return playerCount; }
     public int getMaxPlayers() { return maxPlayers; }
     public double getTps() { return tps; }
+    public double getMsptAvg() { return msptAvg; }
     public int getMemoryUsedMb() { return memoryUsedMb; }
     public int getMemoryMaxMb() { return memoryMaxMb; }
 }

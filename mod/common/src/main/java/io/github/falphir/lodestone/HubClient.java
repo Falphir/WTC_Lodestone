@@ -11,12 +11,14 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.UserWhiteList;
 import net.minecraft.server.players.UserWhiteListEntry;
 
@@ -46,7 +48,7 @@ public final class HubClient {
     }
 
     /** Checks in with the hub: reports this server's setup, and logs whether the connection and token work. */
-    public static void hello(String modVersion, String minecraftVersion, String loaderVersion) {
+    public static void hello(String modVersion, String minecraftVersion, String loaderVersion, boolean enforceWhitelist) {
         String url = baseUrl() + "/api/bridge/hello";
 
         if (LodestoneConfig.dryRun()) {
@@ -59,6 +61,9 @@ public final class HubClient {
         body.addProperty("minecraftVersion", minecraftVersion);
         body.addProperty("loaderVersion", loaderVersion);
         body.addProperty("syncWhitelist", LodestoneConfig.syncWhitelist());
+        // server.properties, not ours: with this off, syncing the whitelist never kicks anyone,
+        // so the hub shows it rather than letting the mismatch pass silently.
+        body.addProperty("enforceWhitelist", enforceWhitelist);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
@@ -101,7 +106,7 @@ public final class HubClient {
         }
     }
 
-    /** Sends the server's current player count, TPS and memory usage to the hub. */
+    /** Sends the server's current player count, who is on, tick time and memory usage to the hub. Server thread only. */
     public static void heartbeat(MinecraftServer server) {
         String url = baseUrl() + "/api/bridge/heartbeat";
 
@@ -113,14 +118,27 @@ public final class HubClient {
         Runtime runtime = Runtime.getRuntime();
         long memoryUsedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
         long memoryMaxMb = runtime.maxMemory() / (1024 * 1024);
-        double tps = Math.min(20.0, 1000.0 / Math.max(50.0, server.getAverageTickTimeNanos() / 1_000_000.0));
+        // mspt is the honest number: tps saturates at 20 the moment a tick fits in its 50ms budget,
+        // so it can't show a server going from comfortable to nearly-late.
+        double mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
+        double tps = Math.min(20.0, 1000.0 / Math.max(50.0, mspt));
+
+        JsonArray players = new JsonArray();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("uuid", player.getUUID().toString());
+            entry.addProperty("name", player.getGameProfile().getName());
+            players.add(entry);
+        }
 
         JsonObject body = new JsonObject();
         body.addProperty("playerCount", server.getPlayerCount());
         body.addProperty("maxPlayers", server.getMaxPlayers());
         body.addProperty("tps", tps);
+        body.addProperty("msptAvg", mspt);
         body.addProperty("memoryUsedMb", memoryUsedMb);
         body.addProperty("memoryMaxMb", memoryMaxMb);
+        body.add("players", players);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
