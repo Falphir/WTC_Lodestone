@@ -1,6 +1,6 @@
 import { currentAdmin, signOut } from '../api'
-import { Icon } from './Icon'
-import { Mark } from './Mark'
+import { BrandLogo } from './ui/BrandLogo'
+import { Icon } from './ui/Icon'
 
 const NAV = [
   { path: '', label: 'Overview', icon: 'overview' },
@@ -26,11 +26,7 @@ export function SidebarNav({ section, live, theme, setTheme, onClose }) {
     <>
       <div className="sidebar-head">
         <a href="#/" className="brand">
-          <Mark size={26} />
-          <span className="brand-text">
-            WTC Lodestone
-            <small>Network console</small>
-          </span>
+          <BrandLogo />
         </a>
         {onClose && (
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close menu">

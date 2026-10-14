@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { getToken, setSignedOutHandler } from './api'
-import { Icon, Mark, SidebarNav } from './components'
+import { BrandLogo, Icon, SidebarNav } from './components'
 import { useLiveStatus, useRoute, useTheme } from './hooks'
 import Admins from './pages/Admins'
 import Overview from './pages/Overview'
@@ -55,8 +55,7 @@ function App() {
 
       <header className="mobile-bar">
         <a href="#/" className="brand">
-          <Mark size={24} />
-          WTC Lodestone
+          <BrandLogo />
         </a>
         <button type="button" className="icon-button" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-haspopup="true">
           <Icon name="menu" />

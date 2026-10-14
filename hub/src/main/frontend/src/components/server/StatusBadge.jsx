@@ -1,4 +1,4 @@
-import { Badge } from './Badge'
+import { Badge } from '../ui/Badge'
 
 const STATUS = {
   online: { label: 'Online', tone: 'good' },

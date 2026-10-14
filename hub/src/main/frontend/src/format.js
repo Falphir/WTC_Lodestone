@@ -44,8 +44,21 @@ export const formatDateTime = (iso) => dateTimeFormat.format(new Date(iso))
 
 export const formatTps = (tps) => tps.toFixed(1)
 
-/** Average tick time. A tick's budget is 50ms, which is where 20 TPS stops being achievable. */
+/** A tick's budget. Past this, 20 TPS stops being achievable. */
+export const TICK_BUDGET_MS = 50
+
+/** Average tick time. */
 export const formatMspt = (mspt) => `${mspt.toFixed(1)} ms`
+
+/**
+ * Green / orange / red for a tick time. `crit` starts where the hub itself would call the server
+ * LAGGING (`laggingBelowTps` from /api/info), so the figure and the status badge never disagree.
+ */
+export function msptTone(mspt, laggingBelowTps = 15) {
+  if (mspt >= 1000 / laggingBelowTps) return 'crit'
+  if (mspt >= TICK_BUDGET_MS) return 'warn'
+  return 'good'
+}
 
 export function formatMemory(mb) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`

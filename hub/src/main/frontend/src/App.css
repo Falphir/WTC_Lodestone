@@ -39,6 +39,14 @@
   justify-content: space-between;
 }
 
+/* The wordmark is 200x112; the width/height attributes on the <img> give the browser that ratio
+   up front, so the sidebar doesn't jump when it decodes. */
+.brand-logo {
+  width: 168px;
+  max-width: 100%;
+  height: auto;
+}
+
 .brand-text {
   display: flex;
   flex-direction: column;
@@ -240,8 +248,11 @@
     background: var(--surface);
   }
 
-  .mobile-bar .brand {
-    font-size: var(--fs-md);
+  /* Smaller than the sidebar's, but it can't shrink much further: the wordmark stacks "LODESTONE"
+     under "WTC" at about a quarter of its height, so the bar gets taller than a 24px mark would
+     make it rather than making the second line unreadable. */
+  .mobile-bar .brand-logo {
+    width: 104px;
   }
 
   .main {
@@ -865,21 +876,28 @@
 
 /* ---------- server detail ---------- */
 
+/* The 1px gaps are the dividers, showing the grid's own background through: unlike a border on
+   each cell, that draws the right lines for any number of rows, in any wrap, with no empty-cell
+   seams to patch. */
 .figures {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
   margin: 0;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--surface);
+  overflow: clip;
+  background: var(--line);
 }
 
 .figures > div {
   padding: 16px 20px;
+  background: var(--surface);
 }
 
-.figures > div + div {
-  border-left: 1px solid var(--line);
+/* A figure on a row of its own, so a lone one doesn't leave two empty cells beside it. */
+.figures > .figure-row {
+  grid-column: 1 / -1;
 }
 
 .figures dt {
@@ -900,14 +918,24 @@
   letter-spacing: 0;
 }
 
+/* Tick time reads as a verdict, not just a number: green inside the tick budget, orange over it,
+   red once the hub would call the server LAGGING (see msptTone). The muted budget next to the
+   value says which way is bad, so the colour reinforces rather than carries the meaning. */
+.figures dd.tone-good {
+  color: var(--good-ink);
+}
+
+.figures dd.tone-warn {
+  color: var(--warn-ink);
+}
+
+.figures dd.tone-crit {
+  color: var(--crit-ink);
+}
+
 @media (max-width: 640px) {
   .figures {
     grid-template-columns: 1fr;
-  }
-
-  .figures > div + div {
-    border-left: 0;
-    border-top: 1px solid var(--line);
   }
 }
 

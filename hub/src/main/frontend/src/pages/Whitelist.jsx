@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { api } from '../api'
-import { Badge, EmptyState, ErrorNote, Field, Icon, PageHead, Panel, PlayerHead } from '../components'
+import { Badge, EmptyState, ErrorNote, Field, Icon, Note, PageHead, Panel, PlayerHead } from '../components'
 import { formatDate, plural, whitelistSync } from '../format'
 import { useAction, useApi } from '../hooks'
 
@@ -113,11 +113,7 @@ export default function Whitelist() {
 
       {players?.length > 0 && servers?.length > 0 && <SyncPanel servers={servers} />}
 
-      {message && (
-        <p className="note" role="status">
-          {message}
-        </p>
-      )}
+      <Note>{message}</Note>
       <ErrorNote>{error || loadError}</ErrorNote>
 
       {players?.length === 0 && (

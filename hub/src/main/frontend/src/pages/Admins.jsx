@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api, currentAdmin } from '../api'
-import { Dialog, ErrorNote, Field, Icon, PageHead, Panel } from '../components'
+import { Dialog, ErrorNote, Field, Icon, Note, PageHead, Panel } from '../components'
 import { formatDate } from '../format'
 import { useAction, useApi } from '../hooks'
 
@@ -58,11 +58,7 @@ export default function Admins() {
         />
       )}
 
-      {message && (
-        <p className="note" role="status">
-          {message}
-        </p>
-      )}
+      <Note>{message}</Note>
       <ErrorNote>{error || loadError}</ErrorNote>
 
       {admins && (

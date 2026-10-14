@@ -1,5 +1,5 @@
-import { CopyButton } from './CopyButton'
-import { Panel } from './Panel'
+import { CopyButton } from '../ui/CopyButton'
+import { Panel } from '../ui/Panel'
 
 /** Shown once right after a token is issued or reset -- the hub only ever stores its hash. */
 export function TokenNotice({ title, server, onDone }) {

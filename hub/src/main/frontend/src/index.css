@@ -18,6 +18,10 @@
   --good: #0ca30c;
   --warn: #fab219;
   --crit: #d03b3b;
+  /* The tones above are disc fills behind a glyph; as text they'd be unreadable (--warn is 1.8:1
+     on white). These are the same three darkened to pass on a surface. */
+  --good-ink: #0a7d0a;
+  --warn-ink: #8a5a00;
   --crit-ink: #b42828;
 
   --shadow-pop: 0 8px 24px rgba(20, 23, 28, 0.12), 0 1px 3px rgba(20, 23, 28, 0.08);
@@ -59,6 +63,8 @@
     --accent-ink: #0d2a2f;
     --accent-wash: rgba(26, 159, 174, 0.14);
     --chart: #1a9fae;
+    --good-ink: #5fd35f;
+    --warn-ink: #e8a93c;
     --crit-ink: #f07a7a;
     --mark-stone: #3a414c;
     --mark-needle: #e9ecf0;
@@ -81,6 +87,8 @@
   --accent-ink: #0d2a2f;
   --accent-wash: rgba(26, 159, 174, 0.14);
   --chart: #1a9fae;
+  --good-ink: #5fd35f;
+  --warn-ink: #e8a93c;
   --crit-ink: #f07a7a;
   --mark-stone: #3a414c;
   --mark-needle: #e9ecf0;

@@ -1,19 +1,42 @@
-export { Badge } from './Badge'
-export { ConfirmDialog } from './ConfirmDialog'
-export { CopyButton } from './CopyButton'
-export { Dialog } from './Dialog'
-export { EmptyState } from './EmptyState'
-export { ErrorNote } from './ErrorNote'
-export { Field } from './Field'
-export { Icon } from './Icon'
-export { LineChart } from './LineChart'
-export { ListingFields } from './ListingFields'
-export { Mark } from './Mark'
-export { OnlinePlayers } from './OnlinePlayers'
-export { PageHead } from './PageHead'
-export { Panel } from './Panel'
-export { PlayerHead } from './PlayerHead'
+// One import site for every component: pages do `import { X } from '../components'` and never reach
+// into a folder, so a component can move between these groups without touching a single page.
+//
+//   ui/      the look: nothing in here knows what a server, a player or a heartbeat is
+//   charts/  the two recharts wrappers, and the only place recharts is imported
+//   player/  a Minecraft account: skin render, who's online
+//   server/  the hub's server shape (listing, mod info, heartbeats, token)
+//
+// SidebarNav stays loose: it's the app shell's own nav -- it reads the signed-in admin and the
+// current route -- so it belongs to App.jsx, not to a reusable group of one.
+
+export { Badge } from './ui/Badge'
+export { BrandLogo } from './ui/BrandLogo'
+export { ConfirmDialog } from './ui/ConfirmDialog'
+export { CopyButton } from './ui/CopyButton'
+export { Dialog } from './ui/Dialog'
+export { EmptyState } from './ui/EmptyState'
+export { ErrorNote } from './ui/ErrorNote'
+export { Field } from './ui/Field'
+export { Icon } from './ui/Icon'
+export { Mark } from './ui/Mark'
+export { Note } from './ui/Note'
+export { PageHead } from './ui/PageHead'
+export { Panel } from './ui/Panel'
+
+export { LineChart } from './charts/LineChart'
+export { Sparkline } from './charts/Sparkline'
+
+export { OnlinePlayers } from './player/OnlinePlayers'
+export { PlayerHead } from './player/PlayerHead'
+
+export { HeartbeatTable } from './server/HeartbeatTable'
+export { ListingFields } from './server/ListingFields'
+export { ServerEditDialog } from './server/ServerEditDialog'
+export { ServerFigures } from './server/ServerFigures'
+export { ServerHeartbeats } from './server/ServerHeartbeats'
+export { ServerListing } from './server/ServerListing'
+export { ServerSetup } from './server/ServerSetup'
+export { StatusBadge } from './server/StatusBadge'
+export { TokenNotice } from './server/TokenNotice'
+
 export { SidebarNav } from './SidebarNav'
-export { Sparkline } from './Sparkline'
-export { StatusBadge } from './StatusBadge'
-export { TokenNotice } from './TokenNotice'

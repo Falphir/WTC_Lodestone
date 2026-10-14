@@ -1,4 +1,4 @@
-import { Field } from './Field'
+import { Field } from '../ui/Field'
 
 /**
  * The details players are shown for a server, for both the register form and the edit dialog.
