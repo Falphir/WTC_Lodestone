@@ -72,7 +72,7 @@ public class SecurityConfig {
         }
         return new SecretKeySpec(sha256(secret.getBytes(StandardCharsets.UTF_8)), "HmacSHA256");
     }
-per
+
     private static byte[] sha256(byte[] input) {
         try {
             return MessageDigest.getInstance("SHA-256").digest(input);
