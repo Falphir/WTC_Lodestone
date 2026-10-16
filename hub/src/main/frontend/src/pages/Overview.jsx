@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { EmptyState, ErrorNote, LineChart, Panel, Sparkline, StatusBadge } from '../components'
+import { EmptyState, ErrorNote, LineChart, PageHead, Panel, Sparkline, StatusBadge } from '../components'
 import { formatMemory, formatMspt, formatTps, isUp, msptTone, plural, relativeTime, statusOf } from '../format'
 import { useApi, useHubInfo } from '../hooks'
 
@@ -64,7 +64,9 @@ export default function Overview() {
 
   return (
     <div className={`page${stale ? ' is-stale' : ''}`}>
-      <h1 className="visually-hidden">Overview</h1>
+      <PageHead>
+        <h1>Overview</h1>
+      </PageHead>
 
       <ErrorNote>{error}</ErrorNote>
 
