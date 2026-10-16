@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "lodestone")
-public record LodestoneProperties(List<Admin> admins) {
+public record LodestoneProperties(List<Admin> admins, String jwtSecret) {
 
     public record Admin(String username, String password) {}
 }

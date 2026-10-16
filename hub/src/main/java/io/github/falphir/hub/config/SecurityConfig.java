@@ -1,9 +1,15 @@
 package io.github.falphir.hub.config;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.github.falphir.hub.service.ServerService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -34,6 +40,8 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 @EnableConfigurationProperties(LodestoneProperties.class)
 public class SecurityConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
     // Admin accounts (io.github.falphir.hub.entity.AdminUser) are looked up by
     // AdminUserDetailsService, picked up automatically as the UserDetailsService bean.
     // AdminUserSeeder creates the accounts listed in lodestone.admins on startup.
@@ -47,13 +55,30 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // ponytail: a fresh random key on every startup, so restarting the hub signs every admin out.
-    // Load it from an env var instead if that gets annoying or the hub ever runs as several instances.
+    // Tokens are only valid as long as the key that signed them. Set lodestone.jwt-secret
+    // (LODESTONE_JWT_SECRET) and admins stay signed in across a restart, until the token's own 8h
+    // expiry. Leave it unset and the key is random per boot, which signs everyone out on restart --
+    // the safe default, since a secret that ships in the repo is no secret. Any passphrase will do:
+    // it is hashed to the 32 bytes HMAC-SHA256 needs, so length is not the caller's problem.
     @Bean
-    SecretKey jwtKey() {
-        byte[] bytes = new byte[32];
-        new SecureRandom().nextBytes(bytes);
-        return new SecretKeySpec(bytes, "HmacSHA256");
+    SecretKey jwtKey(LodestoneProperties properties) {
+        String secret = properties.jwtSecret();
+        if (secret == null || secret.isBlank()) {
+            log.info("No lodestone.jwt-secret set: signing admin tokens with a per-boot key, "
+                    + "so restarting the hub signs every admin out.");
+            byte[] bytes = new byte[32];
+            new SecureRandom().nextBytes(bytes);
+            return new SecretKeySpec(bytes, "HmacSHA256");
+        }
+        return new SecretKeySpec(sha256(secret.getBytes(StandardCharsets.UTF_8)), "HmacSHA256");
+    }
+per
+    private static byte[] sha256(byte[] input) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(input);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every JVM", e);
+        }
     }
 
     @Bean

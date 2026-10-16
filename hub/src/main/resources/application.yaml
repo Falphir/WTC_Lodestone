@@ -24,6 +24,10 @@ lodestone:
     # API exactly like a dashboard admin, see discord/README.md "Hub account".
     - username: discord-bot
       password: ${LODESTONE_BOT_PASSWORD:bot}
+  # Signs admin tokens. Set it (LODESTONE_JWT_SECRET) to keep admins signed in across a hub
+  # restart -- any passphrase, it is hashed to the right length. Unset means a new key each boot,
+  # so every admin is signed out on restart.
+  jwt-secret: ${LODESTONE_JWT_SECRET:}
   heartbeat-retention-days: 7
   # how often servers report; the mod learns it on check-in, the dashboard from /api/info
   heartbeat-interval-seconds: 60
