@@ -80,7 +80,12 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
 
                 )
-                .httpBasic(Customizer.withDefaults())
+                // A bare 401, with no WWW-Authenticate challenge: the browser answers that header
+                // with its own credentials popup, which is not the dashboard's sign-in form and
+                // cannot sign anyone in -- /api/auth/token hands out the JWT the dashboard needs.
+                // Clients that use Basic here (the dashboard, the Discord bot, Swagger UI) all send
+                // the header up front and never wait to be challenged for it.
+                .httpBasic(basic -> basic.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .formLogin(Customizer.withDefaults())
                 .oauth2ResourceServer(oauth -> oauth
                         .bearerTokenResolver(adminBearerTokens())
