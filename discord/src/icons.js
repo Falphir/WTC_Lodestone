@@ -33,4 +33,4 @@ function withIcon(key, text) {
   return glyph ? `${glyph} ${text}` : text;
 }
 
-module.exports = { ICONS, withIcon };
+module.exports = { withIcon };

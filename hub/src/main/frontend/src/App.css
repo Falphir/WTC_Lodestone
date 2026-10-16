@@ -47,19 +47,6 @@
   height: auto;
 }
 
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.brand-text small {
-  font-size: var(--fs-sm);
-  font-weight: 400;
-  color: var(--muted);
-  letter-spacing: 0;
-}
-
 .nav {
   display: flex;
   flex-direction: column;
