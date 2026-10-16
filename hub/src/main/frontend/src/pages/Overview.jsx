@@ -66,18 +66,6 @@ export default function Overview() {
     <div className={`page${stale ? ' is-stale' : ''}`}>
       <h1 className="visually-hidden">Overview</h1>
 
-      <p className="summary">
-        {players === 0 ? 'Nobody online right now' : `${players.toLocaleString()} ${players === 1 ? 'player' : 'players'} online`}
-        {rows.length > 0 && <span className="muted"> {reach(up.length, rows.length)}</span>}
-      </p>
-      {down.length > 0 && (
-        <p className="summary-alert">
-          {down.length === 1
-            ? `${down[0].name} stopped reporting. Last heartbeat ${relativeTime(down[0].lastSeen)}.`
-            : `${new Intl.ListFormat('en').format(down.map((s) => s.name))} have stopped reporting.`}
-        </p>
-      )}
-
       <ErrorNote>{error}</ErrorNote>
 
       {rows.length === 0 ? (
