@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { signIn } from '../api'
-import { ErrorNote, Field, Mark } from '../components'
+import { BrandLogo, ErrorNote, Field } from '../components'
 import { useAction } from '../hooks'
 
 export default function SignIn({ onSignedIn }) {
@@ -20,8 +20,8 @@ export default function SignIn({ onSignedIn }) {
   return (
     <div className="signin">
       <form className="signin-panel" onSubmit={submit}>
-        <Mark size={40} />
-        <h1>Sign in to WTC Lodestone</h1>
+        <BrandLogo />
+        <h1>Sign in</h1>
         <p className="muted">Staff console for the WTC Network servers.</p>
 
         <Field label="Username">
