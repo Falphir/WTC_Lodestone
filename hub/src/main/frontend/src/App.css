@@ -1087,6 +1087,12 @@
   background: var(--surface);
 }
 
+/* The panel is a flex column of full-width fields; the wordmark is the one item with a width of
+   its own, so it centres itself rather than the column centring everything. */
+.signin-panel .brand-logo {
+  align-self: center;
+}
+
 .signin-panel h1 {
   margin-top: 8px;
   font-size: var(--fs-md);
