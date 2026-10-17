@@ -1,14 +1,30 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import './App.css'
 import { getToken, setSignedOutHandler } from './api'
-import { BrandLogo, Icon, SidebarNav } from './components'
+import { BrandLogo, Icon, SidebarNav, Skeleton } from './components'
 import { useLiveStatus, useRoute, useTheme } from './hooks'
-import Admins from './pages/Admins'
-import Overview from './pages/Overview'
-import ServerDetail from './pages/ServerDetail'
-import Servers from './pages/Servers'
 import SignIn from './pages/SignIn'
-import Whitelist from './pages/Whitelist'
+
+// One chunk per page, so a page only downloads what it draws -- recharts (most of the bundle)
+// follows Overview and ServerDetail and is never fetched for the whitelist, admins or sign-in.
+// SignIn stays eager: it's the first screen, and splitting it would only delay the password box.
+const Admins = lazy(() => import('./pages/Admins'))
+const Overview = lazy(() => import('./pages/Overview'))
+const ServerDetail = lazy(() => import('./pages/ServerDetail'))
+const Servers = lazy(() => import('./pages/Servers'))
+const Whitelist = lazy(() => import('./pages/Whitelist'))
+
+// Shown while a page's chunk is in flight: a heading and two panels' worth of space, which is the
+// shape every page here takes. `.page` is a 20px-gap flex column, so these space themselves.
+function PageSkeleton() {
+  return (
+    <div className="page" aria-busy="true">
+      <Skeleton width="14rem" height={30} />
+      <Skeleton height={132} radius={10} />
+      <Skeleton height={260} radius={10} />
+    </div>
+  )
+}
 
 function App() {
   const [signedIn, setSignedIn] = useState(() => getToken() !== null)
@@ -73,7 +89,9 @@ function App() {
         <SidebarNav section={section} live={live} theme={theme} setTheme={setTheme} onClose={() => setMenuOpen(false)} />
       </dialog>
 
-      <main className="main">{page}</main>
+      <main className="main">
+        <Suspense fallback={<PageSkeleton />}>{page}</Suspense>
+      </main>
     </div>
   )
 }

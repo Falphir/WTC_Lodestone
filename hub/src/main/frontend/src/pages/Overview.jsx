@@ -51,8 +51,6 @@ export default function Overview() {
   // Heap across the servers that are reporting: what the network is costing the box right now.
   const memoryUsed = up.reduce((sum, s) => sum + (s.latest?.memoryUsedMb ?? 0), 0)
   const memoryMax = up.reduce((sum, s) => sum + (s.latest?.memoryMaxMb ?? 0), 0)
-  // Only servers that have reported before have "stopped": a never-connected one isn't news.
-  const down = rows.filter((s) => s.status === 'offline')
   const busiest = network.players.length ? Math.max(...network.players.map((p) => p.v)) : null
 
   // the window ends at "now" on every render, so it keeps moving with the auto-refresh
@@ -169,14 +167,6 @@ export default function Overview() {
       )}
     </div>
   )
-}
-
-/** "across 2 of 4 servers" — how much of the network the player count speaks for. */
-function reach(up, total) {
-  if (total === 1) return '' // the one row below says which server, and how it's doing
-  if (up === 0) return `with ${plural(total, 'server')} not reporting`
-  if (up < total) return `across ${up} of ${plural(total, 'server')}`
-  return `across all ${plural(total, 'server')}`
 }
 
 /**

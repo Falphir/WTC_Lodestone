@@ -2,7 +2,8 @@
 // into a folder, so a component can move between these groups without touching a single page.
 //
 //   ui/      the look: nothing in here knows what a server, a player or a heartbeat is
-//   charts/  the two recharts wrappers, and the only place recharts is imported
+//   charts/  the two chart components; recharts itself is imported only by charts/recharts.jsx,
+//            which both of them lazy() in so the library stays out of the entry chunk
 //   player/  a Minecraft account: skin render, who's online
 //   server/  the hub's server shape (listing, mod info, heartbeats, token)
 //
@@ -21,6 +22,7 @@ export { Icon } from './ui/Icon'
 export { Note } from './ui/Note'
 export { PageHead } from './ui/PageHead'
 export { Panel } from './ui/Panel'
+export { Skeleton } from './ui/Skeleton'
 
 export { LineChart } from './charts/LineChart'
 export { Sparkline } from './charts/Sparkline'

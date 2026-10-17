@@ -1303,3 +1303,26 @@
   gap: 10px;
   min-width: 0;
 }
+
+/* ---------- skeletons ---------- */
+
+/* Placeholder for a chunk or a fetch still in flight (components/ui/Skeleton). The sweep reads as
+   "working", and the global prefers-reduced-motion rule in index.css flattens it to a plain block. */
+.skeleton {
+  display: block;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%) no-repeat;
+  background-color: var(--surface-2);
+  /* The image is twice the box, so the sweep below travels 100% -> -100%: any further and it
+     leaves the box entirely, which reads as the animation stalling. */
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}

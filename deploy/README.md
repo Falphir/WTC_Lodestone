@@ -111,6 +111,13 @@ sudo /opt/lodestone/repo/deploy/deploy.sh   # pulls the newest release, starts e
 If the repo is private, `curl` can't fetch release assets — use `gh release download` (GitHub CLI,
 authenticated) and place `wtc_lodestone-hub.jar` in `/opt/lodestone/` yourself.
 
+Then register the bot's slash commands with Discord — once, on the first install, and again whenever a
+command or option description changes:
+
+```bash
+sudo runuser -u lodestone -- sh -c 'cd /opt/lodestone/bot && npm run deploy'
+```
+
 ### 7. nginx and TLS
 
 ```bash
@@ -125,13 +132,31 @@ No domain yet? `<your-public-ip-with-dashes>.sslip.io` resolves to that IP with 
 Let's Encrypt issues for it — e.g. `203-0-113-7.sslip.io`. If issuance is rate-limited, a free
 DuckDNS name works the same way. Swap in a real domain later by re-running `certbot` and the `sed`.
 
+### 8. Firewall — the one step that can lock you out
+
+This is a console-less VPS: if a network change cuts SSH, the only way back is a provider-level
+reset. So arm a dead-man switch first — if you lose the session, ufw turns itself off in ten
+minutes and nothing is lost:
+
 ```bash
-sudo ufw allow OpenSSH            # do this FIRST or enabling ufw locks you out
+sudo systemd-run --on-active=10m --unit=ufw-undo systemctl disable --now ufw
+```
+
+```bash
+sudo ufw allow OpenSSH            # FIRST, or enabling ufw locks you out
 sudo ufw allow 80,443/tcp
 sudo ufw enable                   # 8081 and 3306 stay loopback-only
 ```
 
-### 8. Game servers (same box)
+Open a **second** SSH session and confirm it works before disarming:
+
+```bash
+sudo systemctl stop ufw-undo.timer    # only once you are sure you still have access
+```
+
+Same trick for any future change to routing, firewalls or network interfaces on this box.
+
+### 9. Game servers (same box)
 
 Per modpack server, register it on the dashboard first (that is the only time its token is shown),
 then in `config/wtc_lodestone-common.toml`:
