@@ -1,0 +1,12 @@
+# Install: sudo systemctl enable --now lodestone-backup.timer  (check with systemctl list-timers)
+[Unit]
+Description=Nightly WTC Lodestone database backup
+
+[Timer]
+OnCalendar=daily
+# A dump missed while the box was rebooting runs once it is back up, instead of being skipped.
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

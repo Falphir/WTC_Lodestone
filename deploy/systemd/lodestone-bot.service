@@ -1,0 +1,29 @@
+# The Discord bot. Keeps no local state -- everything lives on the hub -- so it is safe to
+# restart or redeploy at any time. Install: sudo systemctl enable --now lodestone-bot
+[Unit]
+Description=WTC Lodestone Discord bot
+Documentation=https://github.com/Falphir/WTC_Lodestone
+After=network-online.target lodestone-hub.service
+
+[Service]
+Type=simple
+User=lodestone
+Group=lodestone
+WorkingDirectory=/opt/lodestone/bot
+EnvironmentFile=/etc/lodestone/bot.env
+ExecStart=/usr/bin/node src/index.js
+# The hub may still be starting (or down); the bot logs in again on its own, so just keep it alive.
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lodestone-bot
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/lodestone/bot
+
+[Install]
+WantedBy=multi-user.target

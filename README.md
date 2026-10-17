@@ -31,7 +31,7 @@ flowchart TD
 | `mod/` | Server-side NeoForge 1.21.1 mod (`wtc_lodestone`) |
 | `hub/` | Spring Boot service: API, WebSocket, Discord, serves the dashboard |
 | `hub/src/main/frontend/` | Dashboard (React + Vite + TypeScript), built into the hub jar |
-| `deploy/` | Docker Compose files for local development and production |
+| `deploy/` | Dev database compose file, plus the production runbook, systemd units and nginx config (`deploy/README.md`) |
 | `docs/` | Roadmap and event/command catalog |
 
 The mod and the hub are separate Gradle projects. They share no code, only the message format documented in `docs/`.
@@ -44,7 +44,7 @@ The mod and the hub are separate Gradle projects. They share no code, only the m
 - **Hub:** Spring Boot, Java 21, Spring Data JPA, Flyway, Spring Security
 - **Database:** MariaDB
 - **Dashboard:** React, Vite, TypeScript, ESLint
-- **Infra:** Docker Compose, GitHub Actions
+- **Infra:** Docker Compose (dev), systemd + nginx on one Linux box (prod), GitHub Actions
 
 ---
 

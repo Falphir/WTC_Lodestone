@@ -1,0 +1,33 @@
+# The hub: API, dashboard and WebSocket. Binds loopback only -- nginx is the way in.
+# Install: sudo cp deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
+#          sudo systemctl enable --now lodestone-hub
+# Enabling is what makes the weekly reboot a non-event. See deploy/README.md.
+[Unit]
+Description=WTC Lodestone hub
+Documentation=https://github.com/Falphir/WTC_Lodestone
+Wants=mariadb.service
+After=network-online.target mariadb.service
+
+[Service]
+Type=simple
+User=lodestone
+Group=lodestone
+WorkingDirectory=/opt/lodestone
+EnvironmentFile=/etc/lodestone/hub.env
+ExecStart=/usr/bin/java -jar /opt/lodestone/wtc_lodestone-hub.jar
+Restart=always
+RestartSec=10
+# Flyway migrates at boot; if the database is not up yet the hub exits and systemd retries.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lodestone-hub
+
+# It needs nothing but its jar, its config and the network
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/lodestone
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,73 @@
+name: Release
+
+# Tag a commit (git tag v0.1.0 && git push origin v0.1.0) and this attaches the artifacts the
+# production box pulls with deploy/deploy.sh. hub.yml and mod.yml stay the per-push CI.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write    # needed to create the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    # The hub's tests hit a real database (same credentials as deploy/docker-compose.dev.yml)
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_DATABASE: wtc_lodestone
+          MARIADB_USER: lodestone
+          MARIADB_PASSWORD: lodestone
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the hub
+        working-directory: hub
+        run: ./gradlew build
+
+      - name: Build the mod
+        working-directory: mod
+        run: ./gradlew build
+
+      # The hub jar gets a fixed name so deploy.sh never has to know the version -- the release does.
+      - name: Collect the release assets
+        run: |
+          mkdir dist
+          find hub/build/libs -name 'hub-*.jar' ! -name '*-plain.jar' \
+            -exec cp {} dist/wtc_lodestone-hub.jar \;
+          cp mod/neoforge/build/libs/wtc_lodestone-neoforge-*.jar dist/
+          tar czf dist/wtc_lodestone-bot.tar.gz \
+            --exclude=node_modules --exclude=.env --exclude=test \
+            discord
+          ls -l dist
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

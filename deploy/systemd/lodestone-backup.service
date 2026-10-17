@@ -1,0 +1,20 @@
+# Nightly database dump. The whitelist, the Discord links and the heartbeat history live only
+# here -- Flyway owns the schema, but nothing owns the rows.
+[Unit]
+Description=WTC Lodestone database backup
+Wants=mariadb.service
+After=mariadb.service
+
+[Service]
+Type=oneshot
+# Credentials come from the same env file the hub uses (SPRING_DATASOURCE_USERNAME/PASSWORD).
+EnvironmentFile=/etc/lodestone/hub.env
+ExecStart=/bin/sh -c 'install -d -m 750 /var/backups/lodestone && \
+  mariadb-dump --single-transaction \
+    --host=127.0.0.1 \
+    --user="$SPRING_DATASOURCE_USERNAME" \
+    --password="$SPRING_DATASOURCE_PASSWORD" \
+    wtc_lodestone | gzip > /var/backups/lodestone/wtc_lodestone-$(date +%%Y%%m%%d-%%H%%M%%S).sql.gz'
+# Two weeks of nightlies is enough to notice and undo a bad migration or a mistaken bulk removal.
+ExecStartPost=/usr/bin/find /var/backups/lodestone -name '*.sql.gz' -mtime +14 -delete
+SyslogIdentifier=lodestone-backup
