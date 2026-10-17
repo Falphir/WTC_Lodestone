@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
+import io.github.falphir.hub.repository.WhitelistedPlayerRepository;
 import io.github.falphir.hub.service.AdminUserService;
 import io.github.falphir.hub.service.ServerService;
 import io.github.falphir.hub.service.WhitelistService;
@@ -42,6 +43,9 @@ class BridgeSyncTest {
 
     @Autowired
     private AdminUserService admins;
+
+    @Autowired
+    private WhitelistedPlayerRepository whitelistRows;
 
     @Test
     void serverReportsSetupAndWhitelistVersionUntilTheListChanges() throws Exception {
@@ -77,6 +81,8 @@ class BridgeSyncTest {
         String bearer = "Bearer " + servers.register(SERVER + "-empty", "Sync Test Empty", null).token();
         String uuid = "0f3a1b2c-0000-4000-8000-0000000000c1";
 
+        whitelistRows.deleteAllInBatch();
+
         whitelist.importEntries(List.of(new WhitelistService.Entry(uuid, "Carl")), "test");
         mvc.perform(get("/api/bridge/whitelist").header("Authorization", bearer))
                 .andExpect(status().isOk())
@@ -84,9 +90,6 @@ class BridgeSyncTest {
 
         whitelist.remove(uuid);
 
-        // The list is genuinely empty now, but it HAS been populated before -- unlike a fresh hub
-        // that's never had anyone added, this must come back as 200 + [], not 204, or servers would
-        // never learn the last player was removed (see HubClient.applyWhitelist on the mod side).
         mvc.perform(get("/api/bridge/whitelist").header("Authorization", bearer))
                 .andExpect(status().isOk())
                 .andExpect(header().exists(BridgeController.WHITELIST_VERSION_HEADER))

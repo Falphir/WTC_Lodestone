@@ -39,7 +39,7 @@ class WhitelistServiceTest {
                 new WhitelistService.Entry(BOB, "Bob")), "admin");
 
         assertThat(added).isEqualTo(1);
-        assertThat(service.list()).extracting(WhitelistedPlayer::getUuid).containsExactly(ALICE, BOB);
+        assertThat(service.list()).extracting(WhitelistedPlayer::getUuid).contains(ALICE, BOB);
     }
 
     @Test

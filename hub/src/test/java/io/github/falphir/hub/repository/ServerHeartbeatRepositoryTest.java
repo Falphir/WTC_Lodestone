@@ -29,6 +29,7 @@ class ServerHeartbeatRepositoryTest {
 
     @Test
     void deletesOnlyHeartbeatsOlderThanCutoff() {
+        heartbeats.deleteAllInBatch();
         servers.save(new GameServer("retention-test", "Retention Test", "hash"));
 
         ServerHeartbeat old = heartbeats.save(new ServerHeartbeat("retention-test", 1, 10, 20.0, 4.2, 100, 200));

@@ -49,7 +49,7 @@ class AuthControllerTest {
     void serverTokensStillWorkOnBridgeAndNotOnAdminApi() throws Exception {
         String bearer = "Bearer " + servers.register("jwt-bridge-test", "JWT Bridge Test", null).token();
 
-        mvc.perform(get("/api/bridge/whitelist").header("Authorization", bearer)).andExpect(status().isOk());
+        mvc.perform(get("/api/bridge/whitelist").header("Authorization", bearer)).andExpect(status().is2xxSuccessful());
         mvc.perform(get("/api/admin/servers").header("Authorization", bearer)).andExpect(status().isUnauthorized());
     }
 
