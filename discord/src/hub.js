@@ -15,6 +15,10 @@ function requireEnv(name) {
   return val;
 }
 
+// Long enough for a cold hub to answer, short enough to still fit inside the 15 minutes a
+// deferred interaction gets -- and to fail visibly rather than hang.
+const TIMEOUT_MS = 10_000;
+
 let token = null;
 let expiresAt = 0;
 
@@ -28,6 +32,7 @@ async function login() {
   const res = await fetch(`${baseUrl()}/api/auth/token`, {
     method: 'POST',
     headers: { Authorization: `Basic ${basic}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Hub login failed (HTTP ${res.status}) -- check HUB_USERNAME/HUB_PASSWORD`);
   const body = await res.json();
@@ -56,56 +61,63 @@ async function errorMessage(res) {
   return body?.message || `HTTP ${res.status}`;
 }
 
+/**
+ * One authenticated request. `what` is the "Could not ..." half of the error a caller shows the
+ * user; `ok` lists the non-2xx statuses this particular call treats as success. Everything goes
+ * through here so every call gets the timeout -- without one, a hung hub holds the interaction
+ * open until Discord gives up and the user just sees "the application did not respond".
+ */
+async function request(method, path, { body, ok = [], what } = {}) {
+  const res = await withAuth((t) =>
+    fetch(`${baseUrl()}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${t}`,
+        ...(body !== undefined && { 'Content-Type': 'application/json' }),
+      },
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  );
+  if (res.ok || ok.includes(res.status)) return res;
+  throw new Error(`${what}: ${await errorMessage(res)}`);
+}
+
 /** Runs an authenticated GET, returning null on a 404 instead of throwing. */
 async function getOrNull(path) {
-  const res = await withAuth((t) => fetch(`${baseUrl()}${path}`, { headers: { Authorization: `Bearer ${t}` } }));
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Could not load ${path}: ${await errorMessage(res)}`);
-  return res.json();
+  const res = await request('GET', path, { ok: [404], what: `Could not load ${path}` });
+  return res.status === 404 ? null : res.json();
 }
 
 /** Adds `name` to the network whitelist. A 409 (already whitelisted) is treated as success. */
 async function whitelistAdd(name) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/whitelist`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    })
-  );
-  if (res.ok || res.status === 409) return;
-  throw new Error(`Could not whitelist '${name}': ${await errorMessage(res)}`);
+  await request('POST', '/api/admin/whitelist', {
+    body: { name },
+    ok: [409],
+    what: `Could not whitelist '${name}'`,
+  });
 }
 
 /** Removes `uuid` from the network whitelist. A 404 (already not on it) is treated as success. */
 async function whitelistRemove(uuid) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/whitelist/${uuid}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${t}` },
-    })
-  );
-  if (res.ok || res.status === 404) return;
-  throw new Error(`Could not remove '${uuid}' from the whitelist: ${await errorMessage(res)}`);
+  await request('DELETE', `/api/admin/whitelist/${uuid}`, {
+    ok: [404],
+    what: `Could not remove '${uuid}' from the whitelist`,
+  });
 }
 
 /** Gets the bot's config (channels, roles, branding, application rules). */
 async function getDiscordConfig() {
-  const res = await withAuth((t) => fetch(`${baseUrl()}/api/admin/discord/config`, { headers: { Authorization: `Bearer ${t}` } }));
-  if (!res.ok) throw new Error(`Could not load the Discord config: ${await errorMessage(res)}`);
+  const res = await request('GET', '/api/admin/discord/config', { what: 'Could not load the Discord config' });
   return res.json();
 }
 
 /** Merges `patch` into the bot's config (only non-null fields are changed) and returns the result. */
 async function updateDiscordConfig(patch) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/config`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    })
-  );
-  if (!res.ok) throw new Error(`Could not update the Discord config: ${await errorMessage(res)}`);
+  const res = await request('PATCH', '/api/admin/discord/config', {
+    body: patch,
+    what: 'Could not update the Discord config',
+  });
   return res.json();
 }
 
@@ -115,8 +127,7 @@ async function updateDiscordConfig(patch) {
  * publishing happens on the dashboard and the bot would never hear about it.
  */
 async function listPublishedServers() {
-  const res = await withAuth((t) => fetch(`${baseUrl()}/api/admin/servers`, { headers: { Authorization: `Bearer ${t}` } }));
-  if (!res.ok) throw new Error(`Could not load the server list: ${await errorMessage(res)}`);
+  const res = await request('GET', '/api/admin/servers', { what: 'Could not load the server list' });
   const servers = await res.json();
   return servers.filter((s) => s.listing.published);
 }
@@ -149,14 +160,10 @@ async function getPlayerByName(name) {
 
 /** Links `discordId` to the already-whitelisted account `uuid`. */
 async function linkDiscord(uuid, discordId, username) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/whitelist/${encodeURIComponent(uuid)}/discord-link`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ discordId, username }),
-    })
-  );
-  if (!res.ok) throw new Error(`Could not link Discord account for '${uuid}': ${await errorMessage(res)}`);
+  const res = await request('PUT', `/api/admin/whitelist/${encodeURIComponent(uuid)}/discord-link`, {
+    body: { discordId, username },
+    what: `Could not link Discord account for '${uuid}'`,
+  });
   return res.json();
 }
 
@@ -167,38 +174,26 @@ async function getApplication(discordId) {
 }
 
 async function setApplicationPending(discordId, { messageId, uuid, username }) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/applications/${encodeURIComponent(discordId)}/pending`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId, uuid, username }),
-    })
-  );
-  if (!res.ok) throw new Error(`Could not mark application pending for '${discordId}': ${await errorMessage(res)}`);
+  const res = await request('PUT', `/api/admin/discord/applications/${encodeURIComponent(discordId)}/pending`, {
+    body: { messageId, uuid, username },
+    what: `Could not mark application pending for '${discordId}'`,
+  });
   return res.json();
 }
 
 async function setApplicationDecision(discordId, status) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/applications/${encodeURIComponent(discordId)}/decision`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
-  );
-  if (!res.ok) throw new Error(`Could not record decision for '${discordId}': ${await errorMessage(res)}`);
+  const res = await request('PUT', `/api/admin/discord/applications/${encodeURIComponent(discordId)}/decision`, {
+    body: { status },
+    what: `Could not record decision for '${discordId}'`,
+  });
   return res.json();
 }
 
 /** A no-op if there wasn't an application. */
 async function clearApplication(discordId) {
-  const res = await withAuth((t) =>
-    fetch(`${baseUrl()}/api/admin/discord/applications/${encodeURIComponent(discordId)}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${t}` },
-    })
-  );
-  if (!res.ok) throw new Error(`Could not clear application for '${discordId}': ${await errorMessage(res)}`);
+  await request('DELETE', `/api/admin/discord/applications/${encodeURIComponent(discordId)}`, {
+    what: `Could not clear application for '${discordId}'`,
+  });
 }
 
 module.exports = {

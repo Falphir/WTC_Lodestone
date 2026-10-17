@@ -6,6 +6,7 @@ const config = require('../config');
 // Fixed status colours; the brand colour is read live from config.
 const COLORS = {
   success: 0x57f287,
+  warning: 0xfee75c,
   danger: 0xed4245,
 };
 

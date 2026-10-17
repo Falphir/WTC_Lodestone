@@ -14,6 +14,12 @@ const client = new Client({
 // Make the command map available to the interaction router.
 client.commands = commands;
 
+// The net, not the fix: every handler that can throw should catch its own (see the member
+// events). This is here so the one that forgets logs instead of taking the process down --
+// Node exits on an unhandled rejection, and systemd would restart us having lost the work.
+process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
+client.on('error', (err) => console.error('Client error:', err));
+
 // Auto-register every event module in ./events.
 const eventsDir = path.join(__dirname, 'events');
 for (const file of fs.readdirSync(eventsDir).filter((f) => f.endsWith('.js'))) {

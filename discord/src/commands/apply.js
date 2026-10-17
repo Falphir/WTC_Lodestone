@@ -26,7 +26,13 @@ module.exports = {
   async execute(interaction) {
     const member = interaction.member;
     const alreadyMember = config.memberRoleId && member?.roles?.cache?.has(config.memberRoleId);
-    const link = await db.getByDiscord(interaction.user.id);
+
+    // Both lookups at once: showModal can't follow a deferReply, so everything before it is on
+    // Discord's 3s clock, and these were two round-trips deep.
+    const [link, app] = await Promise.all([
+      db.getByDiscord(interaction.user.id),
+      db.getApplication(interaction.user.id),
+    ]);
 
     if (alreadyMember || link) {
       return interaction.reply({
@@ -34,8 +40,6 @@ module.exports = {
         ...EPHEMERAL,
       });
     }
-
-    const app = await db.getApplication(interaction.user.id);
 
     // One open application at a time.
     if (app && app.status === 'pending') {

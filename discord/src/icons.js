@@ -24,6 +24,12 @@ const ICONS = {
   approved: '✅', // an application/link was approved
   denied: '❌', // an application was denied
   warning: '⚠️', // partial failure / heads-up (e.g. a server was unreachable)
+
+  // server status, as the hub derives it (/serverinfo). No glyph for NEVER/DISABLED:
+  // those mean "the hub hasn't heard from it", which is not the same as "it's down".
+  online: '🟢',
+  lagging: '🟡',
+  offline: '🔴',
 };
 
 // Prepend an icon (plus a space) to text, but only when that icon is set —

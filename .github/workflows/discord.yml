@@ -1,0 +1,42 @@
+name: Discord bot
+
+on:
+  push:
+    paths:
+      - 'discord/**'
+      - '.github/workflows/discord.yml'
+  pull_request:
+    paths:
+      - 'discord/**'
+      - '.github/workflows/discord.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: discord
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # The floor in discord/package.json's engines field
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: discord/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # node:test, no runner. The tests stub global fetch, so there is no hub
+      # and no database to stand up here -- unlike the hub's own workflow.
+      - name: Run tests
+        run: npm test

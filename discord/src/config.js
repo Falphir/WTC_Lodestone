@@ -14,6 +14,8 @@ function requireEnv(name) {
 // and only then updates this cache. The hub is the only persistent store -- nothing here is ever
 // written to disk. What /serverinfo shows players is NOT cached: it's a per-server listing an
 // admin publishes on the dashboard, so the bot reads it live (see hub.listPublishedServers).
+const REFRESH_MS = 60_000;
+
 let cfg = {};
 
 module.exports = {
@@ -24,6 +26,16 @@ module.exports = {
 
   async init() {
     cfg = await hub.getDiscordConfig();
+    // The /config panel writes through this cache, but the hub's config can also be edited
+    // straight through its API, so re-pull periodically rather than needing a bot restart.
+    // A failed refresh keeps the config we already have -- stale beats empty.
+    setInterval(async () => {
+      try {
+        cfg = await hub.getDiscordConfig();
+      } catch (err) {
+        console.error('Config refresh failed, keeping the cached one:', err.message);
+      }
+    }, REFRESH_MS).unref();
   },
 
   // Live getters so runtime edits are reflected everywhere without a restart.

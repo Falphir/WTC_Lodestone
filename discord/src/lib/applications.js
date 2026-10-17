@@ -33,6 +33,15 @@ async function postStaffLog(client, embed) {
   }
 }
 
+// Why a reviewed application can't be reviewed again. The hub row carries the decision, so the
+// loser of a double-click learns what happened instead of silently running the whole flow twice.
+// ponytail: this only narrows the race to one hub round-trip, which is enough for two staff
+// clicking at once. A compare-and-set on `status` hub-side is the upgrade if it ever bites.
+function reviewedAlready(app) {
+  const when = app.decidedAt ? `<t:${Math.floor(app.decidedAt / 1000)}:R>` : '';
+  return t('apply.alreadyReviewed', { when });
+}
+
 async function buildApplicationEmbed(user, data) {
   return new EmbedBuilder()
     .setColor(config.brand.color)
@@ -176,8 +185,15 @@ async function handleApprove(interaction, applicantId) {
   await interaction.deferReply(EPHEMERAL);
 
   const embed = interaction.message.embeds[0];
-  const mcName = getField(embed, t('apply.fieldMinecraft'));
-  const profile = await mojang.lookupProfile(mcName);
+  const app = await db.getApplication(applicantId);
+  if (app && app.status !== 'pending') return interaction.editReply(reviewedAlready(app));
+
+  // The hub stored the applicant's uuid/name when the post went up, so use those rather than
+  // re-reading the rendered embed -- rewording apply.fieldMinecraft would otherwise make every
+  // in-flight application unapprovable. The embed stays the fallback for posts made before this.
+  let profile = app?.uuid && app?.username ? { uuid: app.uuid, name: app.username } : null;
+  const mcName = profile?.name || getField(embed, t('apply.fieldMinecraft'));
+  if (!profile) profile = await mojang.lookupProfile(mcName);
   if (!profile) {
     return interaction.editReply(t('apply.mojangNotFound', { name: mcName }));
   }
@@ -272,6 +288,9 @@ async function promptDeny(interaction, applicantId) {
 async function submitDeny(interaction, applicantId, messageId) {
   await interaction.deferReply(EPHEMERAL);
   const reason = interaction.fields.getTextInputValue('reason').trim();
+
+  const app = await db.getApplication(applicantId);
+  if (app && app.status !== 'pending') return interaction.editReply(reviewedAlready(app));
 
   try {
     const ch = await interaction.client.channels.fetch(config.applicationsChannelId);

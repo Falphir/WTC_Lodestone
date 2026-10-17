@@ -14,9 +14,11 @@ module.exports = {
     const has = newMember.roles.cache.has(config.memberRoleId);
     if (!(had && !has)) return;
 
-    const link = await db.getByDiscord(newMember.id);
-    if (!link) return;
+    // The lookup is inside the try too: an unreachable hub here is an unhandled rejection
+    // otherwise, and nothing above this is holding a catch.
     try {
+      const link = await db.getByDiscord(newMember.id);
+      if (!link) return;
       await revokeAccess(link);
       console.log(`Auto-revoked ${link.username} (member role removed from ${newMember.id}).`);
     } catch (err) {

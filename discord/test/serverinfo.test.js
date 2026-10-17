@@ -98,3 +98,44 @@ test('stays inside Discord\'s ten-embed limit and says it truncated', async () =
   assert.ok(1 + cards.length <= 10, `sent ${1 + cards.length} embeds`);
   assert.match(header.description, /Showing the first 9/);
 });
+
+// ---- live status (the hub already sends it on every server row) ----
+
+const heartbeat = (set) => ({ playerCount: 0, maxPlayers: 20, tps: 20, msptAvg: 8, memoryUsedMb: 1, memoryMaxMb: 2, ...set });
+const live = (name, status, set) => ({ ...server(name, { publicAddress: 'play.example.com' }), status, ...set });
+
+test('shows status, player count and who is on', async () => {
+  const { cards } = await render([
+    live('Busy', 'ONLINE', {
+      latest: heartbeat({ playerCount: 2 }),
+      online: [{ uuid: 'a', name: 'Notch' }, { uuid: 'b', name: 'jeb_' }],
+    }),
+  ]);
+
+  assert.match(cards[0].description, /Online/);
+  assert.match(cards[0].description, /2\/20/);
+  assert.match(cards[0].description, /Notch, jeb_/);
+});
+
+test('an empty online list never reads as "nobody is playing"', async () => {
+  // The hub sends [] both for an idle server and for one it hasn't heard the roster from yet
+  // (older mod, or the first minute after a restart), so the card must not claim either.
+  const { cards } = await render([live('Quiet', 'ONLINE', { latest: heartbeat({ playerCount: 3 }), online: [] })]);
+
+  assert.ok(!/Online now/.test(cards[0].description), 'should not render an online-players line');
+  assert.match(cards[0].description, /3\/20/, 'the player count is still the figure that says how many');
+});
+
+test('an offline server says so and drops the player count', async () => {
+  const { cards } = await render([live('Down', 'OFFLINE', { latest: heartbeat({ playerCount: 4 }), online: [] })]);
+
+  assert.match(cards[0].description, /Offline/);
+  assert.ok(!/Players/.test(cards[0].description), 'a stale player count is worse than none');
+});
+
+test('a server the hub has never heard from shows no status at all', async () => {
+  const { cards } = await render([live('Fresh', 'NEVER', { latest: null, online: [] })]);
+
+  assert.ok(!/Status/.test(cards[0].description), 'NEVER means unknown, not down');
+  assert.match(cards[0].description, /play\.example\.com/);
+});

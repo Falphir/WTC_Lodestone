@@ -82,3 +82,17 @@ test('throws with the hub message on an unexpected failure', async () => {
 
   await assert.rejects(hub.whitelistAdd('Notch'), /db is down/);
 });
+
+test('surfaces a timed-out request instead of hanging', async () => {
+  globalThis.fetch = async (url, opts) => {
+    if (url.endsWith('/api/auth/token')) {
+      return jsonResponse(200, { token: 'tok', expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+    }
+    assert.ok(opts.signal, 'every hub call should carry an abort signal');
+    // What fetch does when AbortSignal.timeout fires.
+    throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+  };
+  const hub = freshHub();
+
+  await assert.rejects(hub.whitelistAdd('Notch'), /timeout/);
+});
