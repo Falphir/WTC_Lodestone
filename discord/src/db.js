@@ -28,6 +28,9 @@ module.exports = {
   },
 
   // ---- applications ----
+  async listApplications(status) {
+    return hub.listApplications(status);
+  },
   async getApplication(discordId) {
     return hub.getApplication(discordId);
   },

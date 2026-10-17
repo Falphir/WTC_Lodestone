@@ -1,12 +1,13 @@
 'use strict';
 
-// The whole application lifecycle: the /apply modal, the public application post,
-// and the staff Approve / Deny actions (button + reason modal).
+// The whole application lifecycle: the /apply modal, the public application post, the staff
+// review card /review hands out, and the Approve / Deny actions behind its buttons.
 const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -19,7 +20,7 @@ const mojang = require('../mojang');
 const { t } = require('../i18n');
 const { withIcon } = require('../icons');
 const { COLORS, brandEmbed, mcHead } = require('./embeds');
-const { EPHEMERAL, isStaff, getField, reviewedRow } = require('./util');
+const { EPHEMERAL, isStaff } = require('./util');
 
 // Post an embed to the private staff audit-log channel, if one is configured.
 // Never pings anyone mentioned in the embed.
@@ -40,6 +41,79 @@ async function postStaffLog(client, embed) {
 function reviewedAlready(app) {
   const when = app.decidedAt ? `<t:${Math.floor(app.decidedAt / 1000)}:R>` : '';
   return t('apply.alreadyReviewed', { when });
+}
+
+// Replace the staff member's ephemeral review card with the outcome, so the buttons go with it.
+const finish = (interaction, content) => interaction.editReply({ content, embeds: [], components: [] });
+
+/**
+ * Acknowledge a decision so `finish` lands in the right place. Normally the button is on the
+ * staff member's own ephemeral review card and the outcome replaces it. An application posted
+ * before /review existed still has buttons on the *public* post, though, and replacing that
+ * would wipe the applicant's answers -- so those answer with a separate ephemeral reply and
+ * leave the post to stampPost.
+ */
+async function acknowledge(interaction) {
+  if (interaction.message?.flags?.has(MessageFlags.Ephemeral)) await interaction.deferUpdate();
+  else await interaction.deferReply(EPHEMERAL);
+}
+
+/**
+ * The staff-side card for one application: who, which account, when, and a link to the public
+ * post that still holds their written answers -- the hub stores the applicant's identity, not
+ * their essay, so the post stays the record of what they actually wrote.
+ */
+async function reviewCard(app, guildId) {
+  if (app.status !== 'pending') return { content: reviewedAlready(app), embeds: [], components: [] };
+
+  const url =
+    app.messageId && config.applicationsChannelId
+      ? t('review.linkPost', {
+          url: `https://discord.com/channels/${guildId}/${config.applicationsChannelId}/${app.messageId}`,
+        })
+      : t('review.postMissing');
+
+  const embed = brandEmbed()
+    .setTitle(withIcon('review', t('review.embedTitle')))
+    .setThumbnail(await mcHead(app.username || app.uuid))
+    .addFields(
+      { name: t('review.fieldApplicant'), value: `<@${app.discordId}>`, inline: true },
+      { name: t('review.fieldMinecraft'), value: `\`${app.username}\``, inline: true },
+      { name: t('review.fieldApplied'), value: `<t:${Math.floor(app.createdAt / 1000)}:R>`, inline: true },
+      { name: t('review.fieldPost'), value: url }
+    );
+
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`app_approve:${app.discordId}`)
+      .setLabel(t('review.btnApprove'))
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`app_deny:${app.discordId}`)
+      .setLabel(t('review.btnDeny'))
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  return { embeds: [embed], components: [buttons] };
+}
+
+/**
+ * Mark the public post with the decision. It carries no buttons to disable -- the colour and a
+ * Status field are the whole signal -- and a deleted post is not an error worth surfacing.
+ */
+async function stampPost(client, messageId, color, status) {
+  if (!messageId) return;
+  try {
+    const ch = await client.channels.fetch(config.applicationsChannelId);
+    const msg = await ch.messages.fetch(messageId);
+    const stamped = EmbedBuilder.from(msg.embeds[0])
+      .setColor(color)
+      .addFields({ name: t('apply.statusField'), value: status });
+    // components: [] also strips the buttons from posts published before /review existed.
+    await msg.edit({ embeds: [stamped], components: [] });
+  } catch (err) {
+    console.error('Could not stamp the application post:', err.message);
+  }
 }
 
 async function buildApplicationEmbed(user, data) {
@@ -147,23 +221,16 @@ async function submitApplication(interaction) {
 
   const channel = await interaction.client.channels.fetch(config.applicationsChannelId);
   const embed = await buildApplicationEmbed(interaction.user, data);
-  const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`app_approve:${interaction.user.id}`)
-      .setLabel(t('apply.btnApprove'))
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`app_deny:${interaction.user.id}`)
-      .setLabel(t('apply.btnDeny'))
-      .setStyle(ButtonStyle.Danger)
-  );
 
-  // Ping the staff role(s) so nobody has to watch the channel.
+  // No Approve/Deny buttons here on purpose: this channel is public so the community can see
+  // who is joining, and a message's components render for everyone who can see the message --
+  // Discord has no per-user visibility for them. Staff pull the controls into an ephemeral
+  // reply with /review instead (see reviewCard).
   const staffPing = config.staffMention;
   const post = await channel.send({
-    ...(staffPing ? { content: staffPing, allowedMentions: { roles: config.staffRoleIds } } : {}),
+    content: [staffPing, t('apply.reviewHint')].filter(Boolean).join('\n'),
+    ...(staffPing ? { allowedMentions: { roles: config.staffRoleIds } } : {}),
     embeds: [embed],
-    components: [buttons],
   });
 
   await db.setApplicationPending({
@@ -182,31 +249,31 @@ async function handleApprove(interaction, applicantId) {
   if (!isStaff(interaction.member)) {
     return interaction.reply({ content: t('apply.staffOnlyReview'), ...EPHEMERAL });
   }
-  await interaction.deferReply(EPHEMERAL);
+  await acknowledge(interaction);
 
-  const embed = interaction.message.embeds[0];
   const app = await db.getApplication(applicantId);
-  if (app && app.status !== 'pending') return interaction.editReply(reviewedAlready(app));
+  if (!app) return finish(interaction, t('review.notFound', { discordId: applicantId }));
+  if (app.status !== 'pending') return finish(interaction, reviewedAlready(app));
 
-  // The hub stored the applicant's uuid/name when the post went up, so use those rather than
-  // re-reading the rendered embed -- rewording apply.fieldMinecraft would otherwise make every
-  // in-flight application unapprovable. The embed stays the fallback for posts made before this.
-  let profile = app?.uuid && app?.username ? { uuid: app.uuid, name: app.username } : null;
-  const mcName = profile?.name || getField(embed, t('apply.fieldMinecraft'));
-  if (!profile) profile = await mojang.lookupProfile(mcName);
+  // The hub stored the applicant's uuid/name when the post went up, so take them from there
+  // rather than re-reading a rendered embed; Mojang is only the fallback for a row that
+  // somehow lacks them.
+  const profile = app.uuid && app.username
+    ? { uuid: app.uuid, name: app.username }
+    : await mojang.lookupProfile(app.username);
   if (!profile) {
-    return interaction.editReply(t('apply.mojangNotFound', { name: mcName }));
+    return finish(interaction, t('apply.mojangNotFound', { name: app.username }));
   }
 
   const existing = await db.getByUuid(profile.uuid);
   if (existing && existing.discordId !== applicantId) {
-    return interaction.editReply(t('apply.alreadyLinked', { discordId: existing.discordId }));
+    return finish(interaction, t('apply.alreadyLinked', { discordId: existing.discordId }));
   }
 
   try {
     await hub.whitelistAdd(profile.name);
   } catch (err) {
-    return interaction.editReply(t('apply.hubUnreachable', { error: err.message }));
+    return finish(interaction, t('apply.hubUnreachable', { error: err.message }));
   }
   await db.setLink({ discordId: applicantId, uuid: profile.uuid, username: profile.name });
   await db.setApplicationDecision(applicantId, 'approved');
@@ -237,17 +304,12 @@ async function handleApprove(interaction, applicantId) {
     roleNote += `\n${withIcon('warning', t('apply.welcomeWarn'))}`;
   }
 
-  // Stamp the application post as approved and disable the buttons.
-  const stamped = EmbedBuilder.from(embed)
-    .setColor(COLORS.success)
-    .addFields({
-      name: t('apply.statusField'),
-      value: withIcon('approved', t('apply.statusApproved', { staffId: interaction.user.id })),
-    });
-  await interaction.message.edit({
-    embeds: [stamped],
-    components: [reviewedRow(withIcon('approved', t('apply.reviewedApproved')), ButtonStyle.Success)],
-  });
+  await stampPost(
+    interaction.client,
+    app.messageId,
+    COLORS.success,
+    withIcon('approved', t('apply.statusApproved', { staffId: interaction.user.id }))
+  );
 
   const approvedLog = brandEmbed()
     .setColor(COLORS.success)
@@ -260,17 +322,16 @@ async function handleApprove(interaction, applicantId) {
     );
   await postStaffLog(interaction.client, approvedLog);
 
-  await interaction.editReply(
-    withIcon('approved', t('apply.approveSuccess', { name: profile.name })) + roleNote
-  );
+  await finish(interaction, withIcon('approved', t('apply.approveSuccess', { name: profile.name })) + roleNote);
 }
 
 async function promptDeny(interaction, applicantId) {
   if (!isStaff(interaction.member)) {
     return interaction.reply({ content: t('apply.staffOnlyReview'), ...EPHEMERAL });
   }
+  // The public post's id comes off the hub row in submitDeny, so it needn't ride in the custom id.
   const modal = new ModalBuilder()
-    .setCustomId(`deny_modal:${applicantId}:${interaction.message.id}`)
+    .setCustomId(`deny_modal:${applicantId}`)
     .setTitle(t('apply.denyModalTitle'));
   modal.addComponents(
     new ActionRowBuilder().addComponents(
@@ -285,29 +346,19 @@ async function promptDeny(interaction, applicantId) {
   await interaction.showModal(modal);
 }
 
-async function submitDeny(interaction, applicantId, messageId) {
-  await interaction.deferReply(EPHEMERAL);
+async function submitDeny(interaction, applicantId) {
+  await acknowledge(interaction);
   const reason = interaction.fields.getTextInputValue('reason').trim();
 
   const app = await db.getApplication(applicantId);
-  if (app && app.status !== 'pending') return interaction.editReply(reviewedAlready(app));
+  if (app && app.status !== 'pending') return finish(interaction, reviewedAlready(app));
 
-  try {
-    const ch = await interaction.client.channels.fetch(config.applicationsChannelId);
-    const msg = await ch.messages.fetch(messageId);
-    const stamped = EmbedBuilder.from(msg.embeds[0])
-      .setColor(COLORS.danger)
-      .addFields({
-        name: t('apply.statusField'),
-        value: withIcon('denied', t('apply.statusDenied', { staffId: interaction.user.id })),
-      });
-    await msg.edit({
-      embeds: [stamped],
-      components: [reviewedRow(withIcon('denied', t('apply.reviewedDenied')), ButtonStyle.Danger)],
-    });
-  } catch {
-    /* message may have been deleted */
-  }
+  await stampPost(
+    interaction.client,
+    app?.messageId,
+    COLORS.danger,
+    withIcon('denied', t('apply.statusDenied', { staffId: interaction.user.id }))
+  );
 
   try {
     const user = await interaction.client.users.fetch(applicantId);
@@ -337,7 +388,7 @@ async function submitDeny(interaction, applicantId, messageId) {
   if (reason) deniedLog.addFields({ name: t('apply.logFieldReason'), value: reason });
   await postStaffLog(interaction.client, deniedLog);
 
-  await interaction.editReply(withIcon('denied', t('apply.denied')));
+  await finish(interaction, withIcon('denied', t('apply.denied')));
 }
 
 // Routes application-related buttons / modals (called from events/interactionCreate).
@@ -350,9 +401,9 @@ async function onButton(interaction) {
 async function onModal(interaction) {
   if (interaction.customId === 'apply_modal') return submitApplication(interaction);
   if (interaction.customId.startsWith('deny_modal:')) {
-    const [, applicantId, messageId] = interaction.customId.split(':');
-    return submitDeny(interaction, applicantId, messageId);
+    const [, applicantId] = interaction.customId.split(':');
+    return submitDeny(interaction, applicantId);
   }
 }
 
-module.exports = { openApplyModal, onButton, onModal };
+module.exports = { openApplyModal, reviewCard, onButton, onModal };

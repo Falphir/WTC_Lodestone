@@ -1,5 +1,6 @@
 package io.github.falphir.hub.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import io.github.falphir.hub.entity.DiscordApplication;
@@ -25,6 +26,17 @@ public class DiscordApplicationService {
     @Transactional(readOnly = true)
     public Optional<DiscordApplication> getApplication(String discordId) {
         return applications.findById(discordId);
+    }
+
+    /**
+     * Every application, or only those in one status. The bot lists the pending ones to offer
+     * them as autocomplete choices on /review, so staff pick an applicant instead of naming one.
+     */
+    @Transactional(readOnly = true)
+    public List<DiscordApplication> listApplications(String status) {
+        return status == null || status.isBlank()
+                ? applications.findAllByOrderByCreatedAtAsc()
+                : applications.findByStatusOrderByCreatedAtAsc(status);
     }
 
     @Transactional

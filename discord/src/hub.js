@@ -173,6 +173,15 @@ async function getApplication(discordId) {
   return getOrNull(`/api/admin/discord/applications/${encodeURIComponent(discordId)}`);
 }
 
+/** Applications in one status (or all of them), oldest first. Drives /review's autocomplete. */
+async function listApplications(status) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await request('GET', `/api/admin/discord/applications${query}`, {
+    what: 'Could not load the applications',
+  });
+  return res.json();
+}
+
 async function setApplicationPending(discordId, { messageId, uuid, username }) {
   const res = await request('PUT', `/api/admin/discord/applications/${encodeURIComponent(discordId)}/pending`, {
     body: { messageId, uuid, username },
@@ -208,6 +217,7 @@ module.exports = {
   getPlayerByName,
   linkDiscord,
   getApplication,
+  listApplications,
   setApplicationPending,
   setApplicationDecision,
   clearApplication,

@@ -16,6 +16,14 @@ module.exports = {
         return await command.execute(interaction);
       }
 
+      if (interaction.isAutocomplete()) {
+        const command = interaction.client.commands.get(interaction.commandName);
+        // An autocomplete interaction has no reply, only choices; an empty list is the way to
+        // say "nothing to suggest", which is also all the catch below can do for it.
+        if (!command?.autocomplete) return interaction.respond([]);
+        return await command.autocomplete(interaction);
+      }
+
       if (interaction.isButton()) {
         const id = interaction.customId;
         if (id.startsWith('app_')) return await applications.onButton(interaction);
@@ -38,6 +46,10 @@ module.exports = {
       }
     } catch (err) {
       console.error('Interaction error:', err);
+      // Autocomplete can't be replied to -- the hub being slow just means no suggestions.
+      if (interaction.isAutocomplete()) {
+        return interaction.respond([]).catch(() => {});
+      }
       const msg = { content: t('common.interactionError'), ...EPHEMERAL };
       try {
         if (interaction.deferred || interaction.replied) await interaction.followUp(msg);

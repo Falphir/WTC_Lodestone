@@ -17,6 +17,7 @@ const ICONS = {
   // accents
   welcome: '👋', // approval welcome embed title
   link: '🔗', // /whois "Account Link" title
+  review: '📋', // /review staff card title
   servers: '🖥️', // /serverinfo title
   config: '⚙️', // /config view title
 

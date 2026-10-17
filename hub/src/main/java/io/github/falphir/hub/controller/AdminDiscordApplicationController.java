@@ -1,5 +1,7 @@
 package io.github.falphir.hub.controller;
 
+import java.util.List;
+
 import io.github.falphir.hub.entity.DiscordApplication;
 import io.github.falphir.hub.service.DiscordApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,6 +33,15 @@ public class AdminDiscordApplicationController {
 
     public AdminDiscordApplicationController(DiscordApplicationService service) {
         this.service = service;
+    }
+
+    @GetMapping
+    @Operation(summary = "List applications",
+            description = "Oldest first. Pass `status` to narrow to pending/approved/denied -- the bot lists "
+                    + "the pending ones as the choices on its /review command.")
+    public List<ApplicationView> list(
+            @RequestParam(required = false) @Pattern(regexp = "pending|approved|denied") String status) {
+        return service.listApplications(status).stream().map(ApplicationView::from).toList();
     }
 
     @GetMapping("/{discordId}")

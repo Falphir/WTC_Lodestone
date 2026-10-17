@@ -4,7 +4,6 @@
     "staffOnly": "Staff only.",
     "interactionError": "Something went wrong handling that."
   },
-
   "apply": {
     "commandDescription": "Apply to join the community",
     "alreadyWhitelisted": "You're already whitelisted. If you need to change your Minecraft account, use `/link` instead.",
@@ -19,13 +18,13 @@
     "ageInvalid": "\"{age}\" doesn't look like a valid age. Please run `/apply` again and enter your age as a whole number.",
     "ageTooYoung": "Sorry, {brand} is a {minAge}+ community and we can't accept applicants under that age. You're welcome to apply again once you meet the age requirement.",
     "submitted": "Your application has been submitted — thank you! The {brand} staff team will review it shortly.",
+    "reviewHint": "Staff: approve or deny with `/review`.",
     "staffOnlyReview": "Only staff can review applications.",
     "alreadyReviewed": "Someone already reviewed this application {when} — nothing to do.",
     "submitMojangNotFound": "Mojang has no Java account named `{name}`. Double-check your Minecraft (Java) username and run `/apply` again.",
     "submitAlreadyLinked": "The Minecraft account `{name}` is already linked to another member. If that account is yours, please reach out to staff.",
     "pendingExists": "You already have an application awaiting review, please wait for staff to get to it.",
     "cooldownActive": "Your last application was declined. You can apply again {when}.",
-
     "embedAuthor": "{tag} — New Application",
     "embedFooter": "{brand} • Application",
     "fieldApplicant": "Applicant",
@@ -35,13 +34,7 @@
     "fieldExperience": "Experience & playstyle",
     "fieldWhy": "Why they want to join",
     "referralEmpty": "—",
-
-    "btnApprove": "Approve",
-    "btnDeny": "Deny",
-    "reviewedApproved": "Approved",
-    "reviewedDenied": "Denied",
     "statusField": "Status",
-
     "mojangNotFound": "Mojang has no Java account named `{name}`. Ask the applicant to double-check their username.",
     "alreadyLinked": "That Minecraft account is already linked to <@{discordId}>.",
     "roleWarn": "Could not assign the member role — check that the bot has **Manage Roles**, that the bot's own role is **above** the member role in Server Settings → Roles, and that `memberRoleId` in config.json is correct.",
@@ -51,7 +44,6 @@
     "statusApproved": "Approved by <@{staffId}>",
     "approveSuccess": "Approved **{name}** and added them to the network whitelist.",
     "hubUnreachable": "Could not reach the hub to whitelist this player: {error}",
-
     "denyModalTitle": "Deny Application",
     "denyReasonLabel": "Reason (optional — DMed to applicant)",
     "statusDenied": "Denied by <@{staffId}>",
@@ -60,7 +52,6 @@
     "denyDmReason": "\n\n**Reason provided:**\n> {reason}",
     "denyDmClosing": "\n\nYou're welcome to apply again in the future.",
     "denied": "Application denied.",
-
     "logTitleApproved": "Application Approved",
     "logTitleDenied": "Application Denied",
     "logFieldApplicant": "Applicant",
@@ -68,7 +59,22 @@
     "logFieldReviewer": "Reviewed by",
     "logFieldReason": "Reason"
   },
-
+  "review": {
+    "commandDescription": "Approve or deny someone's application",
+    "optionDescription": "Pick a pending application",
+    "choice": "{discord} | {mc}",
+    "pickFromList": "Pick an application from the list the command offers.",
+    "notFound": "<@{discordId}> has no application on file.",
+    "embedTitle": "Application Review",
+    "fieldApplicant": "Applicant",
+    "fieldMinecraft": "Minecraft",
+    "fieldApplied": "Applied",
+    "fieldPost": "Application",
+    "linkPost": "[Jump to the post]({url})",
+    "postMissing": "The post is gone — the answers went with it.",
+    "btnApprove": "Approve",
+    "btnDeny": "Deny"
+  },
   "link": {
     "commandDescription": "Link or change your Minecraft account (approved members only)",
     "optionDescription": "Your Minecraft (Java) username",
@@ -81,7 +87,6 @@
     "previousRemoved": "\nPrevious entry `{name}` was removed.",
     "hubUnreachable": "Could not reach the hub to update the whitelist: {error}"
   },
-
   "unlink": {
     "commandDescription": "(Staff) Remove a member's link and de-whitelist them",
     "optionDescription": "Discord member to unlink",
@@ -89,7 +94,6 @@
     "success": "Unlinked <@{discordId}> (was `{name}`) and removed from the network whitelist.",
     "hubUnreachable": "Could not reach the hub to update the whitelist: {error}"
   },
-
   "resetcooldown": {
     "commandDescription": "(Staff) Clear a member's re-apply cooldown so they can apply again",
     "optionDescription": "Discord member whose cooldown to reset",
@@ -97,7 +101,6 @@
     "noCooldown": "<@{discordId}> isn't on cooldown — nothing to reset.",
     "success": "Cleared the re-apply cooldown for <@{discordId}>. They can submit `/apply` again now."
   },
-
   "whois": {
     "commandDescription": "(Staff) Look up a Discord <-> Minecraft link",
     "optionUserDescription": "Discord member to look up",
@@ -110,7 +113,6 @@
     "fieldLinked": "Linked",
     "fieldUuid": "UUID"
   },
-
   "serverinfo": {
     "commandDescription": "Show servers, versions and install links",
     "embedTitle": "{brand} — Servers",
@@ -131,10 +133,8 @@
     "empty": "No servers are published yet. An admin publishes one from the dashboard.",
     "truncated": "Showing the first {shown}."
   },
-
   "config": {
     "commandDescription": "View and change every bot setting",
-
     "viewTitle": "Configuration",
     "panelHint": "Pick a section below to change it. Every change saves straight away.",
     "viewApplications": "Applications",
@@ -149,20 +149,17 @@
     "brandIconSet": "icon set",
     "empty": "—",
     "cooldownDays": "{days} day(s)",
-
     "sectionChannels": "Channels",
     "sectionRoles": "Roles",
     "sectionRules": "Application rules",
     "sectionBrand": "Branding",
     "back": "Back",
-
     "pickApplications": "Public applications channel",
     "pickWelcome": "Welcome channel",
     "pickServerInfo": "Members-only server-info channel",
     "pickStaffLog": "Private staff audit-log channel",
     "pickMemberRole": "Approved-member role",
     "pickStaffRoles": "Staff roles (pick none to clear)",
-
     "rulesModalTitle": "Application rules",
     "labelMinAge": "Minimum age (1-120)",
     "labelCooldown": "Re-apply cooldown in days (0 = off)",
@@ -171,7 +168,6 @@
     "labelBrandColor": "Hex colour",
     "labelBrandIcon": "Logo image URL (leave empty to clear)",
     "placeholderBrandIcon": "https://example.com/logo.png",
-
     "invalidMinAge": "Minimum age must be a whole number between 1 and 120.",
     "invalidCooldown": "The cooldown must be a whole number of days between 0 and 365.",
     "invalidColor": "The colour must be a 6-digit hex value, e.g. `#5865F2`."

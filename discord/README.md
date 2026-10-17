@@ -15,17 +15,28 @@ account, and vice-versa).
 
 ## Features
 
-- `/apply` — opens a form; the application is posted to a **public** channel (community can read
-  it) with **staff-gated Approve / Deny** buttons.
+- `/apply` — opens a form; the application is posted to a **public** channel, so the community
+  can see who is joining. The post carries no buttons: a message's components render for
+  everyone who can see the message, and Discord has no per-user visibility for them.
 - **On submit** the bot validates up front (before staff see anything): the age gate
   (`minAge`, default 18), the Minecraft name via Mojang (typos / nonexistent accounts rejected),
   and a duplicate check (an account already linked to someone else is rejected). It also enforces
   **one open application at a time** and a **re-apply cooldown** after a denial
   (`applyCooldownDays`, default 7). Applications that pass ping the staff role(s).
-- **Approve** → validates the MC name via Mojang, creates the link, adds the player to the hub's
-  network whitelist, assigns the member role, posts a welcome message pointing to the
-  server-info channel. No DMs of IPs.
+- `/review` (staff) — the Approve / Deny controls, in an **ephemeral** reply, which is the one
+  place Discord makes components per-user. The option **autocompletes from the hub's pending
+  applications**, each listed as `Discord name | Minecraft name` and matched on either, so staff
+  pick an applicant rather than naming one and only reviewable applications are ever offered.
+  Someone who has since left the server has no Discord name to resolve and is listed under their
+  Minecraft name alone — still reviewable, where a member picker could not have found them. The
+  card shows the applicant, their Minecraft account and a jump link to the public post that
+  holds their written answers.
+- **Approve** → takes the account off the hub's application row (Mojang is only a fallback),
+  creates the link, adds the player to the hub's network whitelist, assigns the member role,
+  posts a welcome message pointing to the server-info channel. No DMs of IPs.
 - **Deny** → optional reason, DMed to the applicant; application post is stamped.
+- Either decision stamps the public post with the outcome and who made it, and the review card
+  is replaced by the result.
 - **Audit log** — if a `staffLogChannelId` is set, approvals and denials (who / when / reason) are
   logged there for a paper trail.
 - `/link <mc_username>` — approved members self-service **connect or change** their MC account
@@ -134,8 +145,10 @@ npm start
 ## Verify (matches the plan's verification section)
 
 1. `/serverinfo` renders your servers.
-2. Submit an `/apply`, click **Approve** as staff → check: link row created, the player shows up
-   on the hub dashboard's Whitelist page, role assigned, welcome posted, post stamped.
+2. Submit an `/apply`, then `/review` as staff -- the applicant should appear in the
+   option's suggestions -- and click **Approve** → check: link
+   row created, the player shows up on the hub dashboard's Whitelist page, role assigned,
+   welcome posted, public post stamped. Confirm a non-staff member sees no buttons anywhere.
 3. `/link` a fresh name, then `/link` a different name → old name removed, new added, still one
    row.
 4. Remove the member role from a test account → confirm auto de-whitelist on the dashboard.
