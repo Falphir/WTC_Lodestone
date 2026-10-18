@@ -70,7 +70,7 @@ export function ServerHeartbeats({ id, latest }) {
       ) : (
         <div className={`charts${stale ? ' is-stale' : ''}`}>
           <LineChart
-            title="Players online"
+            title="Players"
             points={series.players}
             from={from}
             to={to}
@@ -80,7 +80,7 @@ export function ServerHeartbeats({ id, latest }) {
             describe={describe}
           />
           <LineChart
-            title="Ticks per second"
+            title="TPS"
             points={series.tps}
             from={from}
             to={to}
@@ -91,7 +91,7 @@ export function ServerHeartbeats({ id, latest }) {
           />
           {series.mspt.length > 0 && (
             <LineChart
-              title="Tick time"
+              title="MSPT"
               points={series.mspt}
               from={from}
               to={to}
@@ -102,7 +102,7 @@ export function ServerHeartbeats({ id, latest }) {
             />
           )}
           <LineChart
-            title="Memory used"
+            title="Memory"
             points={series.memory}
             from={from}
             to={to}

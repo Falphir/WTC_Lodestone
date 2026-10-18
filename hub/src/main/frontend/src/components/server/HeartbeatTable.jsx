@@ -15,13 +15,13 @@ export function HeartbeatTable({ heartbeats }) {
         </p>
       )}
       <div className="table-scroll">
-        <table className="table">
+        <table className="table table-cards">
           <thead>
             <tr>
               <th>Time</th>
               <th className="num">Players</th>
               <th className="num">TPS</th>
-              <th className="num">Tick time</th>
+              <th className="num">MSPT</th>
               <th className="num">Memory</th>
             </tr>
           </thead>
@@ -29,12 +29,12 @@ export function HeartbeatTable({ heartbeats }) {
             {heartbeats.slice(0, TABLE_LIMIT).map((h) => (
               <tr key={h.recordedAt}>
                 <td className="muted">{formatDateTime(h.recordedAt)}</td>
-                <td className="num">
+                <td className="num" data-label="Players">
                   {h.playerCount} / {h.maxPlayers}
                 </td>
-                <td className="num">{formatTps(h.tps)}</td>
-                <td className="num">{h.msptAvg > 0 ? formatMspt(h.msptAvg) : '–'}</td>
-                <td className="num">
+                <td className="num" data-label="TPS">{formatTps(h.tps)}</td>
+                <td className="num" data-label="MSPT">{h.msptAvg > 0 ? formatMspt(h.msptAvg) : '–'}</td>
+                <td className="num" data-label="Memory">
                   {formatMemory(h.memoryUsedMb)} / {formatMemory(h.memoryMaxMb)}
                 </td>
               </tr>
