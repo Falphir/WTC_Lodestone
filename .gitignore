@@ -38,10 +38,8 @@ replay_pid*
 .settings/
 .metadata/
 *.launch
-# VS Code (keep shared settings if you want them)
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
+# VS Code
+.vscode/
 
 # ---------- Dashboard (hub/src/main/frontend) ----------
 node_modules/
