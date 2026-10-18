@@ -53,6 +53,16 @@ jobs:
         working-directory: mod
         run: ./gradlew build
 
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The bot ships as source, so this is the only thing standing between a broken handler and prod.
+      - name: Test the bot
+        working-directory: discord
+        run: npm ci && npm test
+
       # The hub jar gets a fixed name so deploy.sh never has to know the version -- the release does.
       - name: Collect the release assets
         run: |

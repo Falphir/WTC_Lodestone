@@ -7,14 +7,20 @@ After=mariadb.service
 
 [Service]
 Type=oneshot
-# Credentials come from the same env file the hub uses (SPRING_DATASOURCE_USERNAME/PASSWORD).
+# Credentials come from the same env file the hub uses (SPRING_DATASOURCE_USERNAME/PASSWORD);
+# the password goes in MYSQL_PWD rather than --password so it never shows up in `ps`.
 EnvironmentFile=/etc/lodestone/hub.env
+# Dump first, gzip second, not `dump | gzip`: a pipe exits with gzip's status, so a failed dump
+# (wrong password, database down) would still "succeed" with an empty file -- and deploy.sh,
+# which runs this before every swap, would carry on with no real way back. $$f is the shell's
+# variable; a single $ would be expanded (to nothing) by systemd first.
 ExecStart=/bin/sh -c 'install -d -m 750 /var/backups/lodestone && \
-  mariadb-dump --single-transaction \
+  f=/var/backups/lodestone/wtc_lodestone-$(date +%%Y%%m%%d-%%H%%M%%S).sql && \
+  MYSQL_PWD="$SPRING_DATASOURCE_PASSWORD" mariadb-dump --single-transaction \
     --host=127.0.0.1 \
     --user="$SPRING_DATASOURCE_USERNAME" \
-    --password="$SPRING_DATASOURCE_PASSWORD" \
-    wtc_lodestone | gzip > /var/backups/lodestone/wtc_lodestone-$(date +%%Y%%m%%d-%%H%%M%%S).sql.gz'
+    wtc_lodestone > "$$f" && \
+  gzip "$$f" || { rm -f "$$f"; exit 1; }'
 # Two weeks of nightlies is enough to notice and undo a bad migration or a mistaken bulk removal.
 ExecStartPost=/usr/bin/find /var/backups/lodestone -name '*.sql.gz' -mtime +14 -delete
 SyslogIdentifier=lodestone-backup

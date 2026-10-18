@@ -128,6 +128,9 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d YOUR-HOST       # adds the 443 block and the http -> https redirect
 ```
 
+The vhost rate-limits sign-in (`/api/auth/`, `/login`) to 10 attempts a minute per IP and keeps
+the live socket out of the access log, since its URL carries an admin token.
+
 No domain yet? `<your-public-ip-with-dashes>.sslip.io` resolves to that IP with no signup, and
 Let's Encrypt issues for it — e.g. `203-0-113-7.sslip.io`. If issuance is rate-limited, a free
 DuckDNS name works the same way. Swap in a real domain later by re-running `certbot` and the `sed`.
