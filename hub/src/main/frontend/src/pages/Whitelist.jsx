@@ -67,6 +67,17 @@ export default function Whitelist() {
     })
   }
 
+  // Vanilla's whitelist.json shape -- the same one Import reads, so an export round-trips.
+  function exportFile() {
+    const list = players.map(({ uuid, name }) => ({ uuid, name })).sort((a, b) => a.name.localeCompare(b.name))
+    const url = URL.createObjectURL(new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'whitelist.json'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const needle = query.trim().toLowerCase()
   const shown = players?.filter((p) => !needle || p.name.toLowerCase().includes(needle) || p.uuid.includes(needle))
 
@@ -74,10 +85,18 @@ export default function Whitelist() {
     <div className="page">
       <PageHead
         actions={
-          <button type="button" className="button" disabled={busy} onClick={() => fileInput.current.click()}>
-            <Icon name="upload" />
-            Import whitelist.json
-          </button>
+          <div className="button-row">
+            {players?.length > 0 && (
+              <button type="button" className="button" onClick={exportFile}>
+                <Icon name="download" />
+                Export whitelist.json
+              </button>
+            )}
+            <button type="button" className="button" disabled={busy} onClick={() => fileInput.current.click()}>
+              <Icon name="upload" />
+              Import whitelist.json
+            </button>
+          </div>
         }
       >
         <h1>Whitelist</h1>
