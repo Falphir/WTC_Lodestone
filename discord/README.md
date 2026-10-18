@@ -18,11 +18,20 @@ account, and vice-versa).
 - `/apply` — opens a form; the application is posted to a **public** channel, so the community
   can see who is joining. The post carries no buttons: a message's components render for
   everyone who can see the message, and Discord has no per-user visibility for them.
+- **The form explains itself.** Each field carries a line of guidance under its label (the
+  Minecraft one says Java, not Bedrock, not your Discord name), the two written answers have a
+  minimum length so a one-word application can't be submitted at all, and "how did you find us"
+  is a dropdown rather than free text.
 - **On submit** the bot validates up front (before staff see anything): the age gate
-  (`minAge`, default 18), the Minecraft name via Mojang (typos / nonexistent accounts rejected),
-  and a duplicate check (an account already linked to someone else is rejected). It also enforces
-  **one open application at a time** and a **re-apply cooldown** after a denial
-  (`applyCooldownDays`, default 7). Applications that pass ping the staff role(s).
+  (`minAge`, default 18), the Minecraft name — its shape first, then Mojang — and a duplicate
+  check (an account already linked to someone else is rejected). It also enforces **one open
+  application at a time** and a **re-apply cooldown** after a denial (`applyCooldownDays`,
+  default 7). Applications that pass ping the staff role(s).
+- **A rejection doesn't cost them the application.** The Mojang and already-linked checks need a
+  network call, so they can only fail once all five answers are written. Each rejection comes with
+  a **Fix and resubmit** button that reopens the form with everything still filled in. The draft
+  is held in memory for 15 minutes — the life of the button — and a click after that says to run
+  `/apply` again rather than opening an empty form.
 - `/review` (staff) — the Approve / Deny controls, in an **ephemeral** reply, which is the one
   place Discord makes components per-user. The option **autocompletes from the hub's pending
   applications**, each listed as `Discord name | Minecraft name` and matched on either, so staff

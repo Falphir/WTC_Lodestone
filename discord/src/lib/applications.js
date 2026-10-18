@@ -7,8 +7,10 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  LabelBuilder,
   MessageFlags,
   ModalBuilder,
+  StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
@@ -21,6 +23,67 @@ const { t } = require('../i18n');
 const { withIcon } = require('../icons');
 const { COLORS, brandEmbed, mcHead } = require('./embeds');
 const { EPHEMERAL, isStaff } = require('./util');
+
+// Enough to stop a one-word answer, not so much that a terse but genuine one is blocked.
+const MIN_ESSAY = 40;
+
+// Minecraft Java usernames: 3-16 of these characters, nothing else.
+const MC_NAME = /^[A-Za-z0-9_]{3,16}$/;
+
+// Age: digits only. Discord text inputs take no pattern and no numeric type -- setMaxLength is
+// the only constraint the client will enforce -- so this is the check that actually decides.
+const AGE = /^\d{1,3}$/;
+const MAX_AGE = 120;
+
+/**
+ * The age as a number, or null if what they typed wasn't one. A leading zero is normalised
+ * rather than rejected: "018" is someone being tidy, not someone failing to answer.
+ * Exported for its own test -- the edge cases here are the whole point of it.
+ */
+function parseAge(raw) {
+  if (!AGE.test(raw)) return null;
+  const age = Number.parseInt(raw, 10);
+  return age >= 1 && age <= MAX_AGE ? age : null;
+}
+
+// The referral options, in the order they're offered. Each needs an `apply.referral_<key>` string.
+const REFERRALS = ['friend', 'youtube', 'reddit', 'listing', 'discord', 'other'];
+
+/**
+ * Half-filled applications, so a rejection hands the answers back instead of binning them.
+ *
+ * This is the one piece of state the bot keeps locally, against the rule that it keeps none
+ * (see CLAUDE.md) -- deliberately: a draft is worth exactly one retype, which is what losing it
+ * costs today anyway, and nothing durable moves off the hub. The TTL matches the life of the
+ * interaction token behind the retry button, so the draft dies no sooner than the button does.
+ */
+const DRAFT_TTL_MS = 15 * 60 * 1000;
+const drafts = new Map();
+
+function saveDraft(userId, data) {
+  const cutoff = Date.now() - DRAFT_TTL_MS;
+  for (const [id, draft] of drafts) if (draft.at < cutoff) drafts.delete(id); // prune as we go
+  drafts.set(userId, { at: Date.now(), data });
+}
+
+function takeDraft(userId) {
+  const draft = drafts.get(userId);
+  drafts.delete(userId);
+  return draft && Date.now() - draft.at < DRAFT_TTL_MS ? draft.data : null;
+}
+
+/** A rejection the applicant can act on: the reason, and a button that reopens the filled form. */
+function rejectWithRetry(interaction, content, data) {
+  saveDraft(interaction.user.id, data);
+  return interaction.editReply({
+    content,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('app_retry').setLabel(t('apply.btnRetry')).setStyle(ButtonStyle.Primary)
+      ),
+    ],
+  });
+}
 
 // Post an embed to the private staff audit-log channel, if one is configured.
 // Never pings anyone mentioned in the embed.
@@ -125,7 +188,8 @@ async function buildApplicationEmbed(user, data) {
       { name: t('apply.fieldApplicant'), value: `<@${user.id}>`, inline: true },
       { name: t('apply.fieldMinecraft'), value: data.mc, inline: true },
       { name: t('apply.fieldAge'), value: data.age, inline: true },
-      { name: t('apply.fieldReferral'), value: data.referral, inline: true },
+      // data.referral is the option key the select returned, not something to show as-is
+      { name: t('apply.fieldReferral'), value: data.referral ? t(`apply.referral_${data.referral}`) : t('apply.referralEmpty'), inline: true },
       { name: t('apply.fieldExperience'), value: data.experience.slice(0, 1024) },
       { name: t('apply.fieldWhy'), value: data.why.slice(0, 1024) }
     )
@@ -133,52 +197,86 @@ async function buildApplicationEmbed(user, data) {
     .setTimestamp();
 }
 
-async function openApplyModal(interaction) {
+// A Label wraps one input and carries the helper line under its title -- the place to pre-empt
+// the mistakes the form can only otherwise catch after it has thrown the answers away.
+function labelled(key, input) {
+  return new LabelBuilder().setLabel(t(`apply.${key}Label`)).setDescription(t(`apply.${key}Hint`)).setTextInputComponent(input);
+}
+
+function textInput(id, { style = TextInputStyle.Short, max, min, placeholder, value } = {}) {
+  const input = new TextInputBuilder().setCustomId(id).setStyle(style).setRequired(true).setMaxLength(max);
+  // Discord enforces minLength in the client, so a one-word essay stops being submittable at
+  // all rather than arriving for staff to deal with.
+  if (min) input.setMinLength(min);
+  if (placeholder) input.setPlaceholder(placeholder);
+  if (value) input.setValue(value);
+  return input;
+}
+
+/** Where people say they heard about us -- fixed options so staff get an answer, not prose. */
+function referralSelect(value) {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('referral')
+    // Optional, same as the free-text field it replaces. Both halves are needed: a modal
+    // component is required by default, and Discord rejects required + minValues(0) outright.
+    .setRequired(false)
+    .setMinValues(0)
+    .setMaxValues(1)
+    .addOptions(
+      REFERRALS.map((key) => ({
+        label: t(`apply.referral_${key}`),
+        value: key,
+        default: value === key,
+      }))
+    );
+  return new LabelBuilder()
+    .setLabel(t('apply.referralLabel'))
+    .setDescription(t('apply.referralHint'))
+    .setStringSelectMenuComponent(select);
+}
+
+/**
+ * The referral option, or '' when they skipped it. An optional component that nobody touched may
+ * simply be absent from the submission, and a lookup that throws here would cost the applicant
+ * the whole form -- not worth risking to save a try/catch.
+ */
+function pickedReferral(interaction) {
+  try {
+    return interaction.fields.getStringSelectValues('referral')[0] || '';
+  } catch {
+    return '';
+  }
+}
+
+/** `draft` re-fills the form after a rejection, so nothing anyone typed is thrown away. */
+async function openApplyModal(interaction, draft = {}) {
   const modal = new ModalBuilder()
     .setCustomId('apply_modal')
     .setTitle(t('apply.modalTitle', { brand: config.brand.name }).slice(0, 45));
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('mc_username')
-        .setLabel(t('apply.mcLabel'))
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(16)
+
+  modal.addLabelComponents(
+    labelled('mc', textInput('mc_username', { max: 16, min: 3, value: draft.mc })),
+    labelled('age', textInput('age', { max: 3, placeholder: t('apply.agePlaceholder'), value: draft.age })),
+    referralSelect(draft.referral),
+    labelled(
+      'experience',
+      textInput('experience', {
+        style: TextInputStyle.Paragraph,
+        max: 1024,
+        min: MIN_ESSAY,
+        placeholder: t('apply.experiencePlaceholder'),
+        value: draft.experience,
+      })
     ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('age')
-        .setLabel(t('apply.ageLabel'))
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(3)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('referral')
-        .setLabel(t('apply.referralLabel'))
-        .setStyle(TextInputStyle.Short)
-        .setRequired(false)
-        .setMaxLength(200)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('experience')
-        .setLabel(t('apply.experienceLabel'))
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder(t('apply.experiencePlaceholder'))
-        .setRequired(true)
-        .setMaxLength(1024)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('why')
-        .setLabel(t('apply.whyLabel'))
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder(t('apply.whyPlaceholder'))
-        .setRequired(true)
-        .setMaxLength(1024)
+    labelled(
+      'why',
+      textInput('why', {
+        style: TextInputStyle.Paragraph,
+        max: 1024,
+        min: MIN_ESSAY,
+        placeholder: t('apply.whyPlaceholder'),
+        value: draft.why,
+      })
     )
   );
   await interaction.showModal(modal);
@@ -192,30 +290,39 @@ async function submitApplication(interaction) {
   const data = {
     mc: interaction.fields.getTextInputValue('mc_username').trim(),
     age: interaction.fields.getTextInputValue('age').trim(),
-    referral: interaction.fields.getTextInputValue('referral').trim() || t('apply.referralEmpty'),
+    referral: pickedReferral(interaction),
     experience: interaction.fields.getTextInputValue('experience').trim(),
     why: interaction.fields.getTextInputValue('why').trim(),
   };
 
-  const ageNum = Number.parseInt(data.age, 10);
-  if (!Number.isInteger(ageNum) || String(ageNum) !== data.age || ageNum <= 0 || ageNum > 120) {
-    return interaction.editReply(t('apply.ageInvalid', { age: data.age }));
+  // Every rejection below hands the answers back with a button that reopens the filled form:
+  // the Mojang and already-linked checks need the network, so they can only fail after the
+  // applicant has written all five -- losing the lot to a typo is not a fair trade.
+  const ageNum = parseAge(data.age);
+  if (ageNum === null) {
+    return rejectWithRetry(interaction, t('apply.ageInvalid', { age: data.age }), data);
   }
+  data.age = String(ageNum); // normalised, so the post shows 18 rather than 018
   if (ageNum < config.minAge) {
-    return interaction.editReply(
-      t('apply.ageTooYoung', { brand: config.brand.name, minAge: config.minAge })
-    );
+    // No retry here: another try at the same form cannot make them old enough.
+    return interaction.editReply(t('apply.ageTooYoung', { brand: config.brand.name, minAge: config.minAge }));
+  }
+
+  // Shape first, so a name that could never exist is named as such instead of coming back as
+  // "Mojang has no account" after a pointless round trip.
+  if (!MC_NAME.test(data.mc)) {
+    return rejectWithRetry(interaction, t('apply.mcInvalid', { name: data.mc }), data);
   }
 
   // Validate the Minecraft name up front so typos / already-linked accounts are
   // rejected before staff ever see the application.
   const profile = await mojang.lookupProfile(data.mc);
   if (!profile) {
-    return interaction.editReply(t('apply.submitMojangNotFound', { name: data.mc }));
+    return rejectWithRetry(interaction, t('apply.submitMojangNotFound', { name: data.mc }), data);
   }
   const existing = await db.getByUuid(profile.uuid);
   if (existing && existing.discordId !== interaction.user.id) {
-    return interaction.editReply(t('apply.submitAlreadyLinked', { name: profile.name }));
+    return rejectWithRetry(interaction, t('apply.submitAlreadyLinked', { name: profile.name }), data);
   }
   data.mc = profile.name; // canonical casing for the post
 
@@ -239,6 +346,8 @@ async function submitApplication(interaction) {
     uuid: profile.uuid,
     username: profile.name,
   });
+
+  drafts.delete(interaction.user.id); // it went through; a stale retry button must not reopen it
 
   await interaction.editReply({
     content: t('apply.submitted', { brand: config.brand.name }),
@@ -396,6 +505,12 @@ async function onButton(interaction) {
   const [action, applicantId] = interaction.customId.split(':');
   if (action === 'app_approve') return handleApprove(interaction, applicantId);
   if (action === 'app_deny') return promptDeny(interaction, applicantId);
+  if (action === 'app_retry') {
+    // showModal needs an unacknowledged interaction, so this can't be deferred -- and mustn't be.
+    const draft = takeDraft(interaction.user.id);
+    if (!draft) return interaction.reply({ content: t('apply.draftExpired'), ...EPHEMERAL });
+    return openApplyModal(interaction, draft);
+  }
 }
 
 async function onModal(interaction) {
@@ -406,4 +521,4 @@ async function onModal(interaction) {
   }
 }
 
-module.exports = { openApplyModal, reviewCard, onButton, onModal };
+module.exports = { openApplyModal, reviewCard, parseAge, onButton, onModal };

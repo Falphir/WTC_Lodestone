@@ -1,10 +1,18 @@
 'use strict';
 
+const { randomUUID } = require('node:crypto');
 const { Events } = require('discord.js');
 const { EPHEMERAL } = require('../lib/util');
 const { t } = require('../i18n');
 const applications = require('../lib/applications');
 const configPanel = require('../lib/configPanel');
+
+/** What failed, for the log: the command name or the component's custom id. */
+function describe(interaction) {
+  if (interaction.isChatInputCommand()) return `/${interaction.commandName}`;
+  if (interaction.isAutocomplete()) return `/${interaction.commandName} (autocomplete)`;
+  return interaction.customId || `interaction type ${interaction.type}`;
+}
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -45,12 +53,16 @@ module.exports = {
         return;
       }
     } catch (err) {
-      console.error('Interaction error:', err);
+      // The same short reference goes in the log line and in what the user is told, so a
+      // "it broke for me" report can be grepped straight to the stack trace that caused it.
+      const ref = randomUUID().slice(0, 8);
+      console.error(`Interaction error [${ref}] ${describe(interaction)} by ${interaction.user?.id}:`, err);
+
       // Autocomplete can't be replied to -- the hub being slow just means no suggestions.
       if (interaction.isAutocomplete()) {
         return interaction.respond([]).catch(() => {});
       }
-      const msg = { content: t('common.interactionError'), ...EPHEMERAL };
+      const msg = { content: t('common.interactionError', { ref }), ...EPHEMERAL };
       try {
         if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
         else await interaction.reply(msg);
