@@ -35,6 +35,12 @@ public final class HubClient {
     /** Ticks between heartbeats, as set by the hub. Written by the HTTP thread, read by the server thread. */
     private static volatile int heartbeatIntervalTicks = DEFAULT_HEARTBEAT_INTERVAL_TICKS;
 
+    /**
+     * Ticks between whitelist polls, as set by the hub; same threading as heartbeatIntervalTicks.
+     * Defaults to the heartbeat's minute, which is what a hub too old to send it expects.
+     */
+    private static volatile int whitelistSyncIntervalTicks = DEFAULT_HEARTBEAT_INTERVAL_TICKS;
+
     /** Only touched on the server thread. */
     private static boolean warnedEmptyWhitelist = false;
 
@@ -45,6 +51,10 @@ public final class HubClient {
 
     public static int heartbeatIntervalTicks() {
         return heartbeatIntervalTicks;
+    }
+
+    public static int whitelistSyncIntervalTicks() {
+        return whitelistSyncIntervalTicks;
     }
 
     /** Checks in with the hub: reports this server's setup, and logs whether the connection and token work. */
@@ -93,6 +103,11 @@ public final class HubClient {
             if (body.has("heartbeatIntervalSeconds")) {
                 int seconds = body.get("heartbeatIntervalSeconds").getAsInt();
                 heartbeatIntervalTicks = Math.max(20 * 10, seconds * 20);
+            }
+            // a poll is one small GET, but a misconfigured 0 shouldn't make it one per tick
+            if (body.has("whitelistSyncIntervalSeconds")) {
+                int seconds = body.get("whitelistSyncIntervalSeconds").getAsInt();
+                whitelistSyncIntervalTicks = Math.max(20 * 5, seconds * 20);
             }
 
             if (!hubServerId.equals(LodestoneConfig.serverId())) {

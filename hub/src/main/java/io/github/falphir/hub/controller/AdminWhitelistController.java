@@ -75,7 +75,7 @@ public class AdminWhitelistController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Whitelist a player",
-            description = "Looks up the Minecraft account by name and adds it. Servers pick it up within a minute.")
+            description = "Looks up the Minecraft account by name and adds it. Servers pick it up within seconds.")
     public PlayerView add(Authentication authentication, @Valid @RequestBody AddPlayerRequest request) {
         return PlayerView.from(whitelist.add(request.name(), authentication.getName()));
     }

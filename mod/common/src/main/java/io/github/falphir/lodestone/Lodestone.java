@@ -19,6 +19,7 @@ public final class Lodestone {
 
     private static Platform platform = new Platform("unknown", "unknown", "unknown");
     private static int ticksUntilHeartbeat = HubClient.heartbeatIntervalTicks();
+    private static int ticksUntilWhitelistSync = HubClient.whitelistSyncIntervalTicks();
 
     private Lodestone() {}
 
@@ -52,12 +53,20 @@ public final class Lodestone {
         if (LodestoneConfig.syncWhitelist()) HubClient.syncWhitelist(server);
     }
 
-    /** Called every server tick; sends a heartbeat and syncs the whitelist on the hub's interval. */
+    /**
+     * Called every server tick. Heartbeats and whitelist polls each run on their own interval from
+     * the hub: a heartbeat is stored and charted, so it stays slow; a poll stores nothing, so it
+     * can be quick enough that an approval or removal lands in seconds.
+     */
     public static void serverTick(MinecraftServer server) {
         if (!LodestoneConfig.isReady()) return;
-        if (--ticksUntilHeartbeat > 0) return;
-        ticksUntilHeartbeat = HubClient.heartbeatIntervalTicks();
-        HubClient.heartbeat(server);
-        if (LodestoneConfig.syncWhitelist()) HubClient.syncWhitelist(server);
+        if (--ticksUntilHeartbeat <= 0) {
+            ticksUntilHeartbeat = HubClient.heartbeatIntervalTicks();
+            HubClient.heartbeat(server);
+        }
+        if (LodestoneConfig.syncWhitelist() && --ticksUntilWhitelistSync <= 0) {
+            ticksUntilWhitelistSync = HubClient.whitelistSyncIntervalTicks();
+            HubClient.syncWhitelist(server);
+        }
     }
 }

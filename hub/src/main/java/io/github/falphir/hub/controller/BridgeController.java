@@ -2,6 +2,7 @@ package io.github.falphir.hub.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,21 +34,24 @@ public class BridgeController {
 
     private final ServerService serverService;
     private final WhitelistService whitelistService;
+    private final long whitelistSyncIntervalSeconds;
 
-    public BridgeController(ServerService serverService, WhitelistService whitelistService) {
+    public BridgeController(ServerService serverService, WhitelistService whitelistService,
+            @Value("${lodestone.whitelist-sync-interval-seconds:10}") long whitelistSyncIntervalSeconds) {
         this.serverService = serverService;
         this.whitelistService = whitelistService;
+        this.whitelistSyncIntervalSeconds = whitelistSyncIntervalSeconds;
     }
 
     @PostMapping("/hello")
     @Operation(summary = "Server check-in",
-            description = "Called by the mod on startup with its versions and settings. Returns how often to send heartbeats.")
+            description = "Called by the mod on startup with its versions and settings. Returns how often to send heartbeats and to poll the whitelist.")
     public HelloResponse hello(Authentication authentication, @Valid @RequestBody(required = false) HelloRequest request) {
         HelloRequest r = request != null ? request : new HelloRequest(null, null, null, null, null);
         GameServer server = serverService.checkIn(authentication.getName(),
                 r.modVersion(), r.minecraftVersion(), r.loaderVersion(), r.syncWhitelist(), r.enforceWhitelist());
         return new HelloResponse(server.getId(), server.getName(), "Connected to WTC Lodestone",
-                serverService.heartbeatInterval().toSeconds());
+                serverService.heartbeatInterval().toSeconds(), whitelistSyncIntervalSeconds);
     }
 
     public record HelloRequest(
@@ -58,7 +62,8 @@ public class BridgeController {
             /** The server's own enforce-whitelist setting; null from mods older than this field. */
             Boolean enforceWhitelist) {}
 
-    public record HelloResponse(String serverId, String name, String message, long heartbeatIntervalSeconds) {}
+    public record HelloResponse(String serverId, String name, String message, long heartbeatIntervalSeconds,
+            long whitelistSyncIntervalSeconds) {}
 
     @PostMapping("/heartbeat")
     @Operation(summary = "Server heartbeat", description = "Called periodically by the mod with the server's current stats.")

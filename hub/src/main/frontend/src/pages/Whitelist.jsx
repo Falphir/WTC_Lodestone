@@ -4,7 +4,7 @@ import { Badge, EmptyState, ErrorNote, Field, Icon, Note, PageHead, Panel, Playe
 import { formatDate, plural, whitelistSync } from '../format'
 import { useAction, useApi } from '../hooks'
 
-/** Which servers have applied the current list; changes reach each one within a heartbeat. */
+/** Which servers have applied the current list; changes reach each one on its next whitelist poll. */
 function SyncPanel({ servers }) {
   const rows = servers.map((s) => ({ ...s, sync: whitelistSync(s) })).sort((a, b) => a.name.localeCompare(b.name))
   const current = rows.filter((s) => s.sync.tone === 'good').length
@@ -39,7 +39,7 @@ export default function Whitelist() {
     run(async () => {
       const player = await api('/api/admin/whitelist', { method: 'POST', body: { name: name.trim() } })
       setName('')
-      return `Added ${player.name}. Servers pick it up within a minute.`
+      return `Added ${player.name}. Servers pick it up within seconds.`
     })
   }
 
@@ -101,7 +101,7 @@ export default function Whitelist() {
       >
         <h1>Whitelist</h1>
         <p className="muted">
-          Shared by every server. Changes reach the servers within a minute.
+          Shared by every server. Changes reach the servers within seconds.
           {players && ` ${plural(players.length, 'player')}.`}
         </p>
       </PageHead>

@@ -55,7 +55,8 @@ class BridgeSyncTest {
         mvc.perform(post("/api/bridge/hello").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"modVersion\":\"1.2.0\",\"minecraftVersion\":\"1.21.1\",\"loaderVersion\":\"21.1.231\",\"syncWhitelist\":true}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.heartbeatIntervalSeconds").value(60));
+                .andExpect(jsonPath("$.heartbeatIntervalSeconds").value(60))
+                .andExpect(jsonPath("$.whitelistSyncIntervalSeconds").value(10));
 
         whitelist.importEntries(List.of(new WhitelistService.Entry("0f3a1b2c-0000-4000-8000-0000000000b1", "Alice")), "test");
         String version = mvc.perform(get("/api/bridge/whitelist").header("Authorization", bearer))

@@ -31,3 +31,6 @@ lodestone:
   heartbeat-retention-days: 7
   # how often servers report; the mod learns it on check-in, the dashboard from /api/info
   heartbeat-interval-seconds: 60
+  # how often servers poll the whitelist, apart from heartbeats: a poll stores nothing and stirs no
+  # dashboard, so it can be quick. Also learned on check-in, so servers pick a change up on restart.
+  whitelist-sync-interval-seconds: 10
