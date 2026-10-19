@@ -9,10 +9,11 @@ import {
   ListingFields,
   PageHead,
   Panel,
+  RelativeTime,
   StatusBadge,
   TokenNotice,
 } from '../components'
-import { formatDate, relativeTime, statusOf, whitelistSync } from '../format'
+import { formatDate, statusOf, whitelistSync } from '../format'
 import { useAction, useApi } from '../hooks'
 
 export default function Servers() {
@@ -99,7 +100,7 @@ export default function Servers() {
                     </td>
                     <td className="hide-md muted mono">{s.mod.version ?? '–'}</td>
                     <td className="hide-md muted">{formatDate(s.createdAt)}</td>
-                    <td className="muted">{relativeTime(s.lastSeen)}</td>
+                    <td className="muted"><RelativeTime value={s.lastSeen} /></td>
                   </tr>
                 ))}
             </tbody>

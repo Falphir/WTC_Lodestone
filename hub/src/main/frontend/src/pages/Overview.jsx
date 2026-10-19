@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { EmptyState, ErrorNote, LineChart, PageHead, Panel, Sparkline, StatusBadge } from '../components'
-import { formatMemory, formatMspt, formatTps, isUp, msptTone, plural, relativeTime, statusOf } from '../format'
+import { EmptyState, ErrorNote, LineChart, PageHead, Panel, RelativeTime, Sparkline, StatusBadge } from '../components'
+import { formatMemory, formatMspt, formatTps, isUp, msptTone, plural, statusOf } from '../format'
 import { useApi, useHubInfo } from '../hooks'
 
 const WINDOW_HOURS = 6
@@ -277,7 +277,7 @@ function ServerRow({ server, laggingBelowTps, from, to, report, forget }) {
           <Sparkline points={points} from={from} to={to} />
         </td>
         <td className="hide-md muted" data-label="Last heartbeat">
-          {relativeTime(server.lastSeen)}
+          <RelativeTime value={server.lastSeen} />
         </td>
       </tr>
     </tbody>

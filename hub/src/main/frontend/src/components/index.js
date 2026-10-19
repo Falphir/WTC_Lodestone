@@ -22,6 +22,7 @@ export { Icon } from './ui/Icon'
 export { Note } from './ui/Note'
 export { PageHead } from './ui/PageHead'
 export { Panel } from './ui/Panel'
+export { RelativeTime } from './ui/RelativeTime'
 export { Skeleton } from './ui/Skeleton'
 
 export { LineChart } from './charts/LineChart'

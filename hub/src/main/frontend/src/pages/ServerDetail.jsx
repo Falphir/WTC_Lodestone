@@ -9,6 +9,7 @@ import {
   OnlinePlayers,
   PageHead,
   Panel,
+  RelativeTime,
   ServerEditDialog,
   ServerFigures,
   ServerHeartbeats,
@@ -17,7 +18,7 @@ import {
   StatusBadge,
   TokenNotice,
 } from '../components'
-import { relativeTime, statusOf } from '../format'
+import { statusOf } from '../format'
 import { useAction, useApi, useHubInfo } from '../hooks'
 
 export default function ServerDetail({ id }) {
@@ -91,7 +92,7 @@ export default function ServerDetail({ id }) {
             <div className="head-status">
               <div className="head-status-info">
                 <StatusBadge status={statusOf(server)} />
-                <small className="muted">Last heartbeat {relativeTime(server.lastSeen)}</small>
+                <small className="muted">Last heartbeat <RelativeTime value={server.lastSeen} /></small>
               </div>
               <div className="button-row">
                 <button
