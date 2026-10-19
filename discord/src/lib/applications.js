@@ -200,7 +200,10 @@ async function buildApplicationEmbed(user, data) {
 // A Label wraps one input and carries the helper line under its title -- the place to pre-empt
 // the mistakes the form can only otherwise catch after it has thrown the answers away.
 function labelled(key, input) {
-  return new LabelBuilder().setLabel(t(`apply.${key}Label`)).setDescription(t(`apply.${key}Hint`)).setTextInputComponent(input);
+  return new LabelBuilder()
+    .setLabel(t(`apply.${key}Label`))
+    .setDescription(t(`apply.${key}Hint`, { minAge: config.minAge }))
+    .setTextInputComponent(input);
 }
 
 function textInput(id, { style = TextInputStyle.Short, max, min, placeholder, value } = {}) {
@@ -335,7 +338,7 @@ async function submitApplication(interaction) {
   // reply with /review instead (see reviewCard).
   const staffPing = config.staffMention;
   const post = await channel.send({
-    content: [staffPing, t('apply.reviewHint')].filter(Boolean).join('\n'),
+    content: staffPing || undefined,
     ...(staffPing ? { allowedMentions: { roles: config.staffRoleIds } } : {}),
     embeds: [embed],
   });

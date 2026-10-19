@@ -45,7 +45,9 @@ test('asks the same five questions, each with a line of guidance', async () => {
   }
   // the mistake the form exists to pre-empt
   assert.match(fields.mc_username.description, /Java/);
-  assert.match(fields.mc_username.description, /not Bedrock/i);
+  assert.match(fields.mc_username.description, /not your Discord name/i);
+  // a hint's placeholders are filled in, never shown raw
+  assert.doesNotMatch(fields.age.description, /\{\w+\}/);
 });
 
 test('will not let a one-word application be submitted at all', async () => {
