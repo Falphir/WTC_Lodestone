@@ -50,6 +50,23 @@ public class AdminWhitelistController {
         return whitelist.list().stream().map(PlayerView::from).toList();
     }
 
+    @GetMapping("/kick-message")
+    @Operation(summary = "Network kick message",
+            description = "What players who aren't whitelisted are told, on every server. Empty means each server uses its own mod config's whitelistMessage.")
+    public KickMessage kickMessage() {
+        return new KickMessage(whitelist.kickMessage());
+    }
+
+    @PutMapping("/kick-message")
+    @Operation(summary = "Set the network kick message",
+            description = "Blank clears it, handing each server back to its own whitelistMessage. Servers pick it up on their next heartbeat.")
+    public KickMessage setKickMessage(@Valid @RequestBody KickMessage request) {
+        whitelist.setKickMessage(request.message());
+        return new KickMessage(whitelist.kickMessage());
+    }
+
+    public record KickMessage(@Size(max = 500) String message) {}
+
     @GetMapping("/{uuid}")
     @Operation(summary = "Get a whitelisted player by Minecraft UUID")
     public ResponseEntity<PlayerView> get(@PathVariable String uuid) {

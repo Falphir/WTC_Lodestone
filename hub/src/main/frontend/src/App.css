@@ -809,6 +809,18 @@
   font-family: var(--mono);
 }
 
+.field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.field textarea:focus-visible,
 .field input:focus-visible {
   outline: none;
   border-color: var(--chart);

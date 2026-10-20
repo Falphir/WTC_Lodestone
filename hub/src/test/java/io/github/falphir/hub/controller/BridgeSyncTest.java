@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -95,6 +96,31 @@ class BridgeSyncTest {
                 .andExpect(status().isOk())
                 .andExpect(header().exists(BridgeController.WHITELIST_VERSION_HEADER))
                 .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void kickMessageSetOnTheDashboardReachesServersUntilCleared() throws Exception {
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
+        String admin = adminToken();
+        String heartbeat = "{\"playerCount\":0,\"maxPlayers\":20,\"tps\":20,\"msptAvg\":5,\"memoryUsedMb\":1,\"memoryMaxMb\":2}";
+
+        mvc.perform(put("/api/admin/whitelist/kick-message").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"  Not whitelisted.\\nApply on Discord.  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Not whitelisted.\nApply on Discord."));
+
+        mvc.perform(post("/api/bridge/hello").header("Authorization", bearer))
+                .andExpect(jsonPath("$.whitelistMessage").value("Not whitelisted.\nApply on Discord."));
+        mvc.perform(post("/api/bridge/heartbeat").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON).content(heartbeat))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.whitelistMessage").value("Not whitelisted.\nApply on Discord."));
+
+        // blank hands each server back to its own config
+        mvc.perform(put("/api/admin/whitelist/kick-message").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"   \"}"))
+                .andExpect(jsonPath("$.message").value(""));
+        mvc.perform(post("/api/bridge/heartbeat").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON).content(heartbeat))
+                .andExpect(jsonPath("$.whitelistMessage").value(""));
     }
 
     @Test

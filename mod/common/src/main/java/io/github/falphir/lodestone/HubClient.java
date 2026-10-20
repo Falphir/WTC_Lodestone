@@ -41,6 +41,12 @@ public final class HubClient {
      */
     private static volatile int whitelistSyncIntervalTicks = DEFAULT_HEARTBEAT_INTERVAL_TICKS;
 
+    /**
+     * The network kick message from the hub; blank (also: an older hub, or not heard from yet) leaves
+     * the mod config's own. Written by the HTTP thread, read by the login check.
+     */
+    private static volatile String hubWhitelistMessage = "";
+
     /** Only touched on the server thread. */
     private static boolean warnedEmptyWhitelist = false;
 
@@ -55,6 +61,22 @@ public final class HubClient {
 
     public static int whitelistSyncIntervalTicks() {
         return whitelistSyncIntervalTicks;
+    }
+
+    /**
+     * Kick message for players who are not whitelisted: the hub's if it set one, else the mod config's,
+     * with {@code &} color codes decoded either way. Blank means vanilla's.
+     */
+    public static String whitelistMessage() {
+        String hub = hubWhitelistMessage;
+        return LodestoneConfig.colorCodes(hub.isBlank() ? LodestoneConfig.whitelistMessage() : hub);
+    }
+
+    private static void readWhitelistMessage(JsonObject body) {
+        JsonElement message = body.get("whitelistMessage");
+        if (message != null && !message.isJsonNull()) {
+            hubWhitelistMessage = message.getAsString();
+        }
     }
 
     /** Checks in with the hub: reports this server's setup, and logs whether the connection and token work. */
@@ -109,6 +131,7 @@ public final class HubClient {
                 int seconds = body.get("whitelistSyncIntervalSeconds").getAsInt();
                 whitelistSyncIntervalTicks = Math.max(20 * 5, seconds * 20);
             }
+            readWhitelistMessage(body);
 
             if (!hubServerId.equals(LodestoneConfig.serverId())) {
                 Lodestone.LOGGER.warn("Config says serverId '{}' but this token belongs to '{}'. Check the config.",
@@ -162,7 +185,13 @@ public final class HubClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
 
-        HTTP.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+        HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenAccept(response -> {
+                    // older hubs answer with an empty body; keep whatever hello gave us then
+                    if (response.statusCode() == 200 && !response.body().isBlank()) {
+                        readWhitelistMessage(JsonParser.parseString(response.body()).getAsJsonObject());
+                    }
+                })
                 .exceptionally(error -> {
                     Lodestone.LOGGER.warn("WTC Lodestone heartbeat failed: {}", error.getMessage());
                     return null;

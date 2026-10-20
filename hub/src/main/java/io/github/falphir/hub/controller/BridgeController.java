@@ -45,13 +45,14 @@ public class BridgeController {
 
     @PostMapping("/hello")
     @Operation(summary = "Server check-in",
-            description = "Called by the mod on startup with its versions and settings. Returns how often to send heartbeats and to poll the whitelist.")
+            description = "Called by the mod on startup with its versions and settings. Returns how often to send heartbeats and to poll the whitelist, "
+                    + "and the network kick message (empty: use the mod config's own).")
     public HelloResponse hello(Authentication authentication, @Valid @RequestBody(required = false) HelloRequest request) {
         HelloRequest r = request != null ? request : new HelloRequest(null, null, null, null, null);
         GameServer server = serverService.checkIn(authentication.getName(),
                 r.modVersion(), r.minecraftVersion(), r.loaderVersion(), r.syncWhitelist(), r.enforceWhitelist());
         return new HelloResponse(server.getId(), server.getName(), "Connected to WTC Lodestone",
-                serverService.heartbeatInterval().toSeconds(), whitelistSyncIntervalSeconds);
+                serverService.heartbeatInterval().toSeconds(), whitelistSyncIntervalSeconds, whitelistService.kickMessage());
     }
 
     public record HelloRequest(
@@ -63,16 +64,22 @@ public class BridgeController {
             Boolean enforceWhitelist) {}
 
     public record HelloResponse(String serverId, String name, String message, long heartbeatIntervalSeconds,
-            long whitelistSyncIntervalSeconds) {}
+            long whitelistSyncIntervalSeconds, String whitelistMessage) {}
 
     @PostMapping("/heartbeat")
-    @Operation(summary = "Server heartbeat", description = "Called periodically by the mod with the server's current stats.")
-    public void heartbeat(Authentication authentication, @Valid @RequestBody HeartbeatRequest request) {
+    @Operation(summary = "Server heartbeat",
+            description = "Called periodically by the mod with the server's current stats. Answers with the network kick message, "
+                    + "so a change on the dashboard reaches running servers without waiting for their next restart.")
+    public HeartbeatResponse heartbeat(Authentication authentication, @Valid @RequestBody HeartbeatRequest request) {
         List<ServerService.OnlinePlayer> players = request.players() == null ? List.of()
                 : request.players().stream().map(p -> new ServerService.OnlinePlayer(p.uuid(), p.name())).toList();
         serverService.recordHeartbeat(authentication.getName(), request.playerCount(), request.maxPlayers(),
                 request.tps(), request.msptAvg(), request.memoryUsedMb(), request.memoryMaxMb(), players);
+        return new HeartbeatResponse(whitelistService.kickMessage());
     }
+
+    /** Older mods discard the body, so adding to it is safe. */
+    public record HeartbeatResponse(String whitelistMessage) {}
 
     public record HeartbeatRequest(
             @Min(0) int playerCount,

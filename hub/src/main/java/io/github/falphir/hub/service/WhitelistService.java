@@ -52,6 +52,23 @@ public class WhitelistService {
         }
     }
 
+    /**
+     * What a non-whitelisted player is told, on every server. Blank means "not set here": each
+     * server falls back to the whitelistMessage in its own mod config.
+     */
+    @Transactional(readOnly = true)
+    public String kickMessage() {
+        return state.findById(1).map(WhitelistState::getKickMessage).orElse("");
+    }
+
+    @Transactional
+    public void setKickMessage(String message) {
+        WhitelistState row = state.findById(1).orElseGet(() -> new WhitelistState(false));
+        row.setKickMessage(message == null || message.isBlank() ? null : message.strip());
+        state.save(row);
+        events.publishEvent(HubEvent.whitelist());
+    }
+
     @Transactional(readOnly = true)
     public List<WhitelistedPlayer> list() {
         return repository.findAllByOrderByNameAsc();
