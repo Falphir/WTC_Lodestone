@@ -5,13 +5,11 @@ on:
     paths:
       - 'hub/**'
       - 'deploy/**'
-      - 'docs/events.md'
       - '.github/workflows/hub.yml'
   pull_request:
     paths:
       - 'hub/**'
       - 'deploy/**'
-      - 'docs/events.md'
       - '.github/workflows/hub.yml'
   workflow_dispatch:
 

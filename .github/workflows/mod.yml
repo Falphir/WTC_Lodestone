@@ -4,12 +4,10 @@ on:
   push:
     paths:
       - 'mod/**'
-      - 'docs/events.md'
       - '.github/workflows/mod.yml'
   pull_request:
     paths:
       - 'mod/**'
-      - 'docs/events.md'
       - '.github/workflows/mod.yml'
   workflow_dispatch:
 
