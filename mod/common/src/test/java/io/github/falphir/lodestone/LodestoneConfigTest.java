@@ -71,6 +71,12 @@ class LodestoneConfigTest {
     }
 
     @Test
+    void turnsAmpersandCodesIntoColorCodes() {
+        assertEquals("§cNot whitelisted. §7Apply at §b§Ldiscord.gg/wtc§r", LodestoneConfig.colorCodes("&cNot whitelisted. &7Apply at &b&Ldiscord.gg/wtc&r"));
+        assertEquals("Rules & info, &z", LodestoneConfig.colorCodes("Rules & info, &z"), "only & before a valid code changes");
+    }
+
+    @Test
     void decodesLineBreaksInTheWhitelistMessage() {
         var values = parse("whitelistMessage = \"Not whitelisted yet.\\nApply at discord.gg/wtc\"");
 

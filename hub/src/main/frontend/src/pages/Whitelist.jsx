@@ -1,30 +1,18 @@
 import { useRef, useState } from 'react'
 import { api } from '../api'
-import { Badge, EmptyState, ErrorNote, Field, Icon, Note, PageHead, Panel, PlayerHead } from '../components'
-import { formatDate, plural, whitelistSync } from '../format'
+import {
+  EmptyState,
+  ErrorNote,
+  Field,
+  Icon,
+  KickMessagePanel,
+  Note,
+  PageHead,
+  WhitelistSyncPanel,
+  WhitelistTable,
+} from '../components'
+import { plural } from '../format'
 import { useAction, useApi } from '../hooks'
-
-/** Which servers have applied the current list; changes reach each one on its next whitelist poll. */
-function SyncPanel({ servers }) {
-  const rows = servers.map((s) => ({ ...s, sync: whitelistSync(s) })).sort((a, b) => a.name.localeCompare(b.name))
-  const current = rows.filter((s) => s.sync.tone === 'good').length
-  return (
-    <Panel as="section" aria-label="Sync status">
-      <p className="panel-note">
-        Up to date on {current} of {plural(rows.length, 'server')}.
-      </p>
-      <ul className="sync-list">
-        {rows.map((s) => (
-          <li key={s.id}>
-            <a href={`#/servers/${encodeURIComponent(s.id)}`}>{s.name}</a>
-            <Badge tone={s.sync.tone}>{s.sync.label}</Badge>
-            <small className="muted">{s.sync.detail}</small>
-          </li>
-        ))}
-      </ul>
-    </Panel>
-  )
-}
 
 export default function Whitelist() {
   const { data: players, error: loadError, reload } = useApi('/api/admin/whitelist', { topics: ['whitelist'] })
@@ -130,7 +118,8 @@ export default function Whitelist() {
         )}
       </form>
 
-      {players?.length > 0 && servers?.length > 0 && <SyncPanel servers={servers} />}
+      {players?.length > 0 && servers?.length > 0 && <WhitelistSyncPanel servers={servers} />}
+      <KickMessagePanel />
 
       <Note>{message}</Note>
       <ErrorNote>{error || loadError}</ErrorNote>
@@ -144,54 +133,7 @@ export default function Whitelist() {
 
       {shown?.length === 0 && players.length > 0 && <p className="muted">No players match “{query}”.</p>}
 
-      {shown?.length > 0 && (
-        <Panel>
-          <table className="table table-cards">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Discord</th>
-                <th>Added by</th>
-                <th>Added</th>
-                <th>
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((p) => (
-                <tr key={p.uuid}>
-                  <td>
-                    <div className="cell-player">
-                      <PlayerHead id={p.uuid} />
-                      <div>
-                        <span className="cell-title">{p.name}</span>
-                        <span className="cell-sub mono">{p.uuid}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td data-label="Discord">
-                    {p.linkedDiscordId ? (
-                      <a className="mono" href={`https://discord.com/users/${p.linkedDiscordId}`} target="_blank" rel="noreferrer">
-                        {p.linkedDiscordId}
-                      </a>
-                    ) : (
-                      <span className="muted">Not linked</span>
-                    )}
-                  </td>
-                  <td data-label="Added by" className="muted">{p.addedBy}</td>
-                  <td data-label="Added" className="muted">{formatDate(p.addedAt)}</td>
-                  <td className="actions">
-                    <button type="button" className="button button-quiet button-danger" disabled={busy} onClick={() => removePlayer(p)}>
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Panel>
-      )}
+      {shown?.length > 0 && <WhitelistTable players={shown} busy={busy} onRemove={removePlayer} />}
     </div>
   )
 }

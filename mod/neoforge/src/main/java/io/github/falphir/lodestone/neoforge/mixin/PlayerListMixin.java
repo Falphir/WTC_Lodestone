@@ -5,7 +5,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import io.github.falphir.lodestone.LodestoneConfig;
+import io.github.falphir.lodestone.HubClient;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -30,7 +30,7 @@ public class PlayerListMixin {
 
     @Inject(method = "canPlayerLogin", at = @At("RETURN"), cancellable = true)
     private void wtc_lodestone$customWhitelistMessage(CallbackInfoReturnable<Component> callback) {
-        String message = LodestoneConfig.whitelistMessage();
+        String message = HubClient.whitelistMessage();
         if (message.isBlank()) return;
 
         Component reason = callback.getReturnValue();

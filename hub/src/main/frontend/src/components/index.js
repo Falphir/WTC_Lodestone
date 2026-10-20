@@ -6,6 +6,7 @@
 //            which both of them lazy() in so the library stays out of the entry chunk
 //   player/  a Minecraft account: skin render, who's online
 //   server/  the hub's server shape (listing, mod info, heartbeats, token)
+//   whitelist/ the network whitelist: its players, per-server sync, the kick message
 //
 // SidebarNav stays loose: it's the app shell's own nav -- it reads the signed-in admin and the
 // current route -- so it belongs to App.jsx, not to a reusable group of one.
@@ -40,5 +41,10 @@ export { ServerListing } from './server/ServerListing'
 export { ServerSetup } from './server/ServerSetup'
 export { StatusBadge } from './server/StatusBadge'
 export { TokenNotice } from './server/TokenNotice'
+
+export { KickMessagePanel } from './whitelist/KickMessagePanel'
+export { WhitelistRow } from './whitelist/WhitelistRow'
+export { WhitelistSyncPanel } from './whitelist/WhitelistSyncPanel'
+export { WhitelistTable } from './whitelist/WhitelistTable'
 
 export { SidebarNav } from './SidebarNav'

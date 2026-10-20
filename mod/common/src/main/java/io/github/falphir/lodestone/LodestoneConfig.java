@@ -37,7 +37,8 @@ public final class LodestoneConfig {
             #Local /whitelist add and remove changes are overwritten on the next sync (every few seconds).
             syncWhitelist = true
             #Kick message for players who are not on the whitelist. Empty keeps Minecraft's own
-            #message. Use \\n for a line break.
+            #message. Use \\n for a line break and &c-style codes for color. A message set on the
+            #hub's dashboard overrides this.
             whitelistMessage = ""
             """.formatted(DEFAULT_HUB_URL);
 
@@ -58,6 +59,16 @@ public final class LodestoneConfig {
 
     /** Kick message for players who are not whitelisted, with line breaks already decoded. Blank means "leave vanilla's alone". */
     public static String whitelistMessage() { return values.whitelistMessage(); }
+
+    /**
+     * Turns {@code &c}-style codes into the {@code §c} the client renders as color and style, since {@code §}
+     * is awkward to type. Only an {@code &} followed by a valid code changes, so "Rules & info" stays as written.
+     * ponytail: same rule as Bukkit's translateAlternateColorCodes, so "R&D" becomes "R" + light purple; add an
+     * escape if a message ever needs a literal & glued to a code letter.
+     */
+    public static String colorCodes(String text) {
+        return text.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§");
+    }
 
     /** True when the mod is enabled and has everything it needs to talk to the hub. */
     public static boolean isReady() {
