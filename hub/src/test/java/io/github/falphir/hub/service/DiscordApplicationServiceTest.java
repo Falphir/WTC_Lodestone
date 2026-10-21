@@ -19,9 +19,9 @@ class DiscordApplicationServiceTest {
     void listsOnlyTheRequestedStatusOldestFirst() {
         // This hub's table is shared with whoever else is using it, so assert on the rows this
         // test created rather than on the whole listing.
-        service.setApplicationPending("test-app-older", "m1", "uuid-1", "Notch");
-        service.setApplicationPending("test-app-newer", "m2", "uuid-2", "jeb_");
-        service.setApplicationPending("test-app-decided", "m3", "uuid-3", "Dinnerbone");
+        service.setApplicationPending("test-app-older", "m1");
+        service.setApplicationPending("test-app-newer", "m2");
+        service.setApplicationPending("test-app-decided", "m3");
         service.setApplicationDecision("test-app-decided", "denied");
 
         var pending = service.listApplications("pending").stream().map(DiscordApplication::getDiscordId).toList();

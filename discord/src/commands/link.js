@@ -3,26 +3,30 @@
 const { SlashCommandBuilder } = require('discord.js');
 const config = require('../config');
 const db = require('../db');
-const mojang = require('../mojang');
+const hub = require('../hub');
 const { EPHEMERAL, isStaff } = require('../lib/util');
 const { t } = require('../i18n');
-const { relinkWhitelist } = require('../lib/access');
 
+// The code is what proves the account is theirs: a server only shows it to whoever just logged in
+// with that account, and online mode has Mojang vouch for them first. No username is ever typed.
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('link')
     .setDescription(t('link.commandDescription'))
     .addStringOption((o) =>
       o
-        .setName('mc_username')
+        .setName('code')
         .setDescription(t('link.optionDescription'))
         .setRequired(true)
-        .setMaxLength(16)
+        .setMinLength(6)
+        .setMaxLength(6)
     ),
 
   async execute(interaction) {
     const member = interaction.member;
     const hasMemberRole = config.memberRoleId && member.roles.cache.has(config.memberRoleId);
+    // Linking whitelists the account, so it's for members only -- which is what keeps
+    // "linked" and "whitelisted" the same thing.
     if (!hasMemberRole && !isStaff(member)) {
       return interaction.reply({
         content: t('link.needMember'),
@@ -31,32 +35,26 @@ module.exports = {
     }
 
     await interaction.deferReply(EPHEMERAL);
-    const name = interaction.options.getString('mc_username').trim();
+    const code = interaction.options.getString('code').trim();
+    // Not even a code -- answer here rather than spend one of their wrong guesses at the hub
+    if (!/^\d{6}$/.test(code)) return interaction.editReply(t('link.codeInvalid', { code }));
 
-    const profile = await mojang.lookupProfile(name);
-    if (!profile) return interaction.editReply(t('link.mojangNotFound', { name }));
-
-    const byUuid = await db.getByUuid(profile.uuid);
-    if (byUuid && byUuid.discordId !== interaction.user.id) {
-      return interaction.editReply(t('link.alreadyLinked', { discordId: byUuid.discordId }));
-    }
-
-    const current = await db.getByDiscord(interaction.user.id);
-
-    // Cleanly (re)apply the whitelist — removes any stale prior entry incl. renames.
+    let previous, result;
     try {
-      await relinkWhitelist(current, profile);
+      previous = await db.getByDiscord(interaction.user.id);
+      result = await hub.claimLinkCode(code, interaction.user.id);
     } catch (err) {
       return interaction.editReply(t('link.hubUnreachable', { error: err.message }));
     }
-    await db.setLink({ discordId: interaction.user.id, uuid: profile.uuid, username: profile.name });
 
-    const verb = current ? t('link.verbUpdated') : t('link.verbLinked');
+    if (result.status === 404) return interaction.editReply(t('link.codeInvalid', { code }));
+    if (result.status === 409) return interaction.editReply(t('link.alreadyLinked'));
+    if (result.status === 429) return interaction.editReply(t('link.tooManyTries'));
+
+    const { player } = result;
     await interaction.editReply(
-      t('link.success', { verb, name: profile.name }) +
-        (current && current.username.toLowerCase() !== profile.name.toLowerCase()
-          ? t('link.previousRemoved', { name: current.username })
-          : '')
+      t('link.success', { name: player.name }) +
+        (previous && previous.uuid !== player.uuid ? t('link.previousRemoved', { name: previous.username }) : '')
     );
   },
 };

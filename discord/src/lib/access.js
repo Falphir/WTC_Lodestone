@@ -10,14 +10,4 @@ async function revokeAccess(link) {
   await hub.whitelistRemove(link.uuid);
 }
 
-// Whitelists `profile` when linking/relinking. The hub keys the whitelist by UUID, so
-// a rename (same uuid) is a no-op there -- only switching to a different account needs
-// the old one removed first.
-async function relinkWhitelist(current, profile) {
-  if (current && current.uuid !== profile.uuid) {
-    await hub.whitelistRemove(current.uuid);
-  }
-  await hub.whitelistAdd(profile.name);
-}
-
-module.exports = { revokeAccess, relinkWhitelist };
+module.exports = { revokeAccess };

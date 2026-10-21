@@ -54,10 +54,10 @@ public class AdminDiscordApplicationController {
     @PutMapping("/{discordId}/pending")
     @Operation(summary = "Mark an application pending", description = "Overwrites any prior application for this Discord id.")
     public ApplicationView setPending(@PathVariable String discordId, @Valid @RequestBody PendingRequest request) {
-        return ApplicationView.from(service.setApplicationPending(discordId, request.messageId(), request.uuid(), request.username()));
+        return ApplicationView.from(service.setApplicationPending(discordId, request.messageId()));
     }
 
-    public record PendingRequest(String messageId, String uuid, String username) {}
+    public record PendingRequest(String messageId) {}
 
     @PutMapping("/{discordId}/decision")
     @Operation(summary = "Record a decision (approved/denied)")
@@ -74,11 +74,9 @@ public class AdminDiscordApplicationController {
         service.clearApplication(discordId);
     }
 
-    public record ApplicationView(String discordId, String status, String messageId, String uuid, String username,
-            long createdAt, Long decidedAt) {
+    public record ApplicationView(String discordId, String status, String messageId, long createdAt, Long decidedAt) {
         static ApplicationView from(DiscordApplication a) {
-            return new ApplicationView(a.getDiscordId(), a.getStatus(), a.getMessageId(), a.getMcUuid(),
-                    a.getMcUsername(), a.getCreatedAt(), a.getDecidedAt());
+            return new ApplicationView(a.getDiscordId(), a.getStatus(), a.getMessageId(), a.getCreatedAt(), a.getDecidedAt());
         }
     }
 }

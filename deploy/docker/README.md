@@ -140,7 +140,9 @@ hubUrl = "https://YOUR-HOST"
 ```
 
 Everything else (registering the server on the dashboard first, `dryRun`, `syncWhitelist`,
-`enforce-whitelist=true`) is the same as section 9 of the main runbook.
+`enforce-whitelist=true`, and `online-mode=true` + `white-list=true` for code linking) is the same
+as section 9 of the main runbook, including emptying each server's `whitelist.json` when you
+switch it over.
 
 ---
 

@@ -61,7 +61,7 @@ function fakeInteraction({ staff = true, picked = '400000000000000042', focused 
   };
 }
 
-const pending = { discordId: '400000000000000042', status: 'pending', messageId: '777', uuid: 'u-1', username: 'Notch', createdAt: 1700000000000 };
+const pending = { discordId: '400000000000000042', status: 'pending', messageId: '777', createdAt: 1700000000000 };
 
 test('refuses anyone without a staff role', async () => {
   const command = await loadCommand(pending);
@@ -81,7 +81,7 @@ test('hands staff the application with approve and deny buttons', async () => {
 
   const [card] = interaction.calls.edits;
   const embed = card.embeds[0].toJSON();
-  assert.match(embed.fields.find((f) => f.name === 'Minecraft').value, /Notch/);
+  assert.match(embed.fields.find((f) => f.name === 'Applicant').value, /<@400000000000000042>/);
   // the written answers live on the public post, so the card links to it rather than copying it
   assert.match(embed.fields.find((f) => f.name === 'Application').value, /channels\/999\/555\/777/);
 
@@ -115,11 +115,11 @@ test('says so when the applicant has no application', async () => {
 // ---- autocomplete: staff pick an applicant instead of naming one ----
 
 const twoPending = () => [
-  { discordId: '400000000000000042', status: 'pending', username: 'Notch', createdAt: Date.now() - 3 * 86400000 },
-  { discordId: '400000000000000043', status: 'pending', username: 'jeb_', createdAt: Date.now() - 2 * 3600000 },
+  { discordId: '400000000000000042', status: 'pending', createdAt: Date.now() - 3 * 86400000 },
+  { discordId: '400000000000000043', status: 'pending', createdAt: Date.now() - 2 * 3600000 },
 ];
 
-test('labels each suggestion Discord name | Minecraft name', async () => {
+test('labels each suggestion with the Discord name', async () => {
   pendingList = twoPending();
   const command = await loadCommand(pending);
   const interaction = fakeInteraction({
@@ -133,7 +133,7 @@ test('labels each suggestion Discord name | Minecraft name', async () => {
   await command.autocomplete(interaction);
 
   const [choices] = interaction.calls.choices;
-  assert.deepEqual(choices.map((c) => c.name), ['notch | Notch', 'Jeb | jeb_']);
+  assert.deepEqual(choices.map((c) => c.name), ['notch', 'Jeb']);
   assert.deepEqual(
     choices.map((c) => c.value),
     ['400000000000000042', '400000000000000043'],
@@ -141,7 +141,7 @@ test('labels each suggestion Discord name | Minecraft name', async () => {
   );
 });
 
-test('keeps an applicant who has left the guild, under their Minecraft name', async () => {
+test('keeps an applicant who has left the guild, under their Discord id', async () => {
   pendingList = twoPending();
   const command = await loadCommand(pending);
   const interaction = fakeInteraction({ guild: fakeGuild({ cached: { '400000000000000042': 'notch' } }) });
@@ -149,17 +149,17 @@ test('keeps an applicant who has left the guild, under their Minecraft name', as
   await command.autocomplete(interaction);
 
   // no Discord name to resolve for the second one -- it must still be reviewable
-  assert.deepEqual(interaction.calls.choices[0].map((c) => c.name), ['notch | Notch', 'jeb_']);
+  assert.deepEqual(interaction.calls.choices[0].map((c) => c.name), ['notch', '400000000000000043']);
 });
 
-test('narrows the suggestions on either name', async () => {
+test('narrows the suggestions on the Discord name', async () => {
   pendingList = twoPending();
   const command = await loadCommand(pending);
   const guild = fakeGuild({ cached: { '400000000000000042': 'notch', '400000000000000043': 'Jeb' } });
 
-  const byMinecraft = fakeInteraction({ focused: 'JEB_', guild });
-  await command.autocomplete(byMinecraft);
-  assert.deepEqual(byMinecraft.calls.choices[0].map((c) => c.value), ['400000000000000043']);
+  const byPart = fakeInteraction({ focused: 'JE', guild });
+  await command.autocomplete(byPart);
+  assert.deepEqual(byPart.calls.choices[0].map((c) => c.value), ['400000000000000043']);
 
   const byDiscord = fakeInteraction({ focused: 'notc', guild });
   await command.autocomplete(byDiscord);
@@ -167,7 +167,7 @@ test('narrows the suggestions on either name', async () => {
 });
 
 test('suggests nothing to a non-staff member', async () => {
-  pendingList = [{ discordId: '400000000000000042', status: 'pending', username: 'Notch', createdAt: Date.now() }];
+  pendingList = [{ discordId: '400000000000000042', status: 'pending', createdAt: Date.now() }];
   const command = await loadCommand(pending);
   const interaction = fakeInteraction({ staff: false });
 
@@ -190,7 +190,7 @@ test('finds a match past the 25 choices Discord allows', async () => {
   pendingList = Array.from({ length: 40 }, (_, i) => {
     const discordId = `4000000000000000${String(i).padStart(2, '0')}`;
     cached[discordId] = `member${i}`;
-    return { discordId, status: 'pending', username: `Player${i}`, createdAt: Date.now() };
+    return { discordId, status: 'pending', createdAt: Date.now() };
   });
   const command = await loadCommand(pending);
 
@@ -198,10 +198,10 @@ test('finds a match past the 25 choices Discord allows', async () => {
   await command.autocomplete(all);
   assert.equal(all.calls.choices[0].length, 25, 'never offers more than Discord accepts');
 
-  // Player39 sorts last and would be cut by a slice-before-filter
-  const hunt = fakeInteraction({ focused: 'player39', guild: fakeGuild({ cached }) });
+  // member39 sorts last and would be cut by a slice-before-filter
+  const hunt = fakeInteraction({ focused: 'member39', guild: fakeGuild({ cached }) });
   await command.autocomplete(hunt);
-  assert.deepEqual(hunt.calls.choices[0].map((c) => c.name), ['member39 | Player39']);
+  assert.deepEqual(hunt.calls.choices[0].map((c) => c.name), ['member39']);
 });
 
 test('builds the suggestion list once, not once per keystroke', async () => {

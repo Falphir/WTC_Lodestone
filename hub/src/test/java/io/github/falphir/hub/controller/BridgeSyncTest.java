@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
@@ -121,6 +122,51 @@ class BridgeSyncTest {
                 .andExpect(jsonPath("$.message").value(""));
         mvc.perform(post("/api/bridge/heartbeat").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON).content(heartbeat))
                 .andExpect(jsonPath("$.whitelistMessage").value(""));
+    }
+
+    @Test
+    void aCodeFromTheKickScreenLinksAndWhitelistsTheAccountOnce() throws Exception {
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
+        String admin = adminToken();
+        String first = "0f3a1b2c-0000-4000-8000-0000000000d1";
+        String second = "0f3a1b2c-0000-4000-8000-0000000000d2";
+
+        offerCode(bearer, "100002", first, "LinkTester");
+        claimCode(admin, "100002", "900000000000000001")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uuid").value(first))
+                .andExpect(jsonPath("$.linkedDiscordId").value("900000000000000001"));
+        claimCode(admin, "100002", "900000000000000001").andExpect(status().isNotFound()); // single use
+
+        // someone else can't take an account that's already linked
+        offerCode(bearer, "100003", first, "LinkTester");
+        claimCode(admin, "100003", "900000000000000002").andExpect(status().isConflict());
+
+        // switching to another account drops the old one from the whitelist
+        offerCode(bearer, "100004", second, "LinkTester2");
+        claimCode(admin, "100004", "900000000000000001").andExpect(jsonPath("$.uuid").value(second));
+        assertThat(whitelistRows.existsById(first)).isFalse();
+    }
+
+    @Test
+    void tooManyWrongCodesFromOneDiscordAccountAreRefused() throws Exception {
+        String admin = adminToken();
+        String guesser = "900000000000000099";
+        for (int i = 0; i < 5; i++) {
+            claimCode(admin, String.format("%06d", 999000 + i), guesser).andExpect(status().isNotFound());
+        }
+        claimCode(admin, "999999", guesser).andExpect(status().isTooManyRequests());
+    }
+
+    private void offerCode(String bearer, String code, String uuid, String name) throws Exception {
+        mvc.perform(post("/api/bridge/link-code").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + code + "\",\"uuid\":\"" + uuid + "\",\"name\":\"" + name + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private ResultActions claimCode(String admin, String code, String discordId) throws Exception {
+        return mvc.perform(post("/api/admin/whitelist/link-code").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"" + code + "\",\"discordId\":\"" + discordId + "\"}"));
     }
 
     @Test

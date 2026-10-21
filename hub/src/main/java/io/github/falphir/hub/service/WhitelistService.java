@@ -25,9 +25,11 @@ public class WhitelistService {
     private final MojangProfiles mojang;
     private final TokenService hashing;
     private final ApplicationEventPublisher events;
+    private final LinkCodeService linkCodes;
 
     public WhitelistService(WhitelistedPlayerRepository repository, WhitelistStateRepository state,
-            MojangProfiles mojang, TokenService hashing, ApplicationEventPublisher events) {
+            MojangProfiles mojang, TokenService hashing, ApplicationEventPublisher events, LinkCodeService linkCodes) {
+        this.linkCodes = linkCodes;
         this.repository = repository;
         this.state = state;
         this.mojang = mojang;
@@ -160,6 +162,32 @@ public class WhitelistService {
         });
         player.linkDiscord(discordId, canonicalUsername);
         WhitelistedPlayer saved = repository.save(player);
+        events.publishEvent(HubEvent.whitelist());
+        return saved;
+    }
+
+    /**
+     * Links the account a game server issued {@code code} to (see LinkCodeService) to this Discord
+     * account, and whitelists it. The bot only calls this for members, so being linked and being
+     * whitelisted stay the same thing. Switching to a different account drops the old one.
+     */
+    @Transactional
+    public WhitelistedPlayer linkByCode(String code, String discordId) {
+        LinkCodeService.Pending pending = linkCodes.claim(code, discordId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That link code is wrong or has expired"));
+        WhitelistedPlayer player = repository.findById(pending.uuid())
+                .orElseGet(() -> new WhitelistedPlayer(pending.uuid(), pending.name(), "discord-link"));
+        if (player.getDiscordId() != null && !player.getDiscordId().equals(discordId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "'" + player.getName() + "' is already linked to another Discord account");
+        }
+        repository.findByDiscordId(discordId).filter(old -> !old.getUuid().equals(pending.uuid())).ifPresent(old -> {
+            repository.delete(old);
+            // Hibernate flushes inserts before deletes, and discord_id is unique
+            repository.flush();
+        });
+        player.linkDiscord(discordId, pending.name());
+        WhitelistedPlayer saved = repository.save(player);
+        markPopulated();
         events.publishEvent(HubEvent.whitelist());
         return saved;
     }

@@ -23,9 +23,6 @@ module.exports = {
   async getByName(name) {
     return asLink(await hub.getPlayerByName(name));
   },
-  async setLink({ discordId, uuid, username }) {
-    await hub.linkDiscord(uuid, discordId, username);
-  },
 
   // ---- applications ----
   async listApplications(status) {
@@ -34,8 +31,8 @@ module.exports = {
   async getApplication(discordId) {
     return hub.getApplication(discordId);
   },
-  async setApplicationPending({ discordId, messageId, uuid, username }) {
-    await hub.setApplicationPending(discordId, { messageId, uuid, username });
+  async setApplicationPending({ discordId, messageId }) {
+    await hub.setApplicationPending(discordId, { messageId });
   },
   async setApplicationDecision(discordId, status) {
     await hub.setApplicationDecision(discordId, status);

@@ -7,8 +7,10 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import com.google.gson.JsonArray;
@@ -77,6 +79,54 @@ public final class HubClient {
         if (message != null && !message.isJsonNull()) {
             hubWhitelistMessage = message.getAsString();
         }
+    }
+
+    /** A link code this server handed out. A minute short of the hub's 5, so one shown here is never already dead there. */
+    private record IssuedCode(String code, long expiresAt) {}
+
+    private static final long LINK_CODE_TTL_MS = Duration.ofMinutes(4).toMillis();
+
+    /** Keyed by player UUID, so reconnecting shows the same code. Read and written from the login check only. */
+    private static final Map<UUID, IssuedCode> linkCodes = new ConcurrentHashMap<>();
+
+    /**
+     * The code to show a player refused for not being whitelisted, so they can claim the account with the
+     * bot's /link. The hub hears about it asynchronously -- a login check must never wait on the network --
+     * and the player only types it into Discord well after that. Null when this server doesn't take its
+     * whitelist from the hub, since a link would never let them in here.
+     */
+    public static String linkCode(GameProfile profile) {
+        if (!LodestoneConfig.isReady() || !LodestoneConfig.syncWhitelist() || LodestoneConfig.dryRun()) return null;
+
+        long now = System.currentTimeMillis();
+        linkCodes.values().removeIf(issued -> issued.expiresAt() < now);
+        IssuedCode issued = linkCodes.get(profile.getId());
+        if (issued != null) return issued.code();
+
+        String code = LinkCodes.generate();
+        linkCodes.put(profile.getId(), new IssuedCode(code, now + LINK_CODE_TTL_MS));
+
+        JsonObject body = new JsonObject();
+        body.addProperty("code", code);
+        body.addProperty("uuid", profile.getId().toString());
+        body.addProperty("name", profile.getName());
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/bridge/link-code"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + LodestoneConfig.token())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                .build();
+        HTTP.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+                .thenAccept(response -> {
+                    if (response.statusCode() >= 300) {
+                        Lodestone.LOGGER.warn("WTC Lodestone hub refused a link code (HTTP {})", response.statusCode());
+                    }
+                })
+                .exceptionally(error -> {
+                    Lodestone.LOGGER.warn("WTC Lodestone could not send a link code: {}", error.getMessage());
+                    return null;
+                });
+        return code;
     }
 
     /** Checks in with the hub: reports this server's setup, and logs whether the connection and token work. */

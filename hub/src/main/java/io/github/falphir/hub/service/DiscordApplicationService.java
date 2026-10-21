@@ -40,9 +40,9 @@ public class DiscordApplicationService {
     }
 
     @Transactional
-    public DiscordApplication setApplicationPending(String discordId, String messageId, String uuid, String username) {
+    public DiscordApplication setApplicationPending(String discordId, String messageId) {
         DiscordApplication app = applications.findById(discordId).orElseGet(() -> new DiscordApplication(discordId));
-        app.markPending(messageId, uuid, username);
+        app.markPending(messageId);
         return applications.save(app);
     }
 

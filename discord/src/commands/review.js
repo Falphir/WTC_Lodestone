@@ -83,22 +83,20 @@ async function choiceList(guild) {
 
   const pending = await db.listApplications('pending');
   // Resolve names before filtering, so typing a name finds someone who would have fallen
-  // outside the 25 shown. ponytail: beyond RESOLVE_LIMIT applicants the tail is searchable by
-  // Minecraft name only; page the fetch if a queue ever gets that long.
+  // outside the 25 shown. ponytail: beyond RESOLVE_LIMIT applicants the tail is listed by
+  // Discord id only; page the fetch if a queue ever gets that long.
   const names = await discordNames(guild, pending.slice(0, RESOLVE_LIMIT));
 
+  // A choice label is plain text: a <@id> mention would show as raw markup, so the Discord name
+  // has to be resolved here. Someone who has left the guild has no name to resolve -- they're
+  // listed by their id rather than dropping out of the list.
   const choices = pending.map((a) => ({
-    name: label(names.get(a.discordId), a.username).slice(0, 100),
+    name: (names.get(a.discordId) ?? a.discordId).slice(0, 100),
     value: a.discordId,
   }));
   cache = { at: Date.now(), choices };
   return choices;
 }
-
-// A choice label is plain text: a <@id> mention would show as raw markup, so the Discord name
-// has to be resolved here. Someone who has left the guild has no name to resolve -- they stay
-// findable by their Minecraft name alone rather than dropping out of the list.
-const label = (discordName, mcName) => (discordName ? t('review.choice', { discord: discordName, mc: mcName }) : mcName);
 
 /**
  * Display names for the applicants, from the member cache, with one bulk fetch for whoever is

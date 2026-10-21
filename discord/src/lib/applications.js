@@ -17,8 +17,6 @@ const {
 
 const config = require('../config');
 const db = require('../db');
-const hub = require('../hub');
-const mojang = require('../mojang');
 const { t } = require('../i18n');
 const { withIcon } = require('../icons');
 const { COLORS, brandEmbed, mcHead } = require('./embeds');
@@ -122,9 +120,9 @@ async function acknowledge(interaction) {
 }
 
 /**
- * The staff-side card for one application: who, which account, when, and a link to the public
- * post that still holds their written answers -- the hub stores the applicant's identity, not
- * their essay, so the post stays the record of what they actually wrote.
+ * The staff-side card for one application: who, when, and a link to the public post that holds
+ * their written answers, Minecraft name included -- the hub keeps only the Discord id and the
+ * post's id, so the post stays the record of what they actually wrote.
  */
 async function reviewCard(app, guildId) {
   if (app.status !== 'pending') return { content: reviewedAlready(app), embeds: [], components: [] };
@@ -138,10 +136,8 @@ async function reviewCard(app, guildId) {
 
   const embed = brandEmbed()
     .setTitle(withIcon('review', t('review.embedTitle')))
-    .setThumbnail(await mcHead(app.username || app.uuid))
     .addFields(
       { name: t('review.fieldApplicant'), value: `<@${app.discordId}>`, inline: true },
-      { name: t('review.fieldMinecraft'), value: `\`${app.username}\``, inline: true },
       { name: t('review.fieldApplied'), value: `<t:${Math.floor(app.createdAt / 1000)}:R>`, inline: true },
       { name: t('review.fieldPost'), value: url }
     );
@@ -299,8 +295,8 @@ async function submitApplication(interaction) {
   };
 
   // Every rejection below hands the answers back with a button that reopens the filled form:
-  // the Mojang and already-linked checks need the network, so they can only fail after the
-  // applicant has written all five -- losing the lot to a typo is not a fair trade.
+  // a modal can only be checked once it's submitted, after the applicant has written all five
+  // -- losing the lot to a typo is not a fair trade.
   const ageNum = parseAge(data.age);
   if (ageNum === null) {
     return rejectWithRetry(interaction, t('apply.ageInvalid', { age: data.age }), data);
@@ -317,18 +313,8 @@ async function submitApplication(interaction) {
     return rejectWithRetry(interaction, t('apply.mcInvalid', { name: data.mc }), data);
   }
 
-  // Validate the Minecraft name up front so typos / already-linked accounts are
-  // rejected before staff ever see the application.
-  const profile = await mojang.lookupProfile(data.mc);
-  if (!profile) {
-    return rejectWithRetry(interaction, t('apply.submitMojangNotFound', { name: data.mc }), data);
-  }
-  const existing = await db.getByUuid(profile.uuid);
-  if (existing && existing.discordId !== interaction.user.id) {
-    return rejectWithRetry(interaction, t('apply.submitAlreadyLinked', { name: profile.name }), data);
-  }
-  data.mc = profile.name; // canonical casing for the post
-
+  // The name is only shown to staff: which account gets whitelisted is decided later, when the
+  // approved member links one with the code a server shows them -- so it isn't looked up here.
   const channel = await interaction.client.channels.fetch(config.applicationsChannelId);
   const embed = await buildApplicationEmbed(interaction.user, data);
 
@@ -343,12 +329,7 @@ async function submitApplication(interaction) {
     embeds: [embed],
   });
 
-  await db.setApplicationPending({
-    discordId: interaction.user.id,
-    messageId: post.id,
-    uuid: profile.uuid,
-    username: profile.name,
-  });
+  await db.setApplicationPending({ discordId: interaction.user.id, messageId: post.id });
 
   drafts.delete(interaction.user.id); // it went through; a stale retry button must not reopen it
 
@@ -367,33 +348,16 @@ async function handleApprove(interaction, applicantId) {
   if (!app) return finish(interaction, t('review.notFound', { discordId: applicantId }));
   if (app.status !== 'pending') return finish(interaction, reviewedAlready(app));
 
-  // The hub stored the applicant's uuid/name when the post went up, so take them from there
-  // rather than re-reading a rendered embed; Mojang is only the fallback for a row that
-  // somehow lacks them.
-  const profile = app.uuid && app.username
-    ? { uuid: app.uuid, name: app.username }
-    : await mojang.lookupProfile(app.username);
-  if (!profile) {
-    return finish(interaction, t('apply.mojangNotFound', { name: app.username }));
-  }
-
-  const existing = await db.getByUuid(profile.uuid);
-  if (existing && existing.discordId !== applicantId) {
-    return finish(interaction, t('apply.alreadyLinked', { discordId: existing.discordId }));
-  }
-
-  try {
-    await hub.whitelistAdd(profile.name);
-  } catch (err) {
-    return finish(interaction, t('apply.hubUnreachable', { error: err.message }));
-  }
-  await db.setLink({ discordId: applicantId, uuid: profile.uuid, username: profile.name });
+  // Approval is the member role and nothing else. It doesn't touch the whitelist: the member links
+  // their own account with the code a server shows them on their first join, and /link
+  // whitelists it then (only for members, which is what this grants).
   await db.setApplicationDecision(applicantId, 'approved');
 
-  // Assign the member role (unlocks the server-info channel).
   let roleNote = '';
+  let avatar = null;
   try {
     const member = await interaction.guild.members.fetch(applicantId);
+    avatar = member.displayAvatarURL();
     if (config.memberRoleId) await member.roles.add(config.memberRoleId);
   } catch (err) {
     console.error('Role assignment failed:', err);
@@ -406,7 +370,7 @@ async function handleApprove(interaction, applicantId) {
     const welcomeEmbed = brandEmbed()
       .setColor(COLORS.success)
       .setTitle(withIcon('welcome', t('apply.welcomeTitle', { brand: config.brand.name })))
-      .setThumbnail(await mcHead(profile.name))
+      .setThumbnail(avatar)
       .setDescription(
         t('apply.welcomeDescription', { serverInfoChannelId: config.serverInfoChannelId })
       );
@@ -426,15 +390,14 @@ async function handleApprove(interaction, applicantId) {
   const approvedLog = brandEmbed()
     .setColor(COLORS.success)
     .setTitle(withIcon('approved', t('apply.logTitleApproved')))
-    .setThumbnail(await mcHead(profile.name))
+    .setThumbnail(avatar)
     .addFields(
       { name: t('apply.logFieldApplicant'), value: `<@${applicantId}>`, inline: true },
-      { name: t('apply.logFieldMinecraft'), value: `\`${profile.name}\``, inline: true },
       { name: t('apply.logFieldReviewer'), value: `<@${interaction.user.id}>`, inline: true }
     );
   await postStaffLog(interaction.client, approvedLog);
 
-  await finish(interaction, withIcon('approved', t('apply.approveSuccess', { name: profile.name })) + roleNote);
+  await finish(interaction, withIcon('approved', t('apply.approveSuccess', { discordId: applicantId })) + roleNote);
 }
 
 async function promptDeny(interaction, applicantId) {

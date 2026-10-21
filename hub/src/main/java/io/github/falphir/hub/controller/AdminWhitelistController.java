@@ -35,7 +35,10 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "adminToken")
 public class AdminWhitelistController {
 
-    private static final String UUID_REGEX = "\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12}";
+    static final String UUID_REGEX = "\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12}";
+
+    /** What the mod generates: six digits. LinkCodeService caps wrong guesses, since that's only a million codes. */
+    static final String LINK_CODE_REGEX = "\\d{6}";
 
     private final WhitelistService whitelist;
 
@@ -121,6 +124,20 @@ public class AdminWhitelistController {
     public PlayerView linkDiscord(@PathVariable String uuid, @Valid @RequestBody LinkDiscordRequest request) {
         return PlayerView.from(whitelist.linkDiscord(uuid, request.discordId(), request.username()));
     }
+
+    @PostMapping("/link-code")
+    @Operation(summary = "Link an account with a code from the game server",
+            description = "Used by the bot's /link, for members only. Links and whitelists the Minecraft account the code was "
+                    + "issued to on its kick screen; a Discord account already linked to a different one is moved over. "
+                    + "404 if the code is wrong or expired; 409 if that account is linked to another Discord account; "
+                    + "429 after too many wrong codes from this Discord account.")
+    public PlayerView linkByCode(@Valid @RequestBody LinkCodeRequest request) {
+        return PlayerView.from(whitelist.linkByCode(request.code(), request.discordId()));
+    }
+
+    public record LinkCodeRequest(
+            @NotBlank @Pattern(regexp = LINK_CODE_REGEX, message = "not a link code") String code,
+            @NotBlank @Pattern(regexp = "\\d{1,20}", message = "not a Discord id") String discordId) {}
 
     public record LinkDiscordRequest(
             @NotBlank @Pattern(regexp = "\\d{1,20}", message = "not a Discord id") String discordId,
