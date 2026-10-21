@@ -1,0 +1,6 @@
+.gradle/
+build/
+bin/
+src/main/frontend/node_modules/
+src/main/frontend/dist/
+src/main/resources/static/
