@@ -20,12 +20,6 @@ public class DiscordApplication {
     @Column(name = "message_id", length = 32)
     private String messageId;
 
-    @Column(name = "mc_uuid", length = 36)
-    private String mcUuid;
-
-    @Column(name = "mc_username", length = 16)
-    private String mcUsername;
-
     @Column(name = "created_at", nullable = false)
     private long createdAt;
 
@@ -40,11 +34,9 @@ public class DiscordApplication {
         this.discordId = discordId;
     }
 
-    public void markPending(String messageId, String uuid, String username) {
+    public void markPending(String messageId) {
         this.status = "pending";
         this.messageId = messageId;
-        this.mcUuid = uuid;
-        this.mcUsername = username;
         this.createdAt = System.currentTimeMillis();
         this.decidedAt = null;
     }
@@ -60,8 +52,6 @@ public class DiscordApplication {
     public String getDiscordId() { return discordId; }
     public String getStatus() { return status; }
     public String getMessageId() { return messageId; }
-    public String getMcUuid() { return mcUuid; }
-    public String getMcUsername() { return mcUsername; }
     public long getCreatedAt() { return createdAt; }
     public Long getDecidedAt() { return decidedAt; }
 }

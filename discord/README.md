@@ -23,33 +23,36 @@ account, and vice-versa).
   minimum length so a one-word application can't be submitted at all, and "how did you find us"
   is a dropdown rather than free text.
 - **On submit** the bot validates up front (before staff see anything): the age gate
-  (`minAge`, default 18), the Minecraft name — its shape first, then Mojang — and a duplicate
-  check (an account already linked to someone else is rejected). It also enforces **one open
+  (`minAge`, default 18) and the Minecraft name's shape. The name is only shown to staff — which
+  account gets whitelisted is decided later, by the code the member links with. It also enforces **one open
   application at a time** and a **re-apply cooldown** after a denial (`applyCooldownDays`,
   default 7). Applications that pass ping the staff role(s).
-- **A rejection doesn't cost them the application.** The Mojang and already-linked checks need a
-  network call, so they can only fail once all five answers are written. Each rejection comes with
+- **A rejection doesn't cost them the application.** A modal can only be checked once it's
+  submitted, after all five answers are written. Each rejection comes with
   a **Fix and resubmit** button that reopens the form with everything still filled in. The draft
   is held in memory for 15 minutes — the life of the button — and a click after that says to run
   `/apply` again rather than opening an empty form.
 - `/review` (staff) — the Approve / Deny controls, in an **ephemeral** reply, which is the one
   place Discord makes components per-user. The option **autocompletes from the hub's pending
-  applications**, each listed as `Discord name | Minecraft name` and matched on either, so staff
-  pick an applicant rather than naming one and only reviewable applications are ever offered.
-  Someone who has since left the server has no Discord name to resolve and is listed under their
-  Minecraft name alone — still reviewable, where a member picker could not have found them. The
-  card shows the applicant, their Minecraft account and a jump link to the public post that
-  holds their written answers.
-- **Approve** → takes the account off the hub's application row (Mojang is only a fallback),
-  creates the link, adds the player to the hub's network whitelist, assigns the member role,
-  posts a welcome message pointing to the server-info channel. No DMs of IPs.
+  applications**, each listed by Discord name, so staff pick an applicant rather than naming one
+  and only reviewable applications are ever offered. Someone who has since left the server has no
+  Discord name to resolve and is listed by their Discord id — still reviewable, where a member
+  picker could not have found them. The card shows the applicant and a jump link to the public
+  post that holds their written answers, Minecraft name included (the hub row keeps only the
+  Discord id and the post's id).
+- **Approve** → assigns the member role and posts a welcome message telling them how to link,
+  pointing to the server-info channel. It doesn't whitelist anyone: that happens when the member
+  links their account with `/link`. No DMs of IPs.
 - **Deny** → optional reason, DMed to the applicant; application post is stamped.
 - Either decision stamps the public post with the outcome and who made it, and the review card
   is replaced by the result.
 - **Audit log** — if a `staffLogChannelId` is set, approvals and denials (who / when / reason) are
   logged there for a paper trail.
-- `/link <mc_username>` — approved members self-service **connect or change** their MC account
-  (removes the old name, adds the new one; always exactly one linked account).
+- `/link <code>` — approved members **connect or change** their MC account. The code comes from
+  trying to join any network server: the server refuses them (not whitelisted) and shows the code
+  on the kick screen, and since online mode has already had Mojang vouch for that login, claiming
+  it proves they own the account. Links and whitelists it; a different account replaces the old
+  one, so there's always exactly one. No username is ever typed.
 - `/whois` (staff) — look up either direction of a link.
 - `/unlink` (staff) — remove a link + de-whitelist.
 - `/resetcooldown <user>` (staff) — clear a member's re-apply cooldown so they can `/apply` again.
@@ -155,9 +158,10 @@ npm start
 
 1. `/serverinfo` renders your servers.
 2. Submit an `/apply`, then `/review` as staff -- the applicant should appear in the
-   option's suggestions -- and click **Approve** → check: link
-   row created, the player shows up on the hub dashboard's Whitelist page, role assigned,
-   welcome posted, public post stamped. Confirm a non-staff member sees no buttons anywhere.
-3. `/link` a fresh name, then `/link` a different name → old name removed, new added, still one
-   row.
+   option's suggestions -- and click **Approve** → check: role assigned, welcome posted, public
+   post stamped, and nothing added to the whitelist yet. Confirm a non-staff member sees no
+   buttons anywhere.
+3. Try to join a server with the approved account → the kick screen shows a code. `/link` it →
+   the player shows up linked on the dashboard's Whitelist page and can join. Link a second
+   account the same way → the first one is removed, still one row.
 4. Remove the member role from a test account → confirm auto de-whitelist on the dashboard.

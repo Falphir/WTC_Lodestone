@@ -180,6 +180,13 @@ Also set `enforce-whitelist=true` in that server's `server.properties`, or remov
 network whitelist won't kick them until they log out on their own. The dashboard flags this as
 "Not enforced".
 
+Players link their accounts with a code: a member who isn't whitelisted yet tries to join, gets
+kicked with a code, and runs `/link <code>` in Discord. For that to prove anything, every server
+needs `online-mode=true` (otherwise anyone can join under any name and claim it) and
+`white-list=true` in `server.properties`. When switching an existing server over, empty its
+`whitelist.json`, or everyone on the old list keeps getting in unlinked until the hub's whitelist
+has had its first player.
+
 Mod jars come from the release page and go in each server's `mods/` — that server has to restart to
 pick one up, which is why `deploy.sh` leaves them alone.
 

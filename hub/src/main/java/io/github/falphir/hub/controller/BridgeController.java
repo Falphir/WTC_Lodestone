@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.entity.WhitelistedPlayer;
+import io.github.falphir.hub.service.LinkCodeService;
 import io.github.falphir.hub.service.ServerService;
 import io.github.falphir.hub.service.WhitelistService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +22,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 @RestController
@@ -34,12 +36,14 @@ public class BridgeController {
 
     private final ServerService serverService;
     private final WhitelistService whitelistService;
+    private final LinkCodeService linkCodes;
     private final long whitelistSyncIntervalSeconds;
 
-    public BridgeController(ServerService serverService, WhitelistService whitelistService,
+    public BridgeController(ServerService serverService, WhitelistService whitelistService, LinkCodeService linkCodes,
             @Value("${lodestone.whitelist-sync-interval-seconds:10}") long whitelistSyncIntervalSeconds) {
         this.serverService = serverService;
         this.whitelistService = whitelistService;
+        this.linkCodes = linkCodes;
         this.whitelistSyncIntervalSeconds = whitelistSyncIntervalSeconds;
     }
 
@@ -120,4 +124,17 @@ public class BridgeController {
     }
 
     public record WhitelistAppliedRequest(@NotBlank @Size(max = 64) String version) {}
+
+    @PostMapping("/link-code")
+    @Operation(summary = "Link code issued",
+            description = "The mod showed this code to a player it refused for not being whitelisted. The player claims it with "
+                    + "the Discord bot's /link within 5 minutes, which links and whitelists the account they joined with.")
+    public void linkCode(@Valid @RequestBody LinkCodeRequest request) {
+        linkCodes.offer(request.code(), request.uuid(), request.name());
+    }
+
+    public record LinkCodeRequest(
+            @NotBlank @Pattern(regexp = AdminWhitelistController.LINK_CODE_REGEX) String code,
+            @NotBlank @Pattern(regexp = AdminWhitelistController.UUID_REGEX) String uuid,
+            @NotBlank @Size(max = 16) String name) {}
 }

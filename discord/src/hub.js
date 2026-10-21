@@ -158,13 +158,19 @@ async function getPlayerByName(name) {
   return getOrNull(`/api/admin/whitelist/by-name/${encodeURIComponent(name)}`);
 }
 
-/** Links `discordId` to the already-whitelisted account `uuid`. */
-async function linkDiscord(uuid, discordId, username) {
-  const res = await request('PUT', `/api/admin/whitelist/${encodeURIComponent(uuid)}/discord-link`, {
-    body: { discordId, username },
-    what: `Could not link Discord account for '${uuid}'`,
+/**
+ * Claims a link code a game server showed on its kick screen: the hub links that Minecraft account to
+ * `discordId` and whitelists it. 404 (wrong or expired code), 409 (that account is someone else's) and
+ * 429 (too many wrong codes) come back as `{ status }` for the caller to word; success is
+ * `{ status: 200, player }`.
+ */
+async function claimLinkCode(code, discordId) {
+  const res = await request('POST', '/api/admin/whitelist/link-code', {
+    body: { code, discordId },
+    ok: [404, 409, 429],
+    what: 'Could not link the account',
   });
-  return res.json();
+  return res.ok ? { status: res.status, player: await res.json() } : { status: res.status };
 }
 
 // ---- applications ----
@@ -182,9 +188,9 @@ async function listApplications(status) {
   return res.json();
 }
 
-async function setApplicationPending(discordId, { messageId, uuid, username }) {
+async function setApplicationPending(discordId, { messageId }) {
   const res = await request('PUT', `/api/admin/discord/applications/${encodeURIComponent(discordId)}/pending`, {
-    body: { messageId, uuid, username },
+    body: { messageId },
     what: `Could not mark application pending for '${discordId}'`,
   });
   return res.json();
@@ -215,7 +221,7 @@ module.exports = {
   getPlayerByUuid,
   getPlayerByDiscord,
   getPlayerByName,
-  linkDiscord,
+  claimLinkCode,
   getApplication,
   listApplications,
   setApplicationPending,

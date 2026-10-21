@@ -96,3 +96,20 @@ test('surfaces a timed-out request instead of hanging', async () => {
 
   await assert.rejects(hub.whitelistAdd('Notch'), /timeout/);
 });
+
+test('a link code comes back as the linked player, or as the status the hub refused it with', async () => {
+  const replies = { GOOD23: [200, { uuid: 'u-1', name: 'Notch' }], WRONG2: [404, { message: 'expired' }], TAKEN2: [409, { message: 'taken' }] };
+  globalThis.fetch = async (url, opts) => {
+    if (url.endsWith('/api/auth/token')) {
+      return jsonResponse(200, { token: 'tok', expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+    }
+    const { code, discordId } = JSON.parse(opts.body);
+    assert.equal(discordId, '400000000000000042');
+    return jsonResponse(...replies[code]);
+  };
+  const hub = freshHub();
+
+  assert.deepEqual(await hub.claimLinkCode('GOOD23', '400000000000000042'), { status: 200, player: { uuid: 'u-1', name: 'Notch' } });
+  assert.deepEqual(await hub.claimLinkCode('WRONG2', '400000000000000042'), { status: 404 });
+  assert.deepEqual(await hub.claimLinkCode('TAKEN2', '400000000000000042'), { status: 409 });
+});
