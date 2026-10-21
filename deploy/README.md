@@ -114,6 +114,9 @@ sudo /opt/lodestone/repo/deploy/deploy.sh   # pulls the newest release, starts e
 If the repo is private, `curl` can't fetch release assets — use `gh release download` (GitHub CLI,
 authenticated) and place `wtc_lodestone-hub.jar` in `/opt/lodestone/` yourself.
 
+Fill in the placeholders in `PRIVACY.md` (repo root) and pin it in the Discord channel where people
+run `/apply`. It's the privacy notice GDPR asks for, sized to fit one Discord message.
+
 Then register the bot's slash commands with Discord — once, on the first install, and again whenever a
 command or option description changes:
 
