@@ -5,9 +5,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,8 +23,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.UserBanList;
+import net.minecraft.server.players.UserBanListEntry;
 import net.minecraft.server.players.UserWhiteList;
 import net.minecraft.server.players.UserWhiteListEntry;
 
@@ -49,6 +56,9 @@ public final class HubClient {
      */
     private static volatile String hubWhitelistMessage = "";
 
+    /** The network ban message template from the hub; blank until heard from. Same threading as hubWhitelistMessage. */
+    private static volatile String hubBanMessage = "";
+
     /** Only touched on the server thread. */
     private static boolean warnedEmptyWhitelist = false;
 
@@ -74,10 +84,24 @@ public final class HubClient {
         return LodestoneConfig.colorCodes(hub.isBlank() ? LodestoneConfig.whitelistMessage() : hub);
     }
 
-    private static void readWhitelistMessage(JsonObject body) {
+    /**
+     * What a player refused or kicked for a network ban sees, with their reason and expiry filled in and
+     * {@code &} color codes decoded. Only for bans this mod applied: a server's own keep vanilla's wording.
+     */
+    public static String banMessage(String reason, Date expires) {
+        String hub = hubBanMessage;
+        return LodestoneConfig.colorCodes(BanMessages.render(hub.isBlank() ? BanMessages.DEFAULT : hub, reason, expires));
+    }
+
+    /** The kick and ban messages ride on both the hello and the heartbeat response. */
+    private static void readMessages(JsonObject body) {
         JsonElement message = body.get("whitelistMessage");
         if (message != null && !message.isJsonNull()) {
             hubWhitelistMessage = message.getAsString();
+        }
+        JsonElement ban = body.get("banMessage");
+        if (ban != null && !ban.isJsonNull()) {
+            hubBanMessage = ban.getAsString();
         }
     }
 
@@ -146,6 +170,7 @@ public final class HubClient {
         // server.properties, not ours: with this off, syncing the whitelist never kicks anyone,
         // so the hub shows it rather than letting the mismatch pass silently.
         body.addProperty("enforceWhitelist", enforceWhitelist);
+        body.addProperty("syncBans", LodestoneConfig.syncBans());
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
@@ -181,7 +206,7 @@ public final class HubClient {
                 int seconds = body.get("whitelistSyncIntervalSeconds").getAsInt();
                 whitelistSyncIntervalTicks = Math.max(20 * 5, seconds * 20);
             }
-            readWhitelistMessage(body);
+            readMessages(body);
 
             if (!hubServerId.equals(LodestoneConfig.serverId())) {
                 Lodestone.LOGGER.warn("Config says serverId '{}' but this token belongs to '{}'. Check the config.",
@@ -239,7 +264,7 @@ public final class HubClient {
                 .thenAccept(response -> {
                     // older hubs answer with an empty body; keep whatever hello gave us then
                     if (response.statusCode() == 200 && !response.body().isBlank()) {
-                        readWhitelistMessage(JsonParser.parseString(response.body()).getAsJsonObject());
+                        readMessages(JsonParser.parseString(response.body()).getAsJsonObject());
                     }
                 })
                 .exceptionally(error -> {
@@ -357,6 +382,140 @@ public final class HubClient {
                 })
                 .exceptionally(error -> {
                     Lodestone.LOGGER.warn("WTC Lodestone could not report the applied whitelist: {}", error.getMessage());
+                    return null;
+                });
+    }
+
+    /**
+     * Tags every ban this mod writes, so it can tell them from the server's own: a ban from /ban here, or
+     * one that was in banned-players.json before, has a different source and is never touched.
+     */
+    public static final String BAN_SOURCE = "WTC Lodestone";
+
+    /** Ban list version last reported to the hub as applied. Only touched on the server thread. */
+    private static String reportedBanVersion = null;
+
+    /** One ban from the hub, in the shape vanilla's ban list stores. {@code expires} null is permanent. */
+    private record HubBan(GameProfile profile, String reason, Date created, Date expires) {}
+
+    /** Fetches the network ban list from the hub and applies it to this server. */
+    public static void syncBans(MinecraftServer server) {
+        String url = baseUrl() + "/api/bridge/bans";
+
+        if (LodestoneConfig.dryRun()) {
+            Lodestone.LOGGER.info("[dry run] Would sync bans from hub at {}", url);
+            return;
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + LodestoneConfig.token())
+                .GET()
+                .build();
+
+        HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenAccept(response -> {
+                    if (response.statusCode() != 200) {
+                        Lodestone.LOGGER.warn("WTC Lodestone ban sync failed (HTTP {})", response.statusCode());
+                        return;
+                    }
+                    List<HubBan> bans = parseBans(response.body());
+                    String version = response.headers().firstValue("X-Ban-Version").orElse(null);
+                    server.execute(() -> {
+                        applyBans(server, bans);
+                        reportBansApplied(version);
+                    });
+                })
+                .exceptionally(error -> {
+                    Lodestone.LOGGER.warn("WTC Lodestone ban sync failed: {}", error.getMessage());
+                    return null;
+                });
+    }
+
+    private static List<HubBan> parseBans(String body) {
+        List<HubBan> bans = new ArrayList<>();
+        for (JsonElement element : JsonParser.parseString(body).getAsJsonArray()) {
+            JsonObject entry = element.getAsJsonObject();
+            bans.add(new HubBan(
+                    new GameProfile(UUID.fromString(entry.get("uuid").getAsString()), entry.get("name").getAsString()),
+                    optionalString(entry, "reason"),
+                    optionalDate(entry, "bannedAt"),
+                    optionalDate(entry, "expiresAt")));
+        }
+        return bans;
+    }
+
+    private static String optionalString(JsonObject entry, String key) {
+        JsonElement value = entry.get(key);
+        return value == null || value.isJsonNull() ? null : value.getAsString();
+    }
+
+    /** banned-players.json keeps dates to the second, so these are cut to the second too, or every comparison would differ. */
+    private static Date optionalDate(JsonObject entry, String key) {
+        String value = optionalString(entry, key);
+        return value == null ? null : Date.from(Instant.parse(value).truncatedTo(ChronoUnit.SECONDS));
+    }
+
+    /**
+     * Runs on the server thread. Lifts our own bans the hub no longer lists, writes the ones it does
+     * (new, or with a changed reason or expiry), and kicks anyone online who just got banned. A ban the
+     * server made itself is left alone, even for a player the hub also bans: they're banned either way.
+     */
+    private static void applyBans(MinecraftServer server, List<HubBan> bans) {
+        UserBanList list = server.getPlayerList().getBans();
+        Set<UUID> wanted = bans.stream().map(ban -> ban.profile().getId()).collect(Collectors.toSet());
+        int lifted = 0;
+        int applied = 0;
+
+        for (UserBanListEntry entry : List.copyOf(list.getEntries())) {
+            // getUser() is protected in vanilla; the loader's access transformer widens it (see applyWhitelist)
+            GameProfile user = entry.getUser();
+            if (user != null && BAN_SOURCE.equals(entry.getSource()) && !wanted.contains(user.getId())) {
+                list.remove(user);
+                lifted++;
+            }
+        }
+        for (HubBan ban : bans) {
+            UserBanListEntry existing = list.get(ban.profile());
+            if (existing != null && !BAN_SOURCE.equals(existing.getSource())) continue;
+            if (existing != null && Objects.equals(existing.getReason(), ban.reason())
+                    && Objects.equals(existing.getExpires(), ban.expires())) {
+                continue;
+            }
+            list.add(new UserBanListEntry(ban.profile(), ban.created(), BAN_SOURCE, ban.expires(), ban.reason()));
+            applied++;
+            // kicked the way vanilla's /ban does, but with the network's message
+            ServerPlayer online = server.getPlayerList().getPlayer(ban.profile().getId());
+            if (online != null) online.connection.disconnect(Component.literal(banMessage(ban.reason(), ban.expires())));
+        }
+
+        if (applied + lifted > 0) {
+            Lodestone.LOGGER.info("Bans synced from hub: {} applied, {} lifted", applied, lifted);
+        }
+    }
+
+    /** Tells the hub which ban list version this server now has. Only sent when it changed. Server thread only. */
+    private static void reportBansApplied(String version) {
+        if (version == null || version.equals(reportedBanVersion)) return;
+
+        JsonObject body = new JsonObject();
+        body.addProperty("version", version);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/bridge/bans/applied"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + LodestoneConfig.token())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                .build();
+
+        reportedBanVersion = version;
+        HTTP.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+                .thenAccept(response -> {
+                    if (response.statusCode() >= 300) {
+                        Lodestone.LOGGER.warn("WTC Lodestone could not report the applied ban list (HTTP {})", response.statusCode());
+                    }
+                })
+                .exceptionally(error -> {
+                    Lodestone.LOGGER.warn("WTC Lodestone could not report the applied ban list: {}", error.getMessage());
                     return null;
                 });
     }

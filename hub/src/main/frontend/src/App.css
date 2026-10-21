@@ -794,7 +794,8 @@
   color: var(--muted);
 }
 
-.field input {
+.field input,
+.field select {
   height: 36px;
   width: 100%;
   padding: 0 10px;
@@ -821,6 +822,7 @@
 }
 
 .field textarea:focus-visible,
+.field select:focus-visible,
 .field input:focus-visible {
   outline: none;
   border-color: var(--chart);

@@ -1,5 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
+  faBan,
   faBars,
   faCheck,
   faChevronLeft,
@@ -28,6 +29,7 @@ const ICONS = {
   overview: faGauge,
   servers: faServer,
   whitelist: faUserCheck,
+  bans: faBan,
   admins: faShieldHalved,
   signOut: faRightFromBracket,
   sun: faSun,

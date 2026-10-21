@@ -92,6 +92,35 @@
     "previousRemoved": "\nPrevious account `{name}` was removed.",
     "hubUnreachable": "Could not reach the hub to link your account: {error}"
   },
+  "ban": {
+    "commandDescription": "(Staff) Ban a player on every server",
+    "optionName": "Their Minecraft (Java) username",
+    "optionDuration": "How long (leave empty for permanent)",
+    "optionReason": "Why (shown to staff only)",
+    "durationPermanent": "Permanent",
+    "duration1d": "1 day",
+    "duration7d": "7 days",
+    "duration30d": "30 days",
+    "permanent": "permanently",
+    "until": "until {when}",
+    "success": "Banned **{name}** on every server {until}. If they're online, they're kicked within seconds.",
+    "notFound": "Mojang has no Java account named `{name}`.",
+    "hubUnreachable": "Could not reach the hub to ban this player: {error}",
+    "logTitle": "Player Banned",
+    "logFieldPlayer": "Player",
+    "logFieldBy": "By",
+    "logFieldUntil": "Lasts",
+    "logFieldReason": "Reason",
+    "noReason": "None given"
+  },
+  "unban": {
+    "commandDescription": "(Staff) Lift a player's network ban",
+    "optionName": "Their Minecraft (Java) username",
+    "notBanned": "`{name}` isn't banned on the network. A ban made on one server with /ban has to be lifted there.",
+    "success": "Unbanned **{name}** on every server.",
+    "hubUnreachable": "Could not reach the hub to unban this player: {error}",
+    "logTitle": "Player Unbanned"
+  },
   "unlink": {
     "commandDescription": "(Staff) Remove a member's link and de-whitelist them",
     "optionDescription": "Discord member to unlink",

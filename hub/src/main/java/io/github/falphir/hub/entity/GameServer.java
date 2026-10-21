@@ -57,6 +57,17 @@ public class GameServer {
     @Column(name = "whitelist_synced_at")
     private Instant whitelistSyncedAt;
 
+    /** Whether the server applies the network ban list (its syncBans config); null until it reports. */
+    @Column(name = "sync_bans")
+    private Boolean syncBans;
+
+    /** Version (content hash) of the network ban list this server last applied. */
+    @Column(name = "ban_version", length = 64)
+    private String banVersion;
+
+    @Column(name = "bans_synced_at")
+    private Instant bansSyncedAt;
+
     // ---- public listing: what the Discord bot's /serverinfo shows players, blank until filled in ----
 
     @Column(name = "public_address", nullable = false, length = 100)
@@ -100,17 +111,23 @@ public class GameServer {
 
     /** Stores what the mod reported about itself on check-in. */
     public void reportSetup(String modVersion, String minecraftVersion, String loaderVersion, Boolean syncWhitelist,
-            Boolean enforceWhitelist) {
+            Boolean enforceWhitelist, Boolean syncBans) {
         this.modVersion = modVersion;
         this.minecraftVersion = minecraftVersion;
         this.loaderVersion = loaderVersion;
         this.syncWhitelist = syncWhitelist;
         this.enforceWhitelist = enforceWhitelist;
+        this.syncBans = syncBans;
     }
 
     public void whitelistApplied(String version) {
         this.whitelistVersion = version;
         this.whitelistSyncedAt = Instant.now();
+    }
+
+    public void bansApplied(String version) {
+        this.banVersion = version;
+        this.bansSyncedAt = Instant.now();
     }
 
     /** Swaps the stored token hash; the old token stops authenticating immediately. */
@@ -131,6 +148,9 @@ public class GameServer {
     public Boolean getEnforceWhitelist() { return enforceWhitelist; }
     public String getWhitelistVersion() { return whitelistVersion; }
     public Instant getWhitelistSyncedAt() { return whitelistSyncedAt; }
+    public Boolean getSyncBans() { return syncBans; }
+    public String getBanVersion() { return banVersion; }
+    public Instant getBansSyncedAt() { return bansSyncedAt; }
 
     public String getPublicAddress() { return publicAddress; }
     public void setPublicAddress(String publicAddress) { this.publicAddress = publicAddress; }

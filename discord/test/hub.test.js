@@ -113,3 +113,22 @@ test('a link code comes back as the linked player, or as the status the hub refu
   assert.deepEqual(await hub.claimLinkCode('WRONG2', '400000000000000042'), { status: 404 });
   assert.deepEqual(await hub.claimLinkCode('TAKEN2', '400000000000000042'), { status: 409 });
 });
+
+test('a ban for an unknown account comes back as null; an unban of someone not banned still succeeds', async () => {
+  globalThis.fetch = async (url, opts) => {
+    if (url.endsWith('/api/auth/token')) {
+      return jsonResponse(200, { token: 'tok', expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+    }
+    if (url.endsWith('/api/admin/bans') && opts.method === 'POST') {
+      return JSON.parse(opts.body).name === 'Griefer'
+        ? jsonResponse(201, { uuid: 'u-1', name: 'Griefer' })
+        : jsonResponse(404, { message: 'No Minecraft account' });
+    }
+    return jsonResponse(404, { message: 'Player is not banned' });
+  };
+  const hub = freshHub();
+
+  assert.deepEqual(await hub.ban('Griefer', null, null), { uuid: 'u-1', name: 'Griefer' });
+  assert.equal(await hub.ban('Nobody', null, null), null);
+  await assert.doesNotReject(hub.unban('u-2'));
+});

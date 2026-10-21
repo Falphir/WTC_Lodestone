@@ -55,6 +55,11 @@ account, and vice-versa).
   one, so there's always exactly one. No username is ever typed.
 - `/whois` (staff) — look up either direction of a link.
 - `/unlink` (staff) — remove a link + de-whitelist.
+- `/ban <mc_username> [duration] [reason]` (staff) — ban a player on every server, permanently or
+  for 1/7/30 days; same list as the dashboard's Bans page. Servers kick them within seconds. Their
+  link and whitelist entry are left alone, so an unban restores access as it was.
+- `/unban <mc_username>` (staff) — lift a network ban. A ban someone made on one server with the
+  in-game `/ban` isn't on the network list and has to be lifted on that server.
 - `/resetcooldown <user>` (staff) — clear a member's re-apply cooldown so they can `/apply` again.
 - `/serverinfo` — list the servers an admin has published: a card each with its IP, modpack,
   version, launcher, download link and the modpack's image as a thumbnail. Edited per server on

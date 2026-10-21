@@ -9,6 +9,7 @@ import SignIn from './pages/SignIn'
 // follows Overview and ServerDetail and is never fetched for the whitelist, admins or sign-in.
 // SignIn stays eager: it's the first screen, and splitting it would only delay the password box.
 const Admins = lazy(() => import('./pages/Admins'))
+const Bans = lazy(() => import('./pages/Bans'))
 const Overview = lazy(() => import('./pages/Overview'))
 const ServerDetail = lazy(() => import('./pages/ServerDetail'))
 const Servers = lazy(() => import('./pages/Servers'))
@@ -60,6 +61,7 @@ function App() {
   if (section === 'servers' && id) page = <ServerDetail key={id} id={id} />
   else if (section === 'servers') page = <Servers />
   else if (section === 'whitelist') page = <Whitelist />
+  else if (section === 'bans') page = <Bans />
   else if (section === 'admins') page = <Admins />
   else page = <Overview />
 

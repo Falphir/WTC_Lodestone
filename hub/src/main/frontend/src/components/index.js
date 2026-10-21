@@ -5,8 +5,9 @@
 //   charts/  the two chart components; recharts itself is imported only by charts/recharts.jsx,
 //            which both of them lazy() in so the library stays out of the entry chunk
 //   player/  a Minecraft account: skin render, who's online
-//   server/  the hub's server shape (listing, mod info, heartbeats, token)
-//   whitelist/ the network whitelist: its players, per-server sync, the kick message
+//   server/  the hub's server shape (listing, mod info, heartbeats, token, per-list sync)
+//   whitelist/ the network whitelist: its players and the kick message
+//   bans/    the network ban list
 //
 // SidebarNav stays loose: it's the app shell's own nav -- it reads the signed-in admin and the
 // current route -- so it belongs to App.jsx, not to a reusable group of one.
@@ -40,11 +41,15 @@ export { ServerHeartbeats } from './server/ServerHeartbeats'
 export { ServerListing } from './server/ServerListing'
 export { ServerSetup } from './server/ServerSetup'
 export { StatusBadge } from './server/StatusBadge'
+export { SyncPanel } from './server/SyncPanel'
 export { TokenNotice } from './server/TokenNotice'
+
+export { BanMessagePanel } from './bans/BanMessagePanel'
+export { BanRow } from './bans/BanRow'
+export { BanTable } from './bans/BanTable'
 
 export { KickMessagePanel } from './whitelist/KickMessagePanel'
 export { WhitelistRow } from './whitelist/WhitelistRow'
-export { WhitelistSyncPanel } from './whitelist/WhitelistSyncPanel'
 export { WhitelistTable } from './whitelist/WhitelistTable'
 
 export { SidebarNav } from './SidebarNav'

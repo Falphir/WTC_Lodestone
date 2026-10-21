@@ -94,10 +94,10 @@ public class ServerService {
     /** Check-in from the mod: marks the server seen and stores what it reported about itself. */
     @Transactional
     public GameServer checkIn(String id, String modVersion, String minecraftVersion, String loaderVersion,
-            Boolean syncWhitelist, Boolean enforceWhitelist) {
+            Boolean syncWhitelist, Boolean enforceWhitelist, Boolean syncBans) {
         GameServer server = find(id);
         server.markSeen();
-        server.reportSetup(modVersion, minecraftVersion, loaderVersion, syncWhitelist, enforceWhitelist);
+        server.reportSetup(modVersion, minecraftVersion, loaderVersion, syncWhitelist, enforceWhitelist, syncBans);
         events.publishEvent(HubEvent.servers(id));
         return server;
     }
@@ -181,6 +181,13 @@ public class ServerService {
     @Transactional
     public void whitelistApplied(String id, String version) {
         find(id).whitelistApplied(version);
+        events.publishEvent(HubEvent.servers(id));
+    }
+
+    /** The mod applied this version of the network ban list. */
+    @Transactional
+    public void bansApplied(String id, String version) {
+        find(id).bansApplied(version);
         events.publishEvent(HubEvent.servers(id));
     }
 

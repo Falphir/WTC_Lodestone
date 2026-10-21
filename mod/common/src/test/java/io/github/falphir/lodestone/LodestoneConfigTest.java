@@ -40,6 +40,7 @@ class LodestoneConfigTest {
         assertTrue(values.enabled());
         assertFalse(values.dryRun());
         assertFalse(values.syncWhitelist());
+        assertTrue(values.syncBans(), "a file from before syncBans existed still syncs bans");
         assertEquals(List.of(), problems);
     }
 
@@ -49,6 +50,8 @@ class LodestoneConfigTest {
 
         assertTrue(values.enabled());
         assertTrue(values.syncWhitelist());
+        assertTrue(values.syncBans());
+        assertFalse(parse("syncBans = false").syncBans());
         assertEquals("http://127.0.0.1:8080", values.hubUrl());
         assertEquals("", values.token());
         assertEquals(List.of(), problems);
