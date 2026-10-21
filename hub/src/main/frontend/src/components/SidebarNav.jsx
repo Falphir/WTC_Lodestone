@@ -6,6 +6,7 @@ const NAV = [
   { path: '', label: 'Overview', icon: 'overview' },
   { path: 'servers', label: 'Servers', icon: 'servers' },
   { path: 'whitelist', label: 'Whitelist', icon: 'whitelist' },
+  { path: 'bans', label: 'Bans', icon: 'bans' },
   { path: 'admins', label: 'Admins', icon: 'admins' },
 ]
 

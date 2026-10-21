@@ -1,10 +1,13 @@
 import { Badge } from '../ui/Badge'
 import { Panel } from '../ui/Panel'
-import { plural, whitelistSync } from '../../format'
+import { plural } from '../../format'
 
-/** Which servers have applied the current list; changes reach each one on its next whitelist poll. */
-export function WhitelistSyncPanel({ servers }) {
-  const rows = servers.map((s) => ({ ...s, sync: whitelistSync(s) })).sort((a, b) => a.name.localeCompare(b.name))
+/**
+ * Which servers have applied the current list; changes reach each one on its next poll. `syncOf` is
+ * the format.js badge for the list in question: whitelistSync or banSync.
+ */
+export function SyncPanel({ servers, syncOf }) {
+  const rows = servers.map((s) => ({ ...s, sync: syncOf(s) })).sort((a, b) => a.name.localeCompare(b.name))
   const current = rows.filter((s) => s.sync.tone === 'good').length
   return (
     <Panel as="section" aria-label="Sync status">

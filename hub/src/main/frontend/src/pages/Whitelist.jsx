@@ -8,10 +8,10 @@ import {
   KickMessagePanel,
   Note,
   PageHead,
-  WhitelistSyncPanel,
+  SyncPanel,
   WhitelistTable,
 } from '../components'
-import { plural } from '../format'
+import { plural, whitelistSync } from '../format'
 import { useAction, useApi } from '../hooks'
 
 export default function Whitelist() {
@@ -118,7 +118,7 @@ export default function Whitelist() {
         )}
       </form>
 
-      {players?.length > 0 && servers?.length > 0 && <WhitelistSyncPanel servers={servers} />}
+      {players?.length > 0 && servers?.length > 0 && <SyncPanel servers={servers} syncOf={whitelistSync} />}
       <KickMessagePanel />
 
       <Note>{message}</Note>

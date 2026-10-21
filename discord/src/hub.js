@@ -98,6 +98,32 @@ async function whitelistAdd(name) {
   });
 }
 
+// ---- network bans ----
+
+/** Every network ban, expired ones flagged until the hub's nightly cleanup. */
+async function listBans() {
+  const res = await request('GET', '/api/admin/bans', { what: 'Could not load the ban list' });
+  return res.json();
+}
+
+/** Bans `name` on every server. `expiresAt` is an ISO string, or null for a permanent ban. A 404 means no such account. */
+async function ban(name, reason, expiresAt) {
+  const res = await request('POST', '/api/admin/bans', {
+    body: { name, reason, expiresAt },
+    ok: [404],
+    what: `Could not ban '${name}'`,
+  });
+  return res.status === 404 ? null : res.json();
+}
+
+/** Lifts a network ban. A 404 (not banned) is treated as success. */
+async function unban(uuid) {
+  await request('DELETE', `/api/admin/bans/${encodeURIComponent(uuid)}`, {
+    ok: [404],
+    what: `Could not unban '${uuid}'`,
+  });
+}
+
 /** Removes `uuid` from the network whitelist. A 404 (already not on it) is treated as success. */
 async function whitelistRemove(uuid) {
   await request('DELETE', `/api/admin/whitelist/${uuid}`, {
@@ -214,6 +240,9 @@ async function clearApplication(discordId) {
 module.exports = {
   whitelistAdd,
   whitelistRemove,
+  listBans,
+  ban,
+  unban,
   getDiscordConfig,
   updateDiscordConfig,
   listPublishedServers,

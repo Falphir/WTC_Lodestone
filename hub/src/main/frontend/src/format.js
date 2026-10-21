@@ -24,6 +24,16 @@ export function whitelistSync(server) {
   return { tone: 'warn', label: 'Behind', detail: `Last applied ${relativeTime(syncedAt)}` }
 }
 
+/** The ban-list counterpart of whitelistSync. Bans don't depend on enforce-whitelist: vanilla checks them first. */
+export function banSync(server) {
+  const { enabled, syncedAt, current } = server.bans
+  if (enabled === false) return { tone: 'none', label: 'Sync off', detail: 'syncBans is false in its mod config' }
+  if (enabled == null) return { tone: 'none', label: 'Unknown', detail: "Its mod hasn't reported whether it syncs bans" }
+  if (current) return { tone: 'good', label: 'Up to date', detail: `Applied ${relativeTime(syncedAt)}` }
+  if (!syncedAt) return { tone: 'warn', label: 'Not synced yet', detail: "Hasn't applied the network ban list yet" }
+  return { tone: 'warn', label: 'Behind', detail: `Last applied ${relativeTime(syncedAt)}` }
+}
+
 const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
 
 export function relativeTime(iso) {

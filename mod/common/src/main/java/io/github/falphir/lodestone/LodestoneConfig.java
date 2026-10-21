@@ -40,15 +40,18 @@ public final class LodestoneConfig {
             #message. Use \\n for a line break and &c-style codes for color. A message set on the
             #hub's dashboard overrides this.
             whitelistMessage = ""
+            #If true, this server applies the network ban list managed on the hub. Bans made here
+            #with /ban stay local and are never touched.
+            syncBans = true
             """.formatted(DEFAULT_HUB_URL);
 
-    private static Values values = new Values(true, false, DEFAULT_HUB_URL, "", "", true, "");
+    private static Values values = new Values(true, false, DEFAULT_HUB_URL, "", "", true, "", true);
 
     private LodestoneConfig() {}
 
     /** Every setting, as read from the file. */
     public record Values(boolean enabled, boolean dryRun, String hubUrl, String serverId, String token,
-            boolean syncWhitelist, String whitelistMessage) {}
+            boolean syncWhitelist, String whitelistMessage, boolean syncBans) {}
 
     public static boolean enabled() { return values.enabled(); }
     public static boolean dryRun() { return values.dryRun(); }
@@ -56,6 +59,7 @@ public final class LodestoneConfig {
     public static String serverId() { return values.serverId(); }
     public static String token() { return values.token(); }
     public static boolean syncWhitelist() { return values.syncWhitelist(); }
+    public static boolean syncBans() { return values.syncBans(); }
 
     /** Kick message for players who are not whitelisted, with line breaks already decoded. Blank means "leave vanilla's alone". */
     public static String whitelistMessage() { return values.whitelistMessage(); }
@@ -125,7 +129,9 @@ public final class LodestoneConfig {
                 string(raw, "token", "", problems, value -> true, ""),
                 bool(raw, "syncWhitelist", true, problems),
                 // the file is one line per key, so a multi-line kick message is written as \n
-                string(raw, "whitelistMessage", "", problems, value -> true, "").replace("\\n", "\n"));
+                string(raw, "whitelistMessage", "", problems, value -> true, "").replace("\\n", "\n"),
+                // configs written before this key existed have no line for it: they sync bans too
+                bool(raw, "syncBans", true, problems));
     }
 
     /** Strips the quotes TOML puts around string values; other values are left as they are. */

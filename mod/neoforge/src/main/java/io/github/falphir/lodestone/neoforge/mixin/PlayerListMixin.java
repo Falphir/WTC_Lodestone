@@ -15,6 +15,7 @@ import io.github.falphir.lodestone.LinkCodes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.players.PlayerList;
+import net.minecraft.server.players.UserBanListEntry;
 
 /**
  * Replaces the kick message a non-whitelisted player gets, so a network that whitelists through the
@@ -31,20 +32,31 @@ import net.minecraft.server.players.PlayerList;
  * The same answer carries the player's link code (see HubClient.linkCode). Online mode has already
  * checked the profile with Mojang by the time this runs, so the code goes to the account's real owner
  * even though they're about to be refused.
+ * <p>
+ * A network ban gets the network's ban message the same way. Only bans this mod applied (source
+ * HubClient.BAN_SOURCE) are rewritten; a ban the server made with /ban keeps vanilla's message.
  */
 @Mixin(PlayerList.class)
 public class PlayerListMixin {
 
     private static final String NOT_WHITELISTED = "multiplayer.disconnect.not_whitelisted";
+    /** A player ban. IP bans have their own key (banned_ip.reason) and are left alone. */
+    private static final String BANNED = "multiplayer.disconnect.banned.reason";
 
     @Inject(method = "canPlayerLogin", at = @At("RETURN"), cancellable = true)
-    private void wtc_lodestone$customWhitelistMessage(SocketAddress address, GameProfile profile,
+    private void wtc_lodestone$customLoginMessage(SocketAddress address, GameProfile profile,
             CallbackInfoReturnable<Component> callback) {
         Component reason = callback.getReturnValue();
-        if (reason == null || !(reason.getContents() instanceof TranslatableContents contents)
-                || !NOT_WHITELISTED.equals(contents.getKey())) {
+        if (reason == null || !(reason.getContents() instanceof TranslatableContents contents)) return;
+
+        if (BANNED.equals(contents.getKey())) {
+            UserBanListEntry ban = ((PlayerList) (Object) this).getBans().get(profile);
+            if (ban != null && HubClient.BAN_SOURCE.equals(ban.getSource())) {
+                callback.setReturnValue(Component.literal(HubClient.banMessage(ban.getReason(), ban.getExpires())));
+            }
             return;
         }
+        if (!NOT_WHITELISTED.equals(contents.getKey())) return;
 
         String message = HubClient.whitelistMessage();
         String code = HubClient.linkCode(profile);

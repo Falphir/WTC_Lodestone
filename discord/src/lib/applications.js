@@ -487,4 +487,4 @@ async function onModal(interaction) {
   }
 }
 
-module.exports = { openApplyModal, reviewCard, parseAge, onButton, onModal };
+module.exports = { openApplyModal, reviewCard, parseAge, onButton, onModal, postStaffLog };

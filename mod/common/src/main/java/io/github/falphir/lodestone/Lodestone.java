@@ -20,6 +20,7 @@ public final class Lodestone {
     private static Platform platform = new Platform("unknown", "unknown", "unknown");
     private static int ticksUntilHeartbeat = HubClient.heartbeatIntervalTicks();
     private static int ticksUntilWhitelistSync = HubClient.whitelistSyncIntervalTicks();
+    private static int ticksUntilBanSync = HubClient.whitelistSyncIntervalTicks();
 
     private Lodestone() {}
 
@@ -51,6 +52,7 @@ public final class Lodestone {
         HubClient.hello(platform.modVersion(), platform.minecraftVersion(), platform.loaderVersion(),
                 server.isEnforceWhitelist());
         if (LodestoneConfig.syncWhitelist()) HubClient.syncWhitelist(server);
+        if (LodestoneConfig.syncBans()) HubClient.syncBans(server);
     }
 
     /**
@@ -67,6 +69,11 @@ public final class Lodestone {
         if (LodestoneConfig.syncWhitelist() && --ticksUntilWhitelistSync <= 0) {
             ticksUntilWhitelistSync = HubClient.whitelistSyncIntervalTicks();
             HubClient.syncWhitelist(server);
+        }
+        // the ban list polls as often as the whitelist: a ban should land just as fast
+        if (LodestoneConfig.syncBans() && --ticksUntilBanSync <= 0) {
+            ticksUntilBanSync = HubClient.whitelistSyncIntervalTicks();
+            HubClient.syncBans(server);
         }
     }
 }

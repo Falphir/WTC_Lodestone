@@ -177,6 +177,7 @@ hubUrl = "http://127.0.0.1:8081"
 serverId = "from-the-dashboard"
 token = "from-the-dashboard"
 syncWhitelist = false              # see the whitelist trap below
+syncBans = true                    # apply the network ban list; this server's own /ban bans are kept
 ```
 
 Also set `enforce-whitelist=true` in that server's `server.properties`, or removing someone from the

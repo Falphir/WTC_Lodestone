@@ -6,6 +6,7 @@ import java.util.List;
 
 import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.entity.ServerHeartbeat;
+import io.github.falphir.hub.service.BanService;
 import io.github.falphir.hub.service.ServerService;
 import io.github.falphir.hub.service.WhitelistService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -40,8 +41,10 @@ public class AdminServerController {
 
     private final ServerService serverService;
     private final WhitelistService whitelistService;
+    private final BanService banService;
 
-    public AdminServerController(ServerService serverService, WhitelistService whitelistService) {
+    public AdminServerController(ServerService serverService, WhitelistService whitelistService, BanService banService) {
+        this.banService = banService;
         this.serverService = serverService;
         this.whitelistService = whitelistService;
     }
@@ -50,10 +53,11 @@ public class AdminServerController {
     @Operation(summary = "List servers", description = "All registered servers, each with its most recent heartbeat (null if none yet).")
     public List<ServerView> list() {
         String whitelistVersion = whitelistService.version();
-        return serverService.listServers().stream().map(s -> toView(s, whitelistVersion)).toList();
+        String banVersion = banService.version();
+        return serverService.listServers().stream().map(s -> toView(s, whitelistVersion, banVersion)).toList();
     }
 
-    private ServerView toView(GameServer s, String whitelistVersion) {
+    private ServerView toView(GameServer s, String whitelistVersion, String banVersion) {
         ServerHeartbeat latest = serverService.latestHeartbeat(s.getId()).orElse(null);
         return new ServerView(s.getId(), s.getName(), s.isEnabled(), s.getCreatedAt(), s.getLastSeen(),
                 serverService.status(s, latest), latest == null ? null : HeartbeatView.from(latest),
@@ -61,13 +65,15 @@ public class AdminServerController {
                 new WhitelistSyncView(s.getSyncWhitelist(), s.getWhitelistSyncedAt(),
                         s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion),
                         s.getEnforceWhitelist()),
+                new BanSyncView(s.getSyncBans(), s.getBansSyncedAt(),
+                        s.getBanVersion() != null && s.getBanVersion().equals(banVersion)),
                 ListingView.from(s),
                 serverService.onlinePlayers(s));
     }
 
     public record ServerView(String id, String name, boolean enabled, Instant createdAt, Instant lastSeen,
             @Schema(description = "Decided by the hub from the last heartbeat") ServerService.ServerStatus status,
-            HeartbeatView latest, ModView mod, WhitelistSyncView whitelist, ListingView listing,
+            HeartbeatView latest, ModView mod, WhitelistSyncView whitelist, BanSyncView bans, ListingView listing,
             @Schema(description = "Who was on at the last heartbeat; empty for a server that isn't up, and after a hub restart until its next heartbeat")
             List<ServerService.OnlinePlayer> online) {}
 
@@ -98,6 +104,13 @@ public class AdminServerController {
      *                 {@code enabled} is true means removals reach the server but never kick anyone.
      */
     public record WhitelistSyncView(Boolean enabled, Instant syncedAt, boolean current, Boolean enforced) {}
+
+    /**
+     * @param enabled  the server's syncBans setting, null until reported
+     * @param syncedAt when it last applied a ban list from the hub
+     * @param current  whether what it applied is the hub's current ban list
+     */
+    public record BanSyncView(Boolean enabled, Instant syncedAt, boolean current) {}
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -139,7 +152,7 @@ public class AdminServerController {
     public ServerView edit(@PathVariable String id, @Valid @RequestBody EditServerRequest request) {
         return toView(serverService.edit(id, new ServerService.Patch(request.id(), request.name(),
                 request.publicAddress(), request.modpack(), request.modpackUrl(), request.modpackVersion(),
-                request.launcher(), request.iconUrl(), request.published())), whitelistService.version());
+                request.launcher(), request.iconUrl(), request.published())), whitelistService.version(), banService.version());
     }
 
     public record EditServerRequest(
