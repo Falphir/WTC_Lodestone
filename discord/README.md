@@ -44,6 +44,9 @@ account, and vice-versa).
   pointing to the server-info channel. It doesn't whitelist anyone: that happens when the member
   links their account with `/link`. No DMs of IPs.
 - **Deny** → optional reason, DMed to the applicant; application post is stamped.
+- **Retention** → the hub deletes decided applications nightly: approved after a day, denied once
+  the re-apply cooldown is over. The public post stays in Discord until staff delete it. The privacy
+  notice to pin where people run `/apply` is `PRIVACY.md` at the repo root.
 - Either decision stamps the public post with the outcome and who made it, and the review card
   is replaced by the result.
 - **Audit log** — if a `staffLogChannelId` is set, approvals and denials (who / when / reason) are
