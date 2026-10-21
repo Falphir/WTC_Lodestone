@@ -13,6 +13,9 @@ servers, so mods reach the hub over loopback and nothing but nginx is exposed.
 Local development is a different thing entirely: `docker-compose.dev.yml` in this folder, see the
 root `README.md`.
 
+A separate server that doesn't run the modpack servers can use Docker instead: see
+[`docker/README.md`](docker/README.md). Not this box.
+
 ---
 
 ## First-time setup

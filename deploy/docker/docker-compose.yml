@@ -1,0 +1,71 @@
+# Production on a Docker host: MariaDB, the hub and the Discord bot. Runbook: README.md next to this.
+#   cp .env.example .env    # fill it in BEFORE the first `up` -- admin passwords are read only once
+#   sudo sh update.sh       # build, start, wait for the hub to report healthy
+#
+# Only the hub is published, and only on 127.0.0.1:8081 -- the same upstream deploy/nginx/lodestone.conf
+# points at, so host nginx + certbot stay the one public door. Docker's published ports skip ufw
+# entirely, which is why nothing here binds 0.0.0.0. MariaDB isn't published at all.
+
+x-logging: &logging
+  # Docker's default json-file log never rotates and will eventually fill the disk.
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: wtc_lodestone
+      MARIADB_USER: lodestone
+      MARIADB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    volumes:
+      # The whitelist, Discord links and heartbeat history live only here. backup.sh dumps it.
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 30
+    logging: *logging
+
+  hub:
+    build: ../../hub
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/wtc_lodestone
+      SPRING_DATASOURCE_USERNAME: lodestone
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      # Unset means a new signing key every boot, signing every admin out on each restart.
+      LODESTONE_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      LODESTONE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      LODESTONE_BOT_PASSWORD: ${BOT_PASSWORD:?set BOT_PASSWORD in .env}
+      # Nothing on the internet needs the API browser
+      SPRINGDOC_API_DOCS_ENABLED: "false"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8081:8080"
+    logging: *logging
+
+  bot:
+    build: ../../discord
+    restart: unless-stopped
+    # The hub may still be migrating; the bot keeps retrying its sign-in on its own.
+    depends_on:
+      - hub
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN:?set DISCORD_TOKEN in .env}
+      CLIENT_ID: ${CLIENT_ID:?set CLIENT_ID in .env}
+      GUILD_ID: ${GUILD_ID:?set GUILD_ID in .env}
+      HUB_URL: http://hub:8080
+      HUB_USERNAME: discord-bot
+      HUB_PASSWORD: ${BOT_PASSWORD}
+    logging: *logging
+
+volumes:
+  mariadb-data:
