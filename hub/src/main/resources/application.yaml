@@ -28,6 +28,13 @@ lodestone:
   # restart -- any passphrase, it is hashed to the right length. Unset means a new key each boot,
   # so every admin is signed out on restart.
   jwt-secret: ${LODESTONE_JWT_SECRET:}
+  # Optional. The hub's way into PufferPanel (2.7.x): the panel's address and an OAuth2 client made
+  # under an admin account's settings there. Leave any blank and the hub never calls it. Spelled out
+  # here because relaxed binding alone would want LODESTONE_PUFFERPANEL_CLIENTID, no underscore.
+  pufferpanel:
+    url: ${LODESTONE_PUFFERPANEL_URL:}
+    client-id: ${LODESTONE_PUFFERPANEL_CLIENT_ID:}
+    client-secret: ${LODESTONE_PUFFERPANEL_CLIENT_SECRET:}
   heartbeat-retention-days: 7
   # how often servers report; the mod learns it on check-in, the dashboard from /api/info
   heartbeat-interval-seconds: 60

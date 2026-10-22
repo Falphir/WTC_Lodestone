@@ -45,6 +45,10 @@ services:
       LODESTONE_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       LODESTONE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
       LODESTONE_BOT_PASSWORD: ${BOT_PASSWORD:?set BOT_PASSWORD in .env}
+      # optional; blank leaves the hub never calling PufferPanel
+      LODESTONE_PUFFERPANEL_URL: ${PUFFERPANEL_URL:-}
+      LODESTONE_PUFFERPANEL_CLIENT_ID: ${PUFFERPANEL_CLIENT_ID:-}
+      LODESTONE_PUFFERPANEL_CLIENT_SECRET: ${PUFFERPANEL_CLIENT_SECRET:-}
       # Nothing on the internet needs the API browser
       SPRINGDOC_API_DOCS_ENABLED: "false"
       SPRINGDOC_SWAGGER_UI_ENABLED: "false"
