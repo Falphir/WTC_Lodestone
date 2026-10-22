@@ -68,6 +68,10 @@ public class GameServer {
     @Column(name = "bans_synced_at")
     private Instant bansSyncedAt;
 
+    /** The PufferPanel server this runs as (its 8-character identifier); null when not linked. */
+    @Column(name = "pufferpanel_id", length = 8)
+    private String pufferpanelId;
+
     // ---- public listing: what the Discord bot's /serverinfo shows players, blank until filled in ----
 
     @Column(name = "public_address", nullable = false, length = 100)
@@ -148,6 +152,8 @@ public class GameServer {
     public Boolean getEnforceWhitelist() { return enforceWhitelist; }
     public String getWhitelistVersion() { return whitelistVersion; }
     public Instant getWhitelistSyncedAt() { return whitelistSyncedAt; }
+    public String getPufferpanelId() { return pufferpanelId; }
+    public void setPufferpanelId(String pufferpanelId) { this.pufferpanelId = pufferpanelId; }
     public Boolean getSyncBans() { return syncBans; }
     public String getBanVersion() { return banVersion; }
     public Instant getBansSyncedAt() { return bansSyncedAt; }

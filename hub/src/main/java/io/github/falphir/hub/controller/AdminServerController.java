@@ -68,14 +68,16 @@ public class AdminServerController {
                 new BanSyncView(s.getSyncBans(), s.getBansSyncedAt(),
                         s.getBanVersion() != null && s.getBanVersion().equals(banVersion)),
                 ListingView.from(s),
-                serverService.onlinePlayers(s));
+                serverService.onlinePlayers(s),
+                s.getPufferpanelId());
     }
 
     public record ServerView(String id, String name, boolean enabled, Instant createdAt, Instant lastSeen,
             @Schema(description = "Decided by the hub from the last heartbeat") ServerService.ServerStatus status,
             HeartbeatView latest, ModView mod, WhitelistSyncView whitelist, BanSyncView bans, ListingView listing,
             @Schema(description = "Who was on at the last heartbeat; empty for a server that isn't up, and after a hub restart until its next heartbeat")
-            List<ServerService.OnlinePlayer> online) {}
+            List<ServerService.OnlinePlayer> online,
+            @Schema(description = "PufferPanel server this runs as, null when not linked") String pufferpanelId) {}
 
     /**
      * What players are shown for this server, and whether they're shown it at all. Blank until an
@@ -121,7 +123,7 @@ public class AdminServerController {
     public ServerService.RegisteredServer register(@Valid @RequestBody RegisterServerRequest request) {
         return serverService.register(request.id(), request.name(), new ServerService.Patch(null, null,
                 request.publicAddress(), request.modpack(), request.modpackUrl(), request.modpackVersion(),
-                request.launcher(), request.iconUrl(), null));
+                request.launcher(), request.iconUrl(), null, request.pufferpanelId()));
     }
 
     public record RegisterServerRequest(
@@ -143,7 +145,10 @@ public class AdminServerController {
             @Schema(description = "Launcher players should install it with", example = "CurseForge")
             @Size(max = 32) String launcher,
 
-            @Schema(description = "The modpack's image") @Size(max = 300) String iconUrl) {}
+            @Schema(description = "The modpack's image") @Size(max = 300) String iconUrl,
+
+            @Schema(description = "PufferPanel server this runs as (its 8-character id), checked against the panel; omit to leave it unlinked")
+            @Pattern(regexp = "[A-Za-z0-9]{0,8}", message = "not a PufferPanel server id") String pufferpanelId) {}
 
     @PatchMapping("/{id}")
     @Operation(summary = "Edit a server",
@@ -152,7 +157,8 @@ public class AdminServerController {
     public ServerView edit(@PathVariable String id, @Valid @RequestBody EditServerRequest request) {
         return toView(serverService.edit(id, new ServerService.Patch(request.id(), request.name(),
                 request.publicAddress(), request.modpack(), request.modpackUrl(), request.modpackVersion(),
-                request.launcher(), request.iconUrl(), request.published())), whitelistService.version(), banService.version());
+                request.launcher(), request.iconUrl(), request.published(), request.pufferpanelId())),
+                whitelistService.version(), banService.version());
     }
 
     public record EditServerRequest(
@@ -176,7 +182,10 @@ public class AdminServerController {
 
             @Schema(description = "The modpack's image") @Size(max = 300) String iconUrl,
 
-            @Schema(description = "Whether players see this server in Discord's /serverinfo") Boolean published) {}
+            @Schema(description = "Whether players see this server in Discord's /serverinfo") Boolean published,
+
+            @Schema(description = "PufferPanel server this runs as (its 8-character id), checked against the panel; an empty string unlinks, omit to leave it as it is")
+            @Pattern(regexp = "[A-Za-z0-9]{0,8}", message = "not a PufferPanel server id") String pufferpanelId) {}
 
     @PostMapping("/{id}/reset-token")
     @Operation(summary = "Reset a server's token",

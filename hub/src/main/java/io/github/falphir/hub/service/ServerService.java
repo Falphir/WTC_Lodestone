@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Service
 public class ServerService {
@@ -33,6 +34,7 @@ public class ServerService {
     private final TokenService tokens;
     private final ServerHeartbeatRepository heartbeats;
     private final ApplicationEventPublisher events;
+    private final PufferPanelClient panel;
     private final Duration heartbeatInterval;
 
     /**
@@ -49,8 +51,9 @@ public class ServerService {
     private EntityManager entityManager;
 
     public ServerService(GameServerRepository repository, TokenService tokens, ServerHeartbeatRepository heartbeats,
-            ApplicationEventPublisher events,
+            ApplicationEventPublisher events, PufferPanelClient panel,
             @Value("${lodestone.heartbeat-interval-seconds:60}") int heartbeatIntervalSeconds) {
+        this.panel = panel;
         this.repository = repository;
         this.tokens = tokens;
         this.heartbeats = heartbeats;
@@ -161,11 +164,49 @@ public class ServerService {
         if (patch.launcher() != null) server.setLauncher(patch.launcher());
         if (patch.iconUrl() != null) server.setIconUrl(patch.iconUrl());
         if (patch.published() != null) server.setPublished(patch.published());
+        if (patch.pufferpanelId() != null) {
+            if (patch.pufferpanelId().isBlank()) server.setPufferpanelId(null);
+            else linkPanelServer(server, patch.pufferpanelId());
+        }
     }
 
-    /** Only non-null fields are changed, the same merge the Discord config patch uses. */
+    /**
+     * Links this hub server to a PufferPanel server, which must exist on the panel and not already be
+     * another hub server's. Asks the panel, so linking needs PufferPanel configured and reachable.
+     */
+    private void linkPanelServer(GameServer server, String pufferpanelId) {
+        if (pufferpanelId.equals(server.getPufferpanelId())) return;
+        if (!panel.isConfigured()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "PufferPanel isn't configured");
+        }
+        boolean exists;
+        try {
+            exists = panel.listServers().stream().anyMatch(s -> pufferpanelId.equals(s.id()));
+        } catch (PufferPanelClient.PanelException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, e.getMessage(), e);
+        }
+        if (!exists) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No PufferPanel server '" + pufferpanelId + "'");
+        }
+        repository.findByPufferpanelId(pufferpanelId)
+                .filter(other -> !other.getId().equals(server.getId()))
+                .ifPresent(other -> {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "PufferPanel server '" + pufferpanelId + "' is already linked to '" + other.getId() + "'");
+                });
+        server.setPufferpanelId(pufferpanelId);
+    }
+
+    /** PufferPanel server id → the hub server linked to it, for every linked server. */
+    @Transactional(readOnly = true)
+    public Map<String, String> panelLinks() {
+        return repository.findByPufferpanelIdNotNull().stream()
+                .collect(Collectors.toMap(GameServer::getPufferpanelId, GameServer::getId));
+    }
+
+    /** Only non-null fields are changed, the same merge the Discord config patch uses. {@code pufferpanelId} "" unlinks. */
     public record Patch(String id, String name, String publicAddress, String modpack, String modpackUrl,
-            String modpackVersion, String launcher, String iconUrl, Boolean published) {}
+            String modpackVersion, String launcher, String iconUrl, Boolean published, String pufferpanelId) {}
 
     /** Issues a new token for a server, invalidating the old one. Returned once and never stored. */
     @Transactional

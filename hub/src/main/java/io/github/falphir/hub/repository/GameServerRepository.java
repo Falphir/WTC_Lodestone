@@ -1,5 +1,6 @@
 package io.github.falphir.hub.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import io.github.falphir.hub.entity.GameServer;
@@ -10,6 +11,11 @@ import org.springframework.data.jpa.repository.Query;
 public interface GameServerRepository extends JpaRepository<GameServer, String> {
 
     Optional<GameServer> findByTokenHash(String tokenHash);
+
+    Optional<GameServer> findByPufferpanelId(String pufferpanelId);
+
+    /** Every server linked to a PufferPanel server, to mark the panel's list with who holds what. */
+    List<GameServer> findByPufferpanelIdNotNull();
 
     /**
      * Bulk update, not a load-then-save: changing an entity's own @Id through the persistence

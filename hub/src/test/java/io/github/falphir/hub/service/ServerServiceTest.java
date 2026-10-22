@@ -75,13 +75,13 @@ class ServerServiceTest {
 
     /** Only the fields under test; everything else stays as it is. */
     private static ServerService.Patch patch(String id, String name) {
-        return new ServerService.Patch(id, name, null, null, null, null, null, null, null);
+        return new ServerService.Patch(id, name, null, null, null, null, null, null, null, null);
     }
 
     /** A full public listing, as the register form or edit dialog submits one. */
     private static ServerService.Patch listing(Boolean published) {
         return new ServerService.Patch(null, null, "play.example.com", "ATM10", "https://example.com/pack",
-                "0.7.1", "CurseForge", "https://example.com/icon.png", published);
+                "0.7.1", "CurseForge", "https://example.com/icon.png", published, null);
     }
 
     @Test
