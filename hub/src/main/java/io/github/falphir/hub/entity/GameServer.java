@@ -6,8 +6,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.DynamicUpdate;
 
+/*
+ * @DynamicUpdate: write only the columns that changed. A mod's startup sends hello,
+ * whitelist-applied and bans-applied at once, each touching this row; writing every column made the
+ * last one to commit put back the others' values (or, on MariaDB 11.8, fail outright).
+ */
 @Entity
+@DynamicUpdate
 @Table(name = "servers")
 public class GameServer {
 
