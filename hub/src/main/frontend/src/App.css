@@ -924,7 +924,7 @@
   color: var(--muted);
 }
 
-.field input,
+.field input:not([type='checkbox']),
 .field select {
   height: 36px;
   width: 100%;
@@ -1286,6 +1286,128 @@
 
 .dialog::backdrop {
   background: rgba(12, 14, 18, 0.5);
+}
+
+/* A stepped dialog (New server): wider, and never taller than the screen. The step bar and the
+   buttons stay put; only the body between them scrolls. Only [open] gets the flex layout, since a
+   closed <dialog> must keep the browser's display: none. */
+.dialog-wizard {
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(720px, calc(100svh - 48px));
+  padding: 0;
+}
+
+.dialog-wizard[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-head {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wizard-steps {
+  display: flex;
+  gap: 8px 20px;
+  flex-wrap: wrap;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.wizard-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wizard-step-number {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wizard-steps li[aria-current='step'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.wizard-steps li[aria-current='step'] .wizard-step-number,
+.wizard-steps li.done .wizard-step-number {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.wizard-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* lets the body scroll instead of the whole dialog growing */
+  flex: 1;
+}
+
+.wizard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  overflow-y: auto;
+  overflow-wrap: anywhere; /* a template's long description must wrap, not scroll sideways */
+}
+
+.wizard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.wizard-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+}
+
+.wizard-review {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 20px;
+  margin: 0;
+}
+
+.wizard-review dt {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.wizard-review dd {
+  margin: 0;
+}
+
+/* a checkbox setting: the box beside its label, not stretched like a text input */
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.check-field input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
 
 /* ---------- sign in ---------- */
