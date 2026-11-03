@@ -289,27 +289,99 @@
   justify-content: flex-end;
 }
 
-/* the server page's PufferPanel card: state on the left, its buttons on the right, one row */
-.power-row {
+/* the server page's power controls, in its header like PufferPanel's: state badge, then the buttons */
+.power {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 
-.power-state {
+.power-buttons {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-/* too narrow for all four in a row: an even 2x2 grid rather than one straggler wrapping on its own */
+.power-note {
+  font-size: var(--fs-sm);
+}
+
+.power-note-error {
+  color: var(--crit-ink);
+}
+
+/* too narrow for all four beside the title: the badge on its own line, then an even 2x2 grid */
 @media (max-width: 640px) {
-  .power-row .button-row {
+  .power {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .power-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    width: 100%;
+  }
+
+  .power-buttons .status {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The server page's sections, pinned to the bottom of the screen like PufferPanel's. Fixed beside
+   the sidebar rather than inside .page, so it stays put while a long tab scrolls under it. */
+.tab-bar {
+  position: fixed;
+  left: 232px; /* the sidebar's width (.shell) */
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.tab-bar a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 96px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.tab-bar a:hover {
+  color: var(--ink);
+}
+
+.tab-bar a[aria-current='page'] {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+/* room for the bar, so the last thing on a tab never sits under it */
+.page-with-tabs {
+  padding-bottom: 72px;
+}
+
+@media (max-width: 760px) {
+  .tab-bar {
+    left: 0; /* no sidebar on mobile */
+  }
+
+  .tab-bar a {
+    flex: 1;
+    min-width: 0;
   }
 }
 
