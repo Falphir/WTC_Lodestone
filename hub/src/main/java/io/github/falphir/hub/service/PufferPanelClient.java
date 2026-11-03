@@ -95,6 +95,20 @@ public class PufferPanelClient {
         }
     }
 
+    /**
+     * Sends a power action ({@code start}, {@code stop} or {@code kill}) to a panel server, without
+     * {@code ?wait}: the panel answers at once and the server starts or stops in the background.
+     */
+    public void power(String panelId, String action) {
+        post("/proxy/daemon/server/{id}/{action}", null, Void.class, panelId, action);
+    }
+
+    /** Whether the panel server's process is running right now. */
+    public boolean isRunning(String panelId) {
+        Map<?, ?> status = get("/proxy/daemon/server/{id}/status", Map.class, panelId);
+        return status != null && Boolean.TRUE.equals(status.get("running"));
+    }
+
     /** A GET against the panel, signed in. Later steps build their calls on this. */
     public <T> T get(String uri, Class<T> type, Object... uriVariables) {
         return call(bearer -> http.get().uri(uri, uriVariables).header("Authorization", bearer).retrieve().body(type));

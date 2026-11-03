@@ -14,6 +14,7 @@ import {
   ServerFigures,
   ServerHeartbeats,
   ServerListing,
+  ServerPower,
   ServerSetup,
   StatusBadge,
   TokenNotice,
@@ -108,19 +109,6 @@ export default function ServerDetail({ id }) {
                   <Icon name="edit" />
                   Edit
                 </button>
-                <button type="button" className="button button-quiet" disabled={busy || resetBusy} onClick={() => setConfirmingReset(true)}>
-                  <Icon name="key" />
-                  Reset token
-                </button>
-                <button
-                  type="button"
-                  className="button button-quiet button-danger"
-                  disabled={busy}
-                  onClick={() => setConfirmingRemove(true)}
-                >
-                  <Icon name="trash" />
-                  Remove server
-                </button>
               </div>
             </div>
           )
@@ -182,7 +170,7 @@ export default function ServerDetail({ id }) {
         />
       )}
 
-      {newToken && <TokenNotice title={`New token for ${newToken.name}`} server={newToken} onDone={() => setNewToken(null)} />}
+      {server?.pufferpanelId && <ServerPower server={server} />}
 
       {latest && <ServerFigures latest={latest} laggingBelowTps={info?.laggingBelowTps} />}
 
@@ -210,6 +198,36 @@ export default function ServerDetail({ id }) {
       )}
 
       <ServerHeartbeats id={id} latest={latest} />
+
+      {/* the rare, risky actions: kept apart from Edit so neither is ever a slip away */}
+      {server && (
+        <section>
+          <h2 className="section-label">Manage</h2>
+          <Panel>
+            <div className="manage-row">
+              <div>
+                <strong>Reset token</strong>
+                <small className="muted">A new token for the mod config. The old one stops working at once.</small>
+              </div>
+              <button type="button" className="button" disabled={busy || resetBusy} onClick={() => setConfirmingReset(true)}>
+                <Icon name="key" />
+                Reset token
+              </button>
+            </div>
+            <div className="manage-row">
+              <div>
+                <strong>Remove server</strong>
+                <small className="muted">Deletes it and its history from the hub. It has to be registered again to reconnect.</small>
+              </div>
+              <button type="button" className="button button-danger" disabled={busy} onClick={() => setConfirmingRemove(true)}>
+                <Icon name="trash" />
+                Remove server
+              </button>
+            </div>
+          </Panel>
+          {newToken && <TokenNotice title={`New token for ${newToken.name}`} server={newToken} onDone={() => setNewToken(null)} />}
+        </section>
+      )}
     </div>
   )
 }

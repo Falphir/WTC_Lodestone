@@ -101,4 +101,21 @@ class PufferPanelClientTest {
         assertThatThrownBy(client::listServers).hasMessage("PufferPanel isn't configured");
         panel.verify(); // no requests were expected, and none were made
     }
+
+    @Test
+    void powerAndStatusGoThroughTheProxiedDaemonRoutes() {
+        panel.expect(requestTo(PANEL + "/oauth2/token")).andRespond(withSuccess(TOKEN, MediaType.APPLICATION_JSON));
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/aaaa1111/start"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer tok-1"))
+                .andRespond(withStatus(HttpStatus.ACCEPTED));
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/aaaa1111/status"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"running\":true}", MediaType.APPLICATION_JSON));
+
+        PufferPanelClient client = new PufferPanelClient(CONFIG, builder);
+        client.power("aaaa1111", "start");
+        assertThat(client.isRunning("aaaa1111")).isTrue();
+        panel.verify();
+    }
 }

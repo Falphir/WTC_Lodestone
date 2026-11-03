@@ -289,6 +289,51 @@
   justify-content: flex-end;
 }
 
+/* the server page's PufferPanel card: state on the left, its buttons on the right, one row */
+.power-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.power-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* too narrow for all four in a row: an even 2x2 grid rather than one straggler wrapping on its own */
+@media (max-width: 640px) {
+  .power-row .button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+}
+
+/* a row of the server page's Manage section: what an action does on the left, its button on the right */
+.manage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+}
+
+.manage-row + .manage-row {
+  border-top: 1px solid var(--line);
+}
+
+.manage-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .back {
   display: inline-flex;
   align-items: center;

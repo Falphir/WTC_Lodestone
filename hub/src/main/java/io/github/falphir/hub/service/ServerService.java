@@ -271,6 +271,16 @@ public class ServerService {
         return ServerStatus.ONLINE;
     }
 
+    /** The PufferPanel server a hub server runs as: 404 for an unknown server, 409 for one that isn't linked. */
+    @Transactional(readOnly = true)
+    public String pufferpanelIdOf(String id) {
+        String panelId = find(id).getPufferpanelId();
+        if (panelId == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "'" + id + "' isn't linked to a PufferPanel server");
+        }
+        return panelId;
+    }
+
     private GameServer find(String id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown server '" + id + "'"));
