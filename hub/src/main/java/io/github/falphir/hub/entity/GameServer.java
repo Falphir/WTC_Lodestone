@@ -6,8 +6,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.DynamicUpdate;
 
+/*
+ * @DynamicUpdate: write only the columns that changed. A mod's startup sends hello,
+ * whitelist-applied and bans-applied at once, each touching this row; writing every column made the
+ * last one to commit put back the others' values (or, on MariaDB 11.8, fail outright).
+ */
 @Entity
+@DynamicUpdate
 @Table(name = "servers")
 public class GameServer {
 
@@ -67,6 +74,10 @@ public class GameServer {
 
     @Column(name = "bans_synced_at")
     private Instant bansSyncedAt;
+
+    /** The PufferPanel server this runs as (its 8-character identifier); null when not linked. */
+    @Column(name = "pufferpanel_id", length = 8)
+    private String pufferpanelId;
 
     // ---- public listing: what the Discord bot's /serverinfo shows players, blank until filled in ----
 
@@ -148,6 +159,8 @@ public class GameServer {
     public Boolean getEnforceWhitelist() { return enforceWhitelist; }
     public String getWhitelistVersion() { return whitelistVersion; }
     public Instant getWhitelistSyncedAt() { return whitelistSyncedAt; }
+    public String getPufferpanelId() { return pufferpanelId; }
+    public void setPufferpanelId(String pufferpanelId) { this.pufferpanelId = pufferpanelId; }
     public Boolean getSyncBans() { return syncBans; }
     public String getBanVersion() { return banVersion; }
     public Instant getBansSyncedAt() { return bansSyncedAt; }

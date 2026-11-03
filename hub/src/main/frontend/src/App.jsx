@@ -56,9 +56,9 @@ function App() {
 
   if (!signedIn) return <SignIn onSignedIn={() => setSignedIn(true)} />
 
-  const [section = '', id] = route
+  const [section = '', id, tab] = route
   let page
-  if (section === 'servers' && id) page = <ServerDetail key={id} id={id} />
+  if (section === 'servers' && id) page = <ServerDetail key={id} id={id} tab={tab} />
   else if (section === 'servers') page = <Servers />
   else if (section === 'whitelist') page = <Whitelist />
   else if (section === 'bans') page = <Bans />

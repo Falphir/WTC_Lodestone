@@ -5,6 +5,12 @@ spring:
     url: jdbc:mariadb://localhost:3306/wtc_lodestone
     username: lodestone
     password: lodestone
+    # MariaDB defaults to REPEATABLE READ, and from 11.8 with innodb_snapshot_isolation on, which
+    # refuses to update a row another transaction changed since this one read it ("Record has
+    # changed since last read"). Servers write their own row from several requests at once, and
+    # each transaction here is short, so read-committed is the right level.
+    hikari:
+      transaction-isolation: TRANSACTION_READ_COMMITTED
   jpa:
     hibernate:
       jdbc:
@@ -28,6 +34,13 @@ lodestone:
   # restart -- any passphrase, it is hashed to the right length. Unset means a new key each boot,
   # so every admin is signed out on restart.
   jwt-secret: ${LODESTONE_JWT_SECRET:}
+  # Optional. The hub's way into PufferPanel (2.7.x): the panel's address and an OAuth2 client made
+  # under an admin account's settings there. Leave any blank and the hub never calls it. Spelled out
+  # here because relaxed binding alone would want LODESTONE_PUFFERPANEL_CLIENTID, no underscore.
+  pufferpanel:
+    url: ${LODESTONE_PUFFERPANEL_URL:}
+    client-id: ${LODESTONE_PUFFERPANEL_CLIENT_ID:}
+    client-secret: ${LODESTONE_PUFFERPANEL_CLIENT_SECRET:}
   heartbeat-retention-days: 7
   # how often servers report; the mod learns it on check-in, the dashboard from /api/info
   heartbeat-interval-seconds: 60

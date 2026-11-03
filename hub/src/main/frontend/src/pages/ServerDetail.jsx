@@ -14,14 +14,25 @@ import {
   ServerFigures,
   ServerHeartbeats,
   ServerListing,
+  ServerPower,
   ServerSetup,
+  ServerTabBar,
   StatusBadge,
   TokenNotice,
 } from '../components'
 import { statusOf } from '../format'
 import { useAction, useApi, useHubInfo } from '../hooks'
 
-export default function ServerDetail({ id }) {
+// Laid out like PufferPanel's server page: power in the header, one section at a time, and the
+// sections in a bar along the bottom. A future Console tab slots in here.
+const TABS = [
+  { id: 'stats', label: 'Stats', icon: 'overview' },
+  { id: 'details', label: 'Details', icon: 'servers' },
+  { id: 'manage', label: 'Manage', icon: 'key' },
+]
+
+export default function ServerDetail({ id, tab: tabFromRoute }) {
+  const tab = TABS.some((t) => t.id === tabFromRoute) ? tabFromRoute : 'stats'
   const info = useHubInfo()
   const { data: servers, error: serversError, reload: reloadServers } = useApi('/api/admin/servers', {
     refreshMs: 60_000,
@@ -63,7 +74,7 @@ export default function ServerDetail({ id }) {
   async function saveEdit(fields) {
     const ok = await runEdit(async () => {
       const updated = await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'PATCH', body: fields })
-      if (updated.id !== id) window.location.hash = `#/servers/${encodeURIComponent(updated.id)}`
+      if (updated.id !== id) window.location.hash = `#/servers/${encodeURIComponent(updated.id)}/${tab}`
       return null
     })
     if (ok) setEditing(false)
@@ -83,49 +94,10 @@ export default function ServerDetail({ id }) {
   const latest = server?.latest
 
   return (
-    <div className="page">
+    <div className="page page-with-tabs">
       <BackLink />
 
-      <PageHead
-        actions={
-          server && (
-            <div className="head-status">
-              <div className="head-status-info">
-                <StatusBadge status={statusOf(server)} />
-                <small className="muted">Last heartbeat <RelativeTime value={server.lastSeen} /></small>
-              </div>
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  disabled={busy || editBusy}
-                  onClick={() => setPublished(!server.listing.published)}
-                >
-                  <Icon name={server.listing.published ? 'hide' : 'show'} />
-                  {server.listing.published ? 'Unpublish' : 'Publish'}
-                </button>
-                <button type="button" className="button button-quiet" disabled={busy || resetBusy} onClick={() => setEditing(true)}>
-                  <Icon name="edit" />
-                  Edit
-                </button>
-                <button type="button" className="button button-quiet" disabled={busy || resetBusy} onClick={() => setConfirmingReset(true)}>
-                  <Icon name="key" />
-                  Reset token
-                </button>
-                <button
-                  type="button"
-                  className="button button-quiet button-danger"
-                  disabled={busy}
-                  onClick={() => setConfirmingRemove(true)}
-                >
-                  <Icon name="trash" />
-                  Remove server
-                </button>
-              </div>
-            </div>
-          )
-        }
-      >
+      <PageHead actions={server?.pufferpanelId && <ServerPower server={server} />}>
         <div className="cell-server">
           {server?.listing.iconUrl && <img src={server.listing.iconUrl} alt="" className="server-icon" />}
           <div>
@@ -137,12 +109,90 @@ export default function ServerDetail({ id }) {
                 </Badge>
               )}
             </div>
-            <p className="muted mono">{id}</p>
+            {server && (
+              <div className="head-status-info">
+                <span className="muted mono">{id}</span>
+                <StatusBadge status={statusOf(server)} />
+                <small className="muted">
+                  Last heartbeat <RelativeTime value={server.lastSeen} />
+                </small>
+              </div>
+            )}
           </div>
         </div>
       </PageHead>
 
       <ErrorNote>{serversError}</ErrorNote>
+
+      {server && tab === 'stats' && (
+        <>
+          {latest && <ServerFigures latest={latest} laggingBelowTps={info?.laggingBelowTps} />}
+          {server.online?.length > 0 && (
+            <section>
+              <h2 className="section-label">Online now</h2>
+              <Panel pad>
+                <OnlinePlayers players={server.online} />
+              </Panel>
+            </section>
+          )}
+          <ServerHeartbeats id={id} latest={latest} />
+        </>
+      )}
+
+      {server && tab === 'details' && (
+        <>
+          <div className="button-row">
+            <button type="button" className="button" disabled={editBusy} onClick={() => setPublished(!server.listing.published)}>
+              <Icon name={server.listing.published ? 'hide' : 'show'} />
+              {server.listing.published ? 'Unpublish' : 'Publish'}
+            </button>
+            <button type="button" className="button" disabled={editBusy} onClick={() => setEditing(true)}>
+              <Icon name="edit" />
+              Edit
+            </button>
+          </div>
+          <ErrorNote>{!editing && editError}</ErrorNote>
+          <section>
+            <h2 className="section-label">Server details</h2>
+            <ServerSetup server={server} />
+          </section>
+          <section>
+            <h2 className="section-label">What players see</h2>
+            <ServerListing listing={server.listing} />
+          </section>
+        </>
+      )}
+
+      {/* the rare, risky actions: on their own tab, so neither is ever a slip away from Edit */}
+      {server && tab === 'manage' && (
+        <section>
+          <Panel>
+            <div className="manage-row">
+              <div>
+                <strong>Reset token</strong>
+                <small className="muted">A new token for the mod config. The old one stops working at once.</small>
+              </div>
+              <button type="button" className="button" disabled={busy || resetBusy} onClick={() => setConfirmingReset(true)}>
+                <Icon name="key" />
+                Reset token
+              </button>
+            </div>
+            <div className="manage-row">
+              <div>
+                <strong>Remove server</strong>
+                <small className="muted">Deletes it and its history from the hub. It has to be registered again to reconnect.</small>
+              </div>
+              <button type="button" className="button button-danger" disabled={busy} onClick={() => setConfirmingRemove(true)}>
+                <Icon name="trash" />
+                Remove server
+              </button>
+            </div>
+          </Panel>
+          {newToken && <TokenNotice title={`New token for ${newToken.name}`} server={newToken} onDone={() => setNewToken(null)} />}
+        </section>
+      )}
+
+      {server && <ServerTabBar serverId={id} tabs={TABS} active={tab} />}
 
       {confirmingRemove && server && (
         <ConfirmDialog
@@ -181,35 +231,6 @@ export default function ServerDetail({ id }) {
           onSave={saveEdit}
         />
       )}
-
-      {newToken && <TokenNotice title={`New token for ${newToken.name}`} server={newToken} onDone={() => setNewToken(null)} />}
-
-      {latest && <ServerFigures latest={latest} laggingBelowTps={info?.laggingBelowTps} />}
-
-      {server?.online?.length > 0 && (
-        <section>
-          <h2 className="section-label">Online now</h2>
-          <Panel pad>
-            <OnlinePlayers players={server.online} />
-          </Panel>
-        </section>
-      )}
-
-      {server && (
-        <section>
-          <h2 className="section-label">Server details</h2>
-          <ServerSetup server={server} />
-        </section>
-      )}
-
-      {server && (
-        <section>
-          <h2 className="section-label">What players see</h2>
-          <ServerListing listing={server.listing} />
-        </section>
-      )}
-
-      <ServerHeartbeats id={id} latest={latest} />
     </div>
   )
 }

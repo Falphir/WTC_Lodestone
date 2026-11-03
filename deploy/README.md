@@ -194,6 +194,22 @@ has had its first player.
 Mod jars come from the release page and go in each server's `mods/` — that server has to restart to
 pick one up, which is why `deploy.sh` leaves them alone.
 
+### 10. PufferPanel (optional)
+
+The hub can talk to PufferPanel (written against **2.7.1**). Leave this out and nothing changes.
+
+1. In PufferPanel, signed in as an **admin**, open your account settings and create an OAuth2 client.
+   Copy the client id and secret; the secret is shown once. A client with no scopes of its own
+   inherits the account's permissions, which is why it should be an admin's.
+2. Add to `/etc/lodestone/hub.env`, then `sudo systemctl restart lodestone-hub`:
+   ```bash
+   LODESTONE_PUFFERPANEL_URL=http://127.0.0.1:8080     # the panel's own address; likely what holds 8080 on this box
+   LODESTONE_PUFFERPANEL_CLIENT_ID=...
+   LODESTONE_PUFFERPANEL_CLIENT_SECRET=...
+   ```
+3. Check it: signed in to the dashboard, open `/api/admin/pufferpanel` (or call it with your admin
+   token). `connected: true` with the right `serverCount` means it works; otherwise `error` says why.
+
 ---
 
 ## Three things that will bite
