@@ -26,7 +26,7 @@ class PufferPanelClientTest {
 
     private static final String PANEL = "http://panel.test";
     private static final LodestoneProperties.PufferPanel CONFIG =
-            new LodestoneProperties.PufferPanel(PANEL + "/", "client-id", "s3cret");
+            new LodestoneProperties.PufferPanel(PANEL + "/", "client-id", "s3cret", null);
 
     private static final String TOKEN = "{\"access_token\":\"tok-1\",\"token_type\":\"Bearer\",\"expires_in\":3600}";
     private static final String TWO_SERVERS = "{\"servers\":[{\"id\":\"aaaa1111\",\"name\":\"Genesis\",\"nodeId\":1,\"type\":\"minecraft-java\"},"
@@ -94,7 +94,7 @@ class PufferPanelClientTest {
 
     @Test
     void unsetMeansNothingCallsOut() {
-        PufferPanelClient client = new PufferPanelClient(new LodestoneProperties.PufferPanel("", "", ""), builder);
+        PufferPanelClient client = new PufferPanelClient(new LodestoneProperties.PufferPanel("", "", "", ""), builder);
 
         assertThat(client.isConfigured()).isFalse();
         assertThat(client.url()).isNull();
@@ -116,6 +116,28 @@ class PufferPanelClientTest {
         PufferPanelClient client = new PufferPanelClient(CONFIG, builder);
         client.power("aaaa1111", "start");
         assertThat(client.isRunning("aaaa1111")).isTrue();
+        panel.verify();
+    }
+
+    @Test
+    void createsAServerAndWritesFilesWithTheirPathKept() {
+        panel.expect(requestTo(PANEL + "/oauth2/token")).andRespond(withSuccess(TOKEN, MediaType.APPLICATION_JSON));
+        panel.expect(requestTo(PANEL + "/api/servers"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"name\":\"New\",\"node\":0}"))
+                .andRespond(withSuccess("{\"id\":\"new12345\"}", MediaType.APPLICATION_JSON));
+        // a new server has no config/ yet, and the panel won't make it on a file write
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/new12345/file/config?folder"))
+                .andExpect(method(HttpMethod.PUT))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/new12345/file/config/wtc_lodestone-common.toml"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(content().bytes("enabled = true".getBytes()))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+        PufferPanelClient client = new PufferPanelClient(CONFIG, builder);
+        assertThat(client.createServer(Map.of("name", "New", "node", 0))).isEqualTo("new12345");
+        client.putFile("new12345", "config/wtc_lodestone-common.toml", "enabled = true".getBytes());
         panel.verify();
     }
 }

@@ -385,6 +385,19 @@
   }
 }
 
+/* an opt-in under a confirmation's text, e.g. "also delete it on PufferPanel" */
+.confirm-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--ink);
+}
+
+.confirm-option input {
+  margin-top: 3px;
+}
+
 /* a row of the server page's Manage section: what an action does on the left, its button on the right */
 .manage-row {
   display: flex;

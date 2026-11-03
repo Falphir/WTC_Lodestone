@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { api } from '../api'
 import {
   Badge,
+  CreateServerDialog,
   EmptyState,
   ErrorNote,
   Field,
   Icon,
   ListingFields,
+  Note,
   PageHead,
   Panel,
   RelativeTime,
@@ -20,23 +22,41 @@ export default function Servers() {
   const { data: servers, error, reload } = useApi('/api/admin/servers', { refreshMs: 60_000, topics: ['servers'] })
   const [registering, setRegistering] = useState(false)
   const [registered, setRegistered] = useState(null)
+  const { data: panel } = useApi('/api/admin/pufferpanel')
+  const [creating, setCreating] = useState(false)
+  const [created, setCreated] = useState(null)
 
   return (
     <div className="page">
       <PageHead
         actions={
           !registering && (
-            <button
-              type="button"
-              className="button button-primary"
-              onClick={() => {
-                setRegistering(true)
-                setRegistered(null)
-              }}
-            >
-              <Icon name="plus" />
-              Register server
-            </button>
+            <div className="button-row">
+              {panel?.configured && (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => {
+                    setCreating(true)
+                    setCreated(null)
+                  }}
+                >
+                  <Icon name="plus" />
+                  New server
+                </button>
+              )}
+              <button
+                type="button"
+                className={panel?.configured ? 'button' : 'button button-primary'}
+                onClick={() => {
+                  setRegistering(true)
+                  setRegistered(null)
+                }}
+              >
+                <Icon name="plus" />
+                Register server
+              </button>
+            </div>
           )
         }
       >
@@ -46,6 +66,32 @@ export default function Servers() {
 
       {registered && (
         <TokenNotice title={`${registered.name} is registered`} server={registered} onDone={() => setRegistered(null)} />
+      )}
+
+      {created && (
+        <>
+          <TokenNotice
+            title={`${created.name} is created`}
+            server={{ id: created.hubId, name: created.name, token: created.token }}
+            onDone={() => setCreated(null)}
+          />
+          <Note>
+            Its mod config already has this token. Upload the modpack's server files in PufferPanel, then start it from
+            its page here.
+          </Note>
+          {created.warnings.length > 0 && <ErrorNote>{created.warnings.join(' ')}</ErrorNote>}
+        </>
+      )}
+
+      {creating && (
+        <CreateServerDialog
+          onClose={() => setCreating(false)}
+          onCreated={(result) => {
+            setCreating(false)
+            setCreated(result)
+            reload()
+          }}
+        />
       )}
 
       {registering && (

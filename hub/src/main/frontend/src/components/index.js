@@ -33,6 +33,7 @@ export { Sparkline } from './charts/Sparkline'
 export { OnlinePlayers } from './player/OnlinePlayers'
 export { PlayerHead } from './player/PlayerHead'
 
+export { CreateServerDialog } from './server/CreateServerDialog'
 export { HeartbeatTable } from './server/HeartbeatTable'
 export { ListingFields } from './server/ListingFields'
 export { ServerEditDialog } from './server/ServerEditDialog'

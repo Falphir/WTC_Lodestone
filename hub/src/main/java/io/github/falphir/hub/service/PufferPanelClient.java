@@ -47,7 +47,7 @@ public class PufferPanelClient {
 
     /** Why a call to the panel failed, worded for an admin. Never carries the secret or the token. */
     public static class PanelException extends RuntimeException {
-        PanelException(String message, Throwable cause) {
+        public PanelException(String message, Throwable cause) {
             super(message, cause);
         }
     }
@@ -107,6 +107,80 @@ public class PufferPanelClient {
     public boolean isRunning(String panelId) {
         Map<?, ?> status = get("/proxy/daemon/server/{id}/status", Map.class, panelId);
         return status != null && Boolean.TRUE.equals(status.get("running"));
+    }
+
+    /** The hub's address as a game server sees it, for the mod config of servers it creates. Null when unset. */
+    public String serverHubUrl() {
+        return config == null || config.serverHubUrl() == null || config.serverHubUrl().isBlank() ? null : config.serverHubUrl();
+    }
+
+    /** Every template the panel has, as the panel describes them ({@code name}, {@code display}, ...). */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> templates() {
+        List<Map<String, Object>> all = get("/api/templates", List.class);
+        return all == null ? List.of() : all;
+    }
+
+    /**
+     * One template in full: its server definition ({@code data} variables, {@code install}, {@code run},
+     * {@code environment}...), which is also exactly the shape a new server is created from.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> template(String name) {
+        return get("/api/templates/{name}", Map.class, name);
+    }
+
+    /** The panel's nodes ({@code id}, {@code name}, {@code isLocal}...). */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> nodes() {
+        List<Map<String, Object>> all = get("/api/nodes", List.class);
+        return all == null ? List.of() : all;
+    }
+
+    /** Creates a server from a template's definition plus {@code node}, {@code users} and {@code name}; returns its new id. */
+    public String createServer(Map<String, Object> body) {
+        Map<?, ?> created = post("/api/servers", body, Map.class);
+        if (created == null || !(created.get("id") instanceof String id)) {
+            throw new PanelException("PufferPanel created the server but didn't say its id", null);
+        }
+        return id;
+    }
+
+    /**
+     * Writes a file into a panel server, creating it or replacing it. {@code path} is relative to the
+     * server's folder, e.g. config/wtc_lodestone-common.toml; it's put in the URL as is, so its slashes
+     * stay slashes. The panel won't create missing folders on a file write ("no such file or
+     * directory" on a server that's only just been created), so the parent folder is made first with
+     * {@code ?folder}, which makes the whole path like mkdir -p and is fine when it already exists.
+     */
+    public void putFile(String panelId, String path, byte[] content) {
+        int slash = path.lastIndexOf('/');
+        if (slash > 0) {
+            call(bearer -> http.put().uri("/proxy/daemon/server/{id}/file/" + path.substring(0, slash) + "?folder", panelId)
+                    .header("Authorization", bearer)
+                    .retrieve()
+                    .toBodilessEntity());
+        }
+        call(bearer -> http.put().uri("/proxy/daemon/server/{id}/file/" + path, panelId)
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(content)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    /** Runs the server's install steps (from its template) in the background. */
+    public void install(String panelId) {
+        power(panelId, "install");
+    }
+
+    /** Deletes a panel server, files and world included. One that's already gone counts as deleted. */
+    public void deleteServer(String panelId) {
+        try {
+            call(bearer -> http.delete().uri("/api/servers/{id}", panelId).header("Authorization", bearer).retrieve().toBodilessEntity());
+        } catch (PanelException e) {
+            if (!(e.getCause() instanceof HttpClientErrorException.NotFound)) throw e;
+        }
     }
 
     /** A GET against the panel, signed in. Later steps build their calls on this. */

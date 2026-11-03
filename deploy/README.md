@@ -206,9 +206,14 @@ The hub can talk to PufferPanel (written against **2.7.1**). Leave this out and 
    LODESTONE_PUFFERPANEL_URL=http://127.0.0.1:8080     # the panel's own address; likely what holds 8080 on this box
    LODESTONE_PUFFERPANEL_CLIENT_ID=...
    LODESTONE_PUFFERPANEL_CLIENT_SECRET=...
+   # the hub as a game server reaches it: written into servers made with "New server"
+   LODESTONE_PUFFERPANEL_SERVER_HUB_URL=http://127.0.0.1:8081
    ```
 3. Check it: signed in to the dashboard, open `/api/admin/pufferpanel` (or call it with your admin
    token). `connected: true` with the right `serverCount` means it works; otherwise `error` says why.
+4. To add a server: **New server** on the Servers page. Pick a template and its settings; the hub
+   creates it on PufferPanel, registers it, writes its mod config and the mod jar, and starts the
+   install. Then upload the modpack's server files in PufferPanel and start it from its page.
 
 ---
 

@@ -44,12 +44,14 @@ export default function ServerDetail({ id, tab: tabFromRoute }) {
   const { run: runResetToken, busy: resetBusy, error: resetError } = useAction()
   const [editing, setEditing] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [removeFromPanel, setRemoveFromPanel] = useState(true)
   const [confirmingReset, setConfirmingReset] = useState(false)
   const [newToken, setNewToken] = useState(null)
 
   async function removeServer() {
     const ok = await run(async () => {
-      await api(`/api/admin/servers/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      const alsoPanel = server.pufferpanelId && removeFromPanel ? '?pufferpanel=true' : ''
+      await api(`/api/admin/servers/${encodeURIComponent(id)}${alsoPanel}`, { method: 'DELETE' })
       return null
     })
     if (ok) window.location.hash = '#/servers'
@@ -180,7 +182,9 @@ export default function ServerDetail({ id, tab: tabFromRoute }) {
             <div className="manage-row">
               <div>
                 <strong>Remove server</strong>
-                <small className="muted">Deletes it and its history from the hub. It has to be registered again to reconnect.</small>
+                <small className="muted">
+                  Deletes it and its history from the hub{server.pufferpanelId && ', and if you choose, its PufferPanel server too'}.
+                </small>
               </div>
               <button type="button" className="button button-danger" disabled={busy} onClick={() => setConfirmingRemove(true)}>
                 <Icon name="trash" />
@@ -205,6 +209,14 @@ export default function ServerDetail({ id, tab: tabFromRoute }) {
           onConfirm={removeServer}
         >
           Remove {server.name}? It'll need to be registered again to reconnect.
+          {server.pufferpanelId && (
+            <label className="confirm-option">
+              <input type="checkbox" checked={removeFromPanel} onChange={(e) => setRemoveFromPanel(e.target.checked)} />
+              <span>
+                Also delete it on PufferPanel. <strong>Its files and world are deleted too, and that can't be undone.</strong>
+              </span>
+            </label>
+          )}
         </ConfirmDialog>
       )}
 

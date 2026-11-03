@@ -214,9 +214,12 @@ public class AdminServerController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Remove a server", description = "Also deletes its heartbeat history. It stops being able to authenticate immediately.")
-    public void remove(@PathVariable String id) {
-        serverService.remove(id);
+    @Operation(summary = "Remove a server",
+            description = "Also deletes its heartbeat history. It stops being able to authenticate immediately. With "
+                    + "`pufferpanel=true`, the PufferPanel server it's linked to is deleted too, files and world included; "
+                    + "if PufferPanel refuses, nothing is removed (502).")
+    public void remove(@PathVariable String id, @RequestParam(defaultValue = "false") boolean pufferpanel) {
+        serverService.remove(id, pufferpanel);
     }
 }
 
