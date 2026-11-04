@@ -75,3 +75,6 @@ export function formatMemory(mb) {
 }
 
 export const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`
+
+/** The Minecraft version(s) of a CurseForge pack version, out of its mix of game versions and loader names. */
+export const minecraftVersions = (packFile) => packFile?.gameVersions?.filter((v) => /^\d/.test(v)).join(', ') ?? ''

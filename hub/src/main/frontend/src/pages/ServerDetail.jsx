@@ -6,6 +6,7 @@ import {
   EmptyState,
   ErrorNote,
   Icon,
+  ModpackSetupNote,
   OnlinePlayers,
   PageHead,
   Panel,
@@ -125,6 +126,7 @@ export default function ServerDetail({ id, tab: tabFromRoute }) {
       </PageHead>
 
       <ErrorNote>{serversError}</ErrorNote>
+      <ModpackSetupNote setup={server?.modpackSetup} />
 
       {server && tab === 'stats' && (
         <>

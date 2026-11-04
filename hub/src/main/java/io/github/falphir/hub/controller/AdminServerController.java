@@ -7,6 +7,7 @@ import java.util.List;
 import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.entity.ServerHeartbeat;
 import io.github.falphir.hub.service.BanService;
+import io.github.falphir.hub.service.ModpackSetup;
 import io.github.falphir.hub.service.ServerService;
 import io.github.falphir.hub.service.WhitelistService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -42,9 +43,12 @@ public class AdminServerController {
     private final ServerService serverService;
     private final WhitelistService whitelistService;
     private final BanService banService;
+    private final ModpackSetup modpackSetup;
 
-    public AdminServerController(ServerService serverService, WhitelistService whitelistService, BanService banService) {
+    public AdminServerController(ServerService serverService, WhitelistService whitelistService, BanService banService,
+            ModpackSetup modpackSetup) {
         this.banService = banService;
+        this.modpackSetup = modpackSetup;
         this.serverService = serverService;
         this.whitelistService = whitelistService;
     }
@@ -69,7 +73,8 @@ public class AdminServerController {
                         s.getBanVersion() != null && s.getBanVersion().equals(banVersion)),
                 ListingView.from(s),
                 serverService.onlinePlayers(s),
-                s.getPufferpanelId());
+                s.getPufferpanelId(),
+                modpackSetup.progressOf(s.getPufferpanelId()));
     }
 
     public record ServerView(String id, String name, boolean enabled, Instant createdAt, Instant lastSeen,
@@ -77,7 +82,9 @@ public class AdminServerController {
             HeartbeatView latest, ModView mod, WhitelistSyncView whitelist, BanSyncView bans, ListingView listing,
             @Schema(description = "Who was on at the last heartbeat; empty for a server that isn't up, and after a hub restart until its next heartbeat")
             List<ServerService.OnlinePlayer> online,
-            @Schema(description = "PufferPanel server this runs as, null when not linked") String pufferpanelId) {}
+            @Schema(description = "PufferPanel server this runs as, null when not linked") String pufferpanelId,
+            @Schema(description = "How putting a CurseForge modpack on it is going, when it was created with one; null otherwise, and after a hub restart")
+            ModpackSetup.Progress modpackSetup) {}
 
     /**
      * What players are shown for this server, and whether they're shown it at all. Blank until an

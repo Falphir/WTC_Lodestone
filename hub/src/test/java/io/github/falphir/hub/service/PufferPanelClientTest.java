@@ -140,4 +140,37 @@ class PufferPanelClientTest {
         client.putFile("new12345", "config/wtc_lodestone-common.toml", "enabled = true".getBytes());
         panel.verify();
     }
+
+    @Test
+    void uploadsAFileFromDiskUnpacksItIntoTheRootAndDeletesItsFolder() throws java.io.IOException {
+        java.nio.file.Path zip = java.nio.file.Files.createTempFile("pack", ".zip");
+        java.nio.file.Files.write(zip, new byte[] {7, 8, 9});
+        panel.expect(requestTo(PANEL + "/oauth2/token")).andRespond(withSuccess(TOKEN, MediaType.APPLICATION_JSON));
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/new12345/file/.lodestone-modpack?folder"))
+                .andExpect(method(HttpMethod.PUT))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/new12345/file/.lodestone-modpack/pack.zip"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(content().bytes(new byte[] {7, 8, 9}))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+        // no destination: the panel unpacks into the server's root, the one folder sure to exist
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/new12345/extract/.lodestone-modpack/pack.zip"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+        panel.expect(requestTo(PANEL + "/proxy/daemon/server/new12345/file/.lodestone-modpack"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)); // already gone counts as deleted
+
+        PufferPanelClient client = new PufferPanelClient(CONFIG, builder);
+        long[] sent = new long[2];
+        client.putFile("new12345", ".lodestone-modpack/pack.zip", zip, (done, total) -> {
+            sent[0] = done;
+            sent[1] = total;
+        });
+        assertThat(sent).containsExactly(3, 3);
+        client.extract("new12345", ".lodestone-modpack/pack.zip");
+        client.deleteFolder("new12345", ".lodestone-modpack");
+        panel.verify();
+        java.nio.file.Files.delete(zip);
+    }
 }

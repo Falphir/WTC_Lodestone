@@ -214,6 +214,16 @@ The hub can talk to PufferPanel (written against **2.7.1**). Leave this out and 
 4. To add a server: **New server** on the Servers page. Pick a template and its settings; the hub
    creates it on PufferPanel, registers it, writes its mod config and the mod jar, and starts the
    install. Then upload the modpack's server files in PufferPanel and start it from its page.
+5. Optional, to skip that upload: a CurseForge API key (apply at
+   [console.curseforge.com](https://console.curseforge.com/)) adds a **Modpack** step to New server.
+   Add it to `/etc/lodestone/hub.env` and restart the hub:
+   ```bash
+   LODESTONE_CURSEFORGE_API_KEY=...
+   ```
+   The hub then downloads the chosen version's server files, keeps the pack's folders (not its start
+   scripts or installers), puts them on the server and runs the install after them. That takes a few
+   minutes in the background; the server's page shows how it's going. Packs whose authors only allow
+   the CurseForge app to download them can't be picked, and are still uploaded by hand.
 
 ---
 

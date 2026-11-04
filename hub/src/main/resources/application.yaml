@@ -44,6 +44,10 @@ lodestone:
     # The hub's address as a game server reaches it, written into servers created from the dashboard
     # (e.g. http://127.0.0.1:8081 on the game box, http://host.docker.internal:8080 for a Docker panel).
     server-hub-url: ${LODESTONE_PUFFERPANEL_SERVER_HUB_URL:}
+  # CurseForge API key (console.curseforge.com), for picking a modpack when creating a server.
+  # Blank leaves that step out of the dashboard.
+  curseforge:
+    api-key: ${LODESTONE_CURSEFORGE_API_KEY:}
   heartbeat-retention-days: 7
   # how often servers report; the mod learns it on check-in, the dashboard from /api/info
   heartbeat-interval-seconds: 60

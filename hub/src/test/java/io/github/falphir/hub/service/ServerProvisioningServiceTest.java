@@ -43,6 +43,16 @@ class ServerProvisioningServiceTest {
     @MockitoBean
     private ModRelease modRelease;
 
+    @MockitoBean
+    private CurseForgeClient curseForge;
+
+    @MockitoBean
+    private ModpackSetup modpackSetup;
+
+    private static final CurseForgeClient.Modpack PACK = new CurseForgeClient.Modpack(
+            100, "All the Mods 10", "kitchen sink", "https://media.forgecdn.net/atm10.png", "https://www.curseforge.com/minecraft/modpacks/atm10", true);
+    private static final CurseForgeClient.PackFile PACK_FILE = new CurseForgeClient.PackFile(200, 201, "ATM10-5.1", List.of("1.21.1"), "2026-10-01T00:00:00Z");
+
     @BeforeEach
     void panelWithANeoForgeTemplate() {
         when(panel.isConfigured()).thenReturn(true);
@@ -67,7 +77,7 @@ class ServerProvisioningServiceTest {
     @SuppressWarnings("unchecked")
     void createsTheServerRegistersItAndWritesItsModConfigAndJar() {
         var created = provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of("memory", 4096, "port", 25570)), "admin");
+                "neoforge", null, "prov-test", "Provisioned", Map.of("memory", 4096, "port", 25570), null), "admin");
 
         ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
         verify(panel).createServer(body.capture());
@@ -87,22 +97,66 @@ class ServerProvisioningServiceTest {
                         "syncWhitelist = true", "syncBans = true");
         verify(panel).putFile(PANEL_ID, "mods/wtc_lodestone-neoforge-1.21.1-1.0.0.jar", new byte[] {1, 2, 3});
         verify(panel).install(PANEL_ID);
+        assertThat(created.modpackPending()).isFalse();
+        verify(modpackSetup, never()).start(any(), any(), any(), any());
+    }
+
+    @Test
+    void aModpackFillsInTheListingAndLeavesTheInstallToItsSetup() {
+        when(curseForge.isConfigured()).thenReturn(true);
+        when(curseForge.modpack(100)).thenReturn(PACK);
+        when(curseForge.file(100, 200)).thenReturn(PACK_FILE);
+
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+                Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin");
+
+        assertThat(created.modpackPending()).isTrue();
+        var server = servers.findById("prov-test").orElseThrow();
+        assertThat(server.getModpack()).isEqualTo("All the Mods 10");
+        assertThat(server.getModpackVersion()).isEqualTo("ATM10-5.1");
+        assertThat(server.getModpackUrl()).isEqualTo(PACK.websiteUrl());
+        assertThat(server.getIconUrl()).isEqualTo(PACK.logoUrl());
+        assertThat(server.getLauncher()).isEqualTo("CurseForge");
+        verify(modpackSetup).start("prov-test", PANEL_ID, PACK, PACK_FILE);
+        verify(panel, never()).install(anyString()); // runs once the pack's files are in
+    }
+
+    @Test
+    void aPackThatCantBeDownloadedIsRefusedBeforeAnythingIsCreated() {
+        when(curseForge.isConfigured()).thenReturn(true);
+        when(curseForge.modpack(100)).thenReturn(new CurseForgeClient.Modpack(100, "Locked", null, null, null, false));
+        when(curseForge.file(100, 200)).thenReturn(PACK_FILE);
+
+        assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test",
+                "Provisioned", Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin"))
+                .hasMessageContaining("CurseForge app");
+        verify(panel, never()).createServer(any());
+    }
+
+    @Test
+    void aModpackWithoutCurseForgeConfiguredIsRefused() {
+        when(curseForge.isConfigured()).thenReturn(false);
+
+        assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test",
+                "Provisioned", Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin"))
+                .hasMessageContaining("CurseForge isn't configured");
+        verify(panel, never()).createServer(any());
     }
 
     @Test
     void anUnknownOrInternalSettingIsRefusedBeforeAnythingIsCreated() {
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of("secret", "y")), "admin"))
+                "neoforge", null, "prov-test", "Provisioned", Map.of("secret", "y"), null), "admin"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("no setting 'secret'");
         verify(panel, never()).createServer(any());
     }
 
     @Test
     void aTakenHubIdIsRefusedBeforeThePanelIsAsked() {
-        provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned", Map.of()), "admin");
+        provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
 
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Again", Map.of()), "admin"))
+                "neoforge", null, "prov-test", "Again", Map.of(), null), "admin"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("already exists");
         verify(panel).createServer(any()); // only the first one
     }
@@ -112,7 +166,7 @@ class ServerProvisioningServiceTest {
         when(modRelease.latestNeoForgeJar()).thenThrow(new IllegalStateException("couldn't reach GitHub"));
 
         var created = provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of()), "admin");
+                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
 
         assertThat(created.warnings()).singleElement().asString().contains("mod jar", "couldn't reach GitHub");
         verify(panel).install(PANEL_ID);
@@ -124,10 +178,10 @@ class ServerProvisioningServiceTest {
         when(panel.listServers()).thenReturn(List.of());
 
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of()), "admin"))
+                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin"))
                 .isInstanceOf(ResponseStatusException.class);
         verify(panel).deleteServer(PANEL_ID);
-        verify(panel, never()).putFile(anyString(), anyString(), any());
+        verify(panel, never()).putFile(anyString(), anyString(), any(byte[].class));
     }
 
     @Test
@@ -135,7 +189,7 @@ class ServerProvisioningServiceTest {
         when(panel.serverHubUrl()).thenReturn(null);
 
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of()), "admin"))
+                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin"))
                 .hasMessageContaining("LODESTONE_PUFFERPANEL_SERVER_HUB_URL");
         verify(panel, never()).createServer(any());
     }

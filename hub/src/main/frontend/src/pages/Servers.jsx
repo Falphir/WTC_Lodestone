@@ -76,8 +76,18 @@ export default function Servers() {
             onDone={() => setCreated(null)}
           />
           <Note>
-            Its mod config already has this token. Upload the modpack's server files in PufferPanel, then start it from
-            its page here.
+            {created.modpackPending ? (
+              <>
+                Its mod config already has this token. The modpack's server files are being added now, and the install
+                runs after them: <a href={`#/servers/${encodeURIComponent(created.hubId)}`}>its page</a> shows how that's
+                going.
+              </>
+            ) : (
+              <>
+                Its mod config already has this token. Upload the modpack's server files in PufferPanel, then start it
+                from its page here.
+              </>
+            )}
           </Note>
           {created.warnings.length > 0 && <ErrorNote>{created.warnings.join(' ')}</ErrorNote>}
         </>

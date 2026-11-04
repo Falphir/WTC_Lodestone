@@ -1410,6 +1410,81 @@
   margin: 0;
 }
 
+/* a modpack going onto a new server, on its page */
+.setup-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setup-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
+/* a CurseForge pack: a pickable row in the search results, and the chosen one above its versions */
+.modpack-results {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.modpack-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+.modpack-card img {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.modpack-card > span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.modpack-card small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+}
+
+button.modpack-card {
+  cursor: pointer;
+}
+
+button.modpack-card:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+button.modpack-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 /* ---------- sign in ---------- */
 
 .signin {

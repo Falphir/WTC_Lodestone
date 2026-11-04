@@ -5,19 +5,26 @@ import { Dialog } from '../ui/Dialog'
 import { ErrorNote } from '../ui/ErrorNote'
 import { Field } from '../ui/Field'
 import { Icon } from '../ui/Icon'
-
-const STEPS = ['Basics', 'Settings', 'Review']
+import { Note } from '../ui/Note'
+import { minecraftVersions } from '../../format'
+import { ModpackPicker } from './ModpackPicker'
 
 /**
  * Creates a server on PufferPanel from one of its templates and registers it on the hub in one
  * step. Split into steps so a template with a dozen settings doesn't make one endless form: the
  * step bar and the buttons stay put, and only the middle scrolls. Each step is its own pass of
- * the browser's own validation, since only the current step's fields are on the page.
+ * the browser's own validation, since only the current step's fields are on the page. The Modpack
+ * step is there only when the hub has a CurseForge API key.
  */
 export function CreateServerDialog({ onClose, onCreated }) {
   const { data: templates, error: templatesError } = useApi('/api/admin/pufferpanel/templates')
   const { data: nodes } = useApi('/api/admin/pufferpanel/nodes')
+  const { data: curseForge } = useApi('/api/admin/curseforge')
+  const steps = curseForge?.configured ? ['Basics', 'Modpack', 'Settings', 'Review'] : ['Basics', 'Settings', 'Review']
   const [step, setStep] = useState(0)
+  const current = steps[step]
+  const last = step === steps.length - 1
+  const [modpack, setModpack] = useState(null)
   const [template, setTemplate] = useState('')
   const templatePath = template ? `/api/admin/pufferpanel/templates/${encodeURIComponent(template)}` : null
   const { data: detail, stale } = useApi(templatePath)
@@ -41,12 +48,19 @@ export function CreateServerDialog({ onClose, onCreated }) {
 
   function submit(event) {
     event.preventDefault()
-    if (step < STEPS.length - 1) {
+    if (!last) {
       setStep(step + 1)
       return
     }
     run(async () => {
-      const body = { template, id, name: name.trim(), values, nodeId: nodeId === '' ? null : Number(nodeId) }
+      const body = {
+        template,
+        id,
+        name: name.trim(),
+        values,
+        nodeId: nodeId === '' ? null : Number(nodeId),
+        modpack: modpack?.file ? { modId: modpack.pack.id, fileId: modpack.file.fileId } : null,
+      }
       onCreated(await api('/api/admin/pufferpanel/servers', { method: 'POST', body }))
       return null
     })
@@ -57,7 +71,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
       <header className="wizard-head">
         <h2>New server</h2>
         <ol className="wizard-steps">
-          {STEPS.map((label, i) => (
+          {steps.map((label, i) => (
             <li key={label} aria-current={i === step ? 'step' : undefined} className={i < step ? 'done' : undefined}>
               <span className="wizard-step-number">{i < step ? <Icon name="check" /> : i + 1}</span>
               {label}
@@ -68,11 +82,14 @@ export function CreateServerDialog({ onClose, onCreated }) {
 
       <form className="wizard-form" onSubmit={submit}>
         <div className="wizard-body">
-          {step === 0 && (
+          {current === 'Basics' && (
             <>
               <p className="muted">
                 Creates it on PufferPanel and registers it here, with its mod config and the WTC Lodestone mod already in
-                place. You upload the modpack's server files in PufferPanel afterwards.
+                place.
+                {curseForge?.configured
+                  ? ' Next, you can pick a CurseForge modpack to put on it.'
+                  : " You upload the modpack's server files in PufferPanel afterwards."}
               </p>
               <div className="form-row">
                 <Field label="Display name">
@@ -120,7 +137,15 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </>
           )}
 
-          {step === 1 &&
+          {current === 'Modpack' && <ModpackPicker value={modpack} onChange={setModpack} />}
+
+          {current === 'Settings' && minecraftVersions(modpack?.file) && (
+            <Note>
+              {modpack.pack.name} is for Minecraft {minecraftVersions(modpack.file)}: set the template's version to match.
+            </Note>
+          )}
+
+          {current === 'Settings' &&
             (variables.length > 0 ? (
               <div className="wizard-grid">
                 {variables.map((v) => (
@@ -136,7 +161,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
               <p className="muted">{stale ? 'Loading the template…' : 'This template has nothing to set.'}</p>
             ))}
 
-          {step === 2 && (
+          {current === 'Review' && (
             <dl className="wizard-review">
               <dt>Display name</dt>
               <dd>{name}</dd>
@@ -144,6 +169,12 @@ export function CreateServerDialog({ onClose, onCreated }) {
               <dd className="mono">{id}</dd>
               <dt>Template</dt>
               <dd>{templateName}</dd>
+              {curseForge?.configured && (
+                <>
+                  <dt>Modpack</dt>
+                  <dd>{modpack?.file ? `${modpack.pack.name} · ${modpack.file.displayName}` : 'None, uploaded by hand'}</dd>
+                </>
+              )}
               {nodes?.length > 1 && (
                 <>
                   <dt>Node</dt>
@@ -169,8 +200,17 @@ export function CreateServerDialog({ onClose, onCreated }) {
                 Back
               </button>
             )}
-            <button type="submit" className="button button-primary" disabled={busy || (step === 0 && !template) || (step > 0 && stale)}>
-              {step < STEPS.length - 1 ? 'Next' : busy ? 'Creating…' : 'Create server'}
+            <button
+              type="submit"
+              className="button button-primary"
+              disabled={
+                busy ||
+                (current === 'Basics' && !template) ||
+                (current === 'Modpack' && modpack && !modpack.file) ||
+                (step > 0 && stale)
+              }
+            >
+              {!last ? 'Next' : busy ? 'Creating…' : 'Create server'}
             </button>
           </div>
         </footer>

@@ -17,7 +17,9 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Creates a server on PufferPanel from one of its templates and registers it on the hub in the same
  * step: the panel server, the hub entry with its token and link, the mod config with that token, the
- * mod jar, and the template's install. What's left for the admin is the modpack's own files.
+ * mod jar, and the template's install. With a CurseForge modpack picked, its server files too
+ * ({@link ModpackSetup}, in the background, with the install after them); without one, uploading the
+ * pack's files is left to the admin.
  * <p>
  * Order matters for what a failure leaves behind. Until the hub entry exists, a failure undoes the
  * panel server too, so nothing is half-made. After it, the server is real: a failed file write or
@@ -29,11 +31,22 @@ public class ServerProvisioningService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerProvisioningService.class);
     static final String CONFIG_PATH = "config/wtc_lodestone-common.toml";
 
-    /** {@code values}: template variable name → the value chosen in the form. {@code nodeId} null means the panel's first node. */
-    public record CreateRequest(String template, Integer nodeId, String hubId, String name, Map<String, Object> values) {}
+    /**
+     * {@code values}: template variable name → the value chosen in the form. {@code nodeId} null means
+     * the panel's first node. {@code modpack} null means none: its files are uploaded by hand.
+     */
+    public record CreateRequest(String template, Integer nodeId, String hubId, String name, Map<String, Object> values,
+            Modpack modpack) {}
 
-    /** {@code token} is shown once, like a registration's. */
-    public record Created(String hubId, String name, String pufferpanelId, String token, List<String> warnings) {}
+    /** A CurseForge pack and the version of it ({@code fileId}) whose server files go on the server. */
+    public record Modpack(int modId, int fileId) {}
+
+    /**
+     * {@code token} is shown once, like a registration's. {@code modpackPending}: the pack's files are
+     * still being put on the server, and the server page shows how that goes.
+     */
+    public record Created(String hubId, String name, String pufferpanelId, String token, List<String> warnings,
+            boolean modpackPending) {}
 
     /** A template's setting as the dashboard's form shows it. */
     public record Variable(String key, String display, String desc, String type, Object value, boolean required,
@@ -44,11 +57,26 @@ public class ServerProvisioningService {
     private final PufferPanelClient panel;
     private final ServerService servers;
     private final ModRelease modRelease;
+    private final CurseForgeClient curseForge;
+    private final ModpackSetup modpackSetup;
 
-    public ServerProvisioningService(PufferPanelClient panel, ServerService servers, ModRelease modRelease) {
+    public ServerProvisioningService(PufferPanelClient panel, ServerService servers, ModRelease modRelease,
+            CurseForgeClient curseForge, ModpackSetup modpackSetup) {
         this.panel = panel;
         this.servers = servers;
         this.modRelease = modRelease;
+        this.curseForge = curseForge;
+        this.modpackSetup = modpackSetup;
+    }
+
+    public List<CurseForgeClient.Modpack> searchModpacks(String query) {
+        requireCurseForge();
+        return curseForge(() -> curseForge.searchModpacks(query));
+    }
+
+    public List<CurseForgeClient.PackFile> modpackFiles(int modId) {
+        requireCurseForge();
+        return curseForge(() -> curseForge.serverFiles(modId));
     }
 
     public List<Map<String, Object>> templates() {
@@ -85,6 +113,18 @@ public class ServerProvisioningService {
         if (servers.isRegistered(request.hubId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Server '" + request.hubId() + "' already exists");
         }
+        CurseForgeClient.Modpack pack = null;
+        CurseForgeClient.PackFile packFile = null;
+        if (request.modpack() != null) {
+            requireCurseForge();
+            pack = curseForge(() -> curseForge.modpack(request.modpack().modId()));
+            packFile = curseForge(() -> curseForge.file(request.modpack().modId(), request.modpack().fileId()));
+            if (!pack.downloadable()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        pack.name() + "'s author only allows downloads through the CurseForge app; create it without the modpack "
+                                + "and upload its server files by hand");
+            }
+        }
 
         Map<String, Object> body = new LinkedHashMap<>(call(() -> panel.template(request.template())));
         Map<String, Object> data = new LinkedHashMap<>(variablesOf(body));
@@ -111,8 +151,11 @@ public class ServerProvisioningService {
         String panelId = call(() -> panel.createServer(body));
         ServerService.RegisteredServer registered;
         try {
-            registered = servers.register(request.hubId(), request.name(),
-                    new ServerService.Patch(null, null, null, null, null, null, null, null, null, panelId));
+            // with a pack, its listing is known already: name, page, version and image
+            registered = servers.register(request.hubId(), request.name(), pack == null
+                    ? new ServerService.Patch(null, null, null, null, null, null, null, null, null, panelId)
+                    : new ServerService.Patch(null, null, null, cut(pack.name(), 100), cut(pack.websiteUrl(), 300),
+                            cut(packFile.displayName(), 32), "CurseForge", cut(pack.logoUrl(), 300), null, panelId));
         } catch (RuntimeException e) {
             // nothing on the hub points at it, so don't leave it behind on the panel either
             try {
@@ -130,11 +173,34 @@ public class ServerProvisioningService {
             ModRelease.Jar jar = modRelease.latestNeoForgeJar();
             panel.putFile(panelId, "mods/" + jar.fileName(), jar.bytes());
         });
-        attempt(warnings, "start the install", () -> panel.install(panelId));
+        if (pack != null) {
+            // the install runs once the pack's files are in place
+            modpackSetup.start(request.hubId(), panelId, pack, packFile);
+        } else {
+            attempt(warnings, "start the install", () -> panel.install(panelId));
+        }
 
-        LOGGER.info("{} created {} (PufferPanel {}) from template {}{}", admin, request.hubId(), panelId, request.template(),
+        LOGGER.info("{} created {} (PufferPanel {}) from template {}{}{}", admin, request.hubId(), panelId, request.template(),
+                pack == null ? "" : " with " + pack.name() + " " + packFile.displayName(),
                 warnings.isEmpty() ? "" : ", with warnings: " + warnings);
-        return new Created(request.hubId(), request.name(), panelId, registered.token(), warnings);
+        return new Created(request.hubId(), request.name(), panelId, registered.token(), warnings, pack != null);
+    }
+
+    private static String cut(String value, int max) {
+        return value == null || value.length() <= max ? value : value.substring(0, max);
+    }
+
+    private void requireCurseForge() {
+        if (!curseForge.isConfigured()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "CurseForge isn't configured");
+    }
+
+    /** A CurseForge failure becomes a 502 worded for the admin. */
+    private static <T> T curseForge(Supplier<T> request) {
+        try {
+            return request.get();
+        } catch (CurseForgeClient.CurseForgeException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, e.getMessage(), e);
+        }
     }
 
     /** The mod's config file, in the exact format LodestoneConfig reads: one key = value a line, strings quoted. */

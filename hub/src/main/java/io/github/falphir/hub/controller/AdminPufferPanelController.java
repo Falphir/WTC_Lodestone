@@ -108,10 +108,12 @@ public class AdminPufferPanelController {
             description = "Creates the PufferPanel server from a template with the chosen settings, registers it on the hub linked to it, "
                     + "writes its mod config (with the new token) and the WTC Lodestone mod jar, and starts the template's install. "
                     + "The token is shown only once. Steps after registration that fail come back in `warnings` rather than "
-                    + "undoing the server. The modpack's own files are uploaded separately.")
+                    + "undoing the server. With a CurseForge `modpack`, its server files are put on the server in the background "
+                    + "(`modpackPending`, progress on the server's `modpackSetup`) and the install runs after them; without one, "
+                    + "the modpack's files are uploaded separately.")
     public ServerProvisioningService.Created create(Authentication authentication, @Valid @RequestBody CreateServerRequest request) {
         return provisioning.create(new ServerProvisioningService.CreateRequest(request.template(), request.nodeId(),
-                request.id(), request.name().trim(), request.values()), authentication.getName());
+                request.id(), request.name().trim(), request.values(), request.modpack()), authentication.getName());
     }
 
     public record CreateServerRequest(
@@ -120,7 +122,9 @@ public class AdminPufferPanelController {
             @Schema(description = "Unique hub server id, also its serverId in the mod config", example = "exampleserver")
             @NotBlank @Pattern(regexp = "[a-z0-9_-]{1,64}", message = "lowercase letters, numbers, _ and - only") String id,
             @Schema(description = "Display name on the dashboard, in Discord and on PufferPanel") @NotBlank @Size(max = 40) String name,
-            @Schema(description = "Template setting → chosen value; settings left out keep the template's default") Map<String, Object> values) {}
+            @Schema(description = "Template setting → chosen value; settings left out keep the template's default") Map<String, Object> values,
+            @Schema(description = "CurseForge pack and version whose server files go on the server; omit for none")
+            ServerProvisioningService.Modpack modpack) {}
 
     public record PanelServerView(String id, String name, Integer nodeId, String ip, Integer port,
             @Schema(description = "PufferPanel template type, e.g. minecraft-java") String type,
