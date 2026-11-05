@@ -7,7 +7,7 @@ import { MinecraftText } from '../ui/MinecraftText'
 import { Panel } from '../ui/Panel'
 
 /**
- * Which network MOTD this server shows, picked from the list on the Servers page, and how it comes out
+ * Which network MOTD this server shows, picked from the list on the Configuration page, and how it comes out
  * with this server's listing filled in. Saves as soon as it's picked; running servers show it within a
  * heartbeat.
  */
@@ -26,7 +26,15 @@ export function ServerMotd({ server, onSaved }) {
 
   return (
     <Panel pad className="form">
-      <Field label="MOTD" hint="Picked from the network MOTDs on the Servers page. Running servers show a change within a minute.">
+      <Field
+        label="MOTD"
+        hint={
+          <>
+            Picked from the network MOTDs on the <a href="#/config">Configuration</a> page. Running servers show a change
+            within a minute.
+          </>
+        }
+      >
         <select value={server.motd?.templateId ?? 0} onChange={(e) => pick(e.target.value)} disabled={busy || !motds}>
           <option value={0}>None (keeps its own)</option>
           {motds?.map((m) => (
