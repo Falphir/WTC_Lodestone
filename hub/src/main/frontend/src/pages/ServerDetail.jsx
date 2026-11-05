@@ -15,6 +15,7 @@ import {
   ServerFigures,
   ServerHeartbeats,
   ServerListing,
+  ServerMotd,
   ServerPower,
   ServerSetup,
   ServerTabBar,
@@ -163,6 +164,10 @@ export default function ServerDetail({ id, tab: tabFromRoute }) {
           <section>
             <h2 className="section-label">What players see</h2>
             <ServerListing listing={server.listing} />
+          </section>
+          <section>
+            <h2 className="section-label">Server list</h2>
+            <ServerMotd server={server} onSaved={reloadServers} />
           </section>
         </>
       )}

@@ -113,7 +113,8 @@ public class AdminPufferPanelController {
                     + "the modpack's files are uploaded separately.")
     public ServerProvisioningService.Created create(Authentication authentication, @Valid @RequestBody CreateServerRequest request) {
         return provisioning.create(new ServerProvisioningService.CreateRequest(request.template(), request.nodeId(),
-                request.id(), request.name().trim(), request.values(), request.modpack()), authentication.getName());
+                request.id(), request.name().trim(), request.values(), request.modpack(), request.motdTemplateId()),
+                authentication.getName());
     }
 
     public record CreateServerRequest(
@@ -124,7 +125,10 @@ public class AdminPufferPanelController {
             @Schema(description = "Display name on the dashboard, in Discord and on PufferPanel") @NotBlank @Size(max = 40) String name,
             @Schema(description = "Template setting → chosen value; settings left out keep the template's default") Map<String, Object> values,
             @Schema(description = "CurseForge pack and version whose server files go on the server; omit for none")
-            ServerProvisioningService.Modpack modpack) {}
+            ServerProvisioningService.Modpack modpack,
+            @Schema(description = "Network MOTD it shows (an id from /api/admin/motds), also written into the template's MOTD "
+                    + "setting unless `values` sets one; omit to keep the template's own")
+            Long motdTemplateId) {}
 
     public record PanelServerView(String id, String name, Integer nodeId, String ip, Integer port,
             @Schema(description = "PufferPanel template type, e.g. minecraft-java") String type,

@@ -125,6 +125,45 @@ class BridgeSyncTest {
     }
 
     @Test
+    void aServersNetworkMotdReachesItFilledInFromItsListing() throws Exception {
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
+        String admin = adminToken();
+        String heartbeat = "{\"playerCount\":0,\"maxPlayers\":20,\"tps\":20,\"msptAvg\":5,\"memoryUsedMb\":1,\"memoryMaxMb\":2}";
+
+        // none picked yet: the server keeps its own
+        mvc.perform(post("/api/bridge/hello").header("Authorization", bearer)).andExpect(jsonPath("$.motd").doesNotExist());
+
+        String created = mvc.perform(post("/api/admin/motds").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"bridge-test-motd\",\"text\":\"§6WTC NETWORK\\\\n§2{modpack} §8| §7v{version}\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int motdId = JsonPath.read(created, "$.id");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/admin/servers/" + SERVER)
+                        .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"modpack\":\"Greg-E\",\"modpackVersion\":\"0.6.4a\",\"motdTemplateId\":" + motdId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motd.templateId").value(motdId))
+                .andExpect(jsonPath("$.motd.rendered").value("§6WTC NETWORK\n§2Greg-E §8| §7v0.6.4a"));
+
+        mvc.perform(post("/api/bridge/hello").header("Authorization", bearer))
+                .andExpect(jsonPath("$.motd").value("§6WTC NETWORK\n§2Greg-E §8| §7v0.6.4a"));
+        mvc.perform(post("/api/bridge/heartbeat").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON).content(heartbeat))
+                .andExpect(jsonPath("$.motd").value("§6WTC NETWORK\n§2Greg-E §8| §7v0.6.4a"));
+
+        // in use, so it can't go
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/admin/motds/" + motdId)
+                        .header("Authorization", admin))
+                .andExpect(status().isConflict());
+
+        // 0 hands the server back its own MOTD
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/admin/servers/" + SERVER)
+                        .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content("{\"motdTemplateId\":0}"))
+                .andExpect(jsonPath("$.motd.templateId").doesNotExist());
+        mvc.perform(post("/api/bridge/heartbeat").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON).content(heartbeat))
+                .andExpect(jsonPath("$.motd").doesNotExist());
+    }
+
+    @Test
     void aCodeFromTheKickScreenLinksAndWhitelistsTheAccountOnce() throws Exception {
         String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
         String admin = adminToken();

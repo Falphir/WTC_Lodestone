@@ -1410,6 +1410,49 @@
   margin: 0;
 }
 
+/* a section's label with an action beside it */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.section-head .section-label {
+  margin: 0;
+}
+
+/* Minecraft text as the server list shows it: its colours on its dark background, spaces kept */
+.mc-text {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #1d1d1d;
+  color: #aaaaaa;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* a network MOTD in the list: name and use above, its preview below, actions on the right */
+.motd-row > div:first-child {
+  flex: 1 1 320px;
+  gap: 8px;
+}
+
+.manage-row.motd-row > .button-row {
+  flex-direction: row;
+}
+
+.motd-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
 /* a modpack going onto a new server, on its page */
 .setup-progress {
   display: flex;

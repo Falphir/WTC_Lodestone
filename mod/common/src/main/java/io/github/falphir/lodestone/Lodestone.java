@@ -75,5 +75,6 @@ public final class Lodestone {
             ticksUntilBanSync = HubClient.whitelistSyncIntervalTicks();
             HubClient.syncBans(server);
         }
+        HubClient.applyMotd(server);
     }
 }

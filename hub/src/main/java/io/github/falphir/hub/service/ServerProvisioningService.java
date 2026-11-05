@@ -38,7 +38,13 @@ public class ServerProvisioningService {
      * the panel's first node. {@code modpack} null means none: its files are uploaded by hand.
      */
     public record CreateRequest(String template, Integer nodeId, String hubId, String name, Map<String, Object> values,
-            Modpack modpack) {}
+            Modpack modpack, Long motdTemplateId) {
+
+        /** Without a network MOTD: the template's own. */
+        public CreateRequest(String template, Integer nodeId, String hubId, String name, Map<String, Object> values, Modpack modpack) {
+            this(template, nodeId, hubId, name, values, modpack, null);
+        }
+    }
 
     /** A CurseForge pack and the version of it ({@code fileId}) whose server files go on the server. */
     public record Modpack(int modId, int fileId) {}
@@ -61,9 +67,11 @@ public class ServerProvisioningService {
     private final ModRelease modRelease;
     private final CurseForgeClient curseForge;
     private final ModpackSetup modpackSetup;
+    private final MotdService motds;
 
     public ServerProvisioningService(PufferPanelClient panel, ServerService servers, ModRelease modRelease,
-            CurseForgeClient curseForge, ModpackSetup modpackSetup) {
+            CurseForgeClient curseForge, ModpackSetup modpackSetup, MotdService motds) {
+        this.motds = motds;
         this.panel = panel;
         this.servers = servers;
         this.modRelease = modRelease;
@@ -147,9 +155,21 @@ public class ServerProvisioningService {
             }
         }
 
+        String packName = pack == null ? null : cut(pack.name(), 100);
+        String packVersion = packFile == null ? null : cut(PackTemplates.versionOf(packFile.displayName()), 32);
+
         Map<String, Object> body = new LinkedHashMap<>(call(() -> panel.template(request.template())));
         Map<String, Object> data = new LinkedHashMap<>(variablesOf(body));
-        Map<String, Object> values = request.values() == null ? Map.of() : request.values();
+        Map<String, Object> values = new LinkedHashMap<>(request.values() == null ? Map.of() : request.values());
+        if (request.motdTemplateId() != null) {
+            // so server.properties is right from the first boot, before the mod has said hello; a MOTD typed
+            // into the form wins, and one that needs a value this server lacks leaves the template's
+            String motd = motds.render(request.motdTemplateId(), packName, packVersion, request.name());
+            if (motd != null && !values.containsKey("motd") && data.get("motd") instanceof Map<?, ?> setting
+                    && !Boolean.TRUE.equals(setting.get("internal"))) {
+                values.put("motd", motd.replace("\n", "\\n")); // server.properties writes a line break as \n
+            }
+        }
         values.forEach((key, value) -> {
             if (!(data.get(key) instanceof Map<?, ?> variable) || Boolean.TRUE.equals(variable.get("internal"))) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -174,9 +194,9 @@ public class ServerProvisioningService {
         try {
             // with a pack, its listing is known already: name, page, version and image
             registered = servers.register(request.hubId(), request.name(), pack == null
-                    ? new ServerService.Patch(null, null, null, null, null, null, null, null, null, panelId)
-                    : new ServerService.Patch(null, null, null, cut(pack.name(), 100), cut(pack.websiteUrl(), 300),
-                            cut(packFile.displayName(), 32), "CurseForge", cut(pack.logoUrl(), 300), null, panelId));
+                    ? new ServerService.Patch(null, null, null, null, null, null, null, null, null, panelId, request.motdTemplateId())
+                    : new ServerService.Patch(null, null, null, packName, cut(pack.websiteUrl(), 300),
+                            packVersion, "CurseForge", cut(pack.logoUrl(), 300), null, panelId, request.motdTemplateId()));
         } catch (RuntimeException e) {
             // nothing on the hub points at it, so don't leave it behind on the panel either
             try {

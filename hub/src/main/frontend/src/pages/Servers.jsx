@@ -8,6 +8,7 @@ import {
   Field,
   Icon,
   ListingFields,
+  MotdPanel,
   Note,
   PageHead,
   Panel,
@@ -163,6 +164,8 @@ export default function Servers() {
           </table>
         </Panel>
       )}
+
+      <MotdPanel />
     </div>
   )
 }

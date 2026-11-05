@@ -8,6 +8,7 @@ import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.entity.ServerHeartbeat;
 import io.github.falphir.hub.service.BanService;
 import io.github.falphir.hub.service.ModpackSetup;
+import io.github.falphir.hub.service.MotdService;
 import io.github.falphir.hub.service.ServerService;
 import io.github.falphir.hub.service.WhitelistService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -44,11 +45,13 @@ public class AdminServerController {
     private final WhitelistService whitelistService;
     private final BanService banService;
     private final ModpackSetup modpackSetup;
+    private final MotdService motds;
 
     public AdminServerController(ServerService serverService, WhitelistService whitelistService, BanService banService,
-            ModpackSetup modpackSetup) {
+            ModpackSetup modpackSetup, MotdService motds) {
         this.banService = banService;
         this.modpackSetup = modpackSetup;
+        this.motds = motds;
         this.serverService = serverService;
         this.whitelistService = whitelistService;
     }
@@ -74,8 +77,16 @@ public class AdminServerController {
                 ListingView.from(s),
                 serverService.onlinePlayers(s),
                 s.getPufferpanelId(),
-                modpackSetup.progressOf(s.getPufferpanelId()));
+                modpackSetup.progressOf(s.getPufferpanelId()),
+                new MotdView(s.getMotdTemplateId(), motds.renderFor(s)));
     }
+
+    /**
+     * @param templateId the network MOTD it shows, null when it keeps its own
+     * @param rendered   that MOTD with this server's listing filled in, as servers are sent it; null when it
+     *                   has none, or the MOTD needs a listing value this server doesn't have yet
+     */
+    public record MotdView(Long templateId, String rendered) {}
 
     public record ServerView(String id, String name, boolean enabled, Instant createdAt, Instant lastSeen,
             @Schema(description = "Decided by the hub from the last heartbeat") ServerService.ServerStatus status,
@@ -84,7 +95,8 @@ public class AdminServerController {
             List<ServerService.OnlinePlayer> online,
             @Schema(description = "PufferPanel server this runs as, null when not linked") String pufferpanelId,
             @Schema(description = "How putting a CurseForge modpack on it is going, when it was created with one; null otherwise, and after a hub restart")
-            ModpackSetup.Progress modpackSetup) {}
+            ModpackSetup.Progress modpackSetup,
+            MotdView motd) {}
 
     /**
      * What players are shown for this server, and whether they're shown it at all. Blank until an
@@ -164,7 +176,7 @@ public class AdminServerController {
     public ServerView edit(@PathVariable String id, @Valid @RequestBody EditServerRequest request) {
         return toView(serverService.edit(id, new ServerService.Patch(request.id(), request.name(),
                 request.publicAddress(), request.modpack(), request.modpackUrl(), request.modpackVersion(),
-                request.launcher(), request.iconUrl(), request.published(), request.pufferpanelId())),
+                request.launcher(), request.iconUrl(), request.published(), request.pufferpanelId(), request.motdTemplateId())),
                 whitelistService.version(), banService.version());
     }
 
@@ -192,7 +204,10 @@ public class AdminServerController {
             @Schema(description = "Whether players see this server in Discord's /serverinfo") Boolean published,
 
             @Schema(description = "PufferPanel server this runs as (its 8-character id), checked against the panel; an empty string unlinks, omit to leave it as it is")
-            @Pattern(regexp = "[A-Za-z0-9]{0,8}", message = "not a PufferPanel server id") String pufferpanelId) {}
+            @Pattern(regexp = "[A-Za-z0-9]{0,8}", message = "not a PufferPanel server id") String pufferpanelId,
+
+            @Schema(description = "Network MOTD it shows (an id from /api/admin/motds); 0 goes back to its own, omit to leave it as it is")
+            @Min(0) Long motdTemplateId) {}
 
     @PostMapping("/{id}/reset-token")
     @Operation(summary = "Reset a server's token",

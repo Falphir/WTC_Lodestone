@@ -49,6 +49,9 @@ class ServerProvisioningServiceTest {
     @MockitoBean
     private ModpackSetup modpackSetup;
 
+    @Autowired
+    private MotdService motds;
+
     private static final CurseForgeClient.Modpack PACK = new CurseForgeClient.Modpack(
             100, "All the Mods 10", "kitchen sink", "https://media.forgecdn.net/atm10.png", "https://www.curseforge.com/minecraft/modpacks/atm10", true);
     private static final CurseForgeClient.PackFile PACK_FILE = new CurseForgeClient.PackFile(200, 201, "ATM10-5.1", List.of("1.21.1"), "2026-10-01T00:00:00Z");
@@ -113,7 +116,7 @@ class ServerProvisioningServiceTest {
         assertThat(created.modpackPending()).isTrue();
         var server = servers.findById("prov-test").orElseThrow();
         assertThat(server.getModpack()).isEqualTo("All the Mods 10");
-        assertThat(server.getModpackVersion()).isEqualTo("ATM10-5.1");
+        assertThat(server.getModpackVersion()).isEqualTo("5.1"); // just the version out of "ATM10-5.1"
         assertThat(server.getModpackUrl()).isEqualTo(PACK.websiteUrl());
         assertThat(server.getIconUrl()).isEqualTo(PACK.logoUrl());
         assertThat(server.getLauncher()).isEqualTo("CurseForge");
@@ -134,6 +137,45 @@ class ServerProvisioningServiceTest {
         assertThat(setup.template()).isEqualTo("minecraft-neoforge");
         assertThat(setup.values()).containsEntry("version", "21.1.265").containsEntry("memory", 8196).containsEntry("javaversion", "21");
         verify(panel, never()).template("minecraft-forge"); // only the matched template is looked at
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void theChosenMotdIsWrittenIntoTheTemplateFilledInFromThePack() {
+        when(curseForge.isConfigured()).thenReturn(true);
+        when(curseForge.modpack(100)).thenReturn(PACK);
+        when(curseForge.file(100, 200)).thenReturn(new CurseForgeClient.PackFile(200, 201, "All the Mods 10-8.4", List.of("1.21.1"), null));
+        when(panel.template("neoforge")).thenReturn(Map.of("name", "neoforge", "data", Map.of(
+                "motd", Map.of("type", "string", "value", "A Minecraft Server"),
+                "memory", Map.of("type", "integer", "value", 2048))));
+        long motd = motds.create("provisioning-test-motd", "§6WTC\\n§2{modpack} §8| §7v{version}").id();
+
+        provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned", Map.of(),
+                new ServerProvisioningService.Modpack(100, 200), motd), "admin");
+
+        ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+        verify(panel).createServer(body.capture());
+        var data = (Map<String, Object>) body.getValue().get("data");
+        // the line break as server.properties writes it, and just the version out of the version's name
+        assertThat(((Map<String, Object>) data.get("motd")).get("value")).isEqualTo("§6WTC\\n§2All the Mods 10 §8| §7v8.4");
+        var server = servers.findById("prov-test").orElseThrow();
+        assertThat(server.getMotdTemplateId()).isEqualTo(motd);
+        assertThat(server.getModpackVersion()).isEqualTo("8.4");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aMotdTypedIntoTheFormWinsOverTheChosenOne() {
+        when(panel.template("neoforge")).thenReturn(Map.of("name", "neoforge", "data", Map.of(
+                "motd", Map.of("type", "string", "value", "A Minecraft Server"))));
+        long motd = motds.create("provisioning-test-motd-2", "Welcome to {name}").id();
+
+        provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+                Map.of("motd", "Mine"), null, motd), "admin");
+
+        ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+        verify(panel).createServer(body.capture());
+        assertThat(((Map<String, Object>) ((Map<String, Object>) body.getValue().get("data")).get("motd")).get("value")).isEqualTo("Mine");
     }
 
     @Test

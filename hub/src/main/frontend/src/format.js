@@ -76,6 +76,39 @@ export function formatMemory(mb) {
 
 export const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`
 
+/**
+ * A network MOTD with a server's listing filled in, for previews: the hub's own render is the one servers
+ * get, and this mirrors its rule. Null when a value the text uses is blank, so nothing half-filled is shown.
+ */
+export function renderMotd(text, { modpack, version, name } = {}) {
+  const values = { modpack, version, name }
+  let blank = false
+  const filled = (text ?? '').replace(/\{(modpack|version|name)\}/g, (_, key) => {
+    const value = values[key]?.trim()
+    if (!value) blank = true
+    return value ?? ''
+  })
+  return blank ? null : filled
+}
+
+/**
+ * Just the version out of a CurseForge pack version's name, as the hub puts it in the listing:
+ * "All the Mods 10-8.4" → 8.4. The whole name when nothing in it looks like a version.
+ */
+export function packVersion(displayName) {
+  const found = displayName?.match(/\d+(?:\.\d+)+[A-Za-z0-9]*/g)
+  return found ? found[found.length - 1] : displayName
+}
+
+/** The listing values a MOTD needs and this server lacks: "the listing's version", for a hint. */
+export function motdMissing(text, { modpack, version, name } = {}) {
+  const labels = { modpack: 'modpack', version: 'version', name: 'name' }
+  const values = { modpack, version, name }
+  return [...new Set([...(text ?? '').matchAll(/\{(modpack|version|name)\}/g)].map((m) => m[1]))]
+    .filter((key) => !values[key]?.trim())
+    .map((key) => labels[key])
+}
+
 /** A server id made from a name: lowercase, anything but letters/digits/_ becomes "-", as the hub's id rule allows. */
 export const slugify = (name) =>
   name

@@ -65,6 +65,16 @@ class PackTemplatesTest {
     }
 
     @Test
+    void aPackVersionsNameIsCutDownToItsVersion() {
+        assertThat(PackTemplates.versionOf("All the Mods 10-8.4")).isEqualTo("8.4");
+        assertThat(PackTemplates.versionOf("Just Create SMP 0.5")).isEqualTo("0.5");
+        assertThat(PackTemplates.versionOf("Create New World 4.1.1")).isEqualTo("4.1.1");
+        assertThat(PackTemplates.versionOf("ATM10-5.1")).isEqualTo("5.1");
+        assertThat(PackTemplates.versionOf("Greg-E v0.6.4a")).isEqualTo("0.6.4a");
+        assertThat(PackTemplates.versionOf("Season Two")).isEqualTo("Season Two"); // nothing version-like: kept whole
+    }
+
+    @Test
     void javaFollowsTheMinecraftVersionNumberByNumber() {
         assertThat(PackTemplates.javaFor("1.20.4")).isEqualTo("17");
         assertThat(PackTemplates.javaFor("1.20.5")).isEqualTo("21");

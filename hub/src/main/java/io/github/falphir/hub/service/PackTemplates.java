@@ -4,6 +4,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Which of PufferPanel's templates a modpack runs on, and what to put in its settings, from what the
@@ -52,6 +54,22 @@ final class PackTemplates {
             if (value != null && settings.contains(key)) values.put(key, value);
         });
         return new Suggestion(template, values, pack.loader(), pack.loaderVersion(), mc);
+    }
+
+    /** The last dotted version in a name: "All the Mods 10-8.4" → 8.4, "v0.6.4a" → 0.6.4a. */
+    private static final Pattern VERSION = Pattern.compile("\\d+(?:\\.\\d+)+[A-Za-z0-9]*");
+
+    /**
+     * Just the version out of a pack version's name, which CurseForge packs often prefix with the pack's
+     * own name: a MOTD's "v{version}" should read v8.4, not "vAll the Mods 10-8.4". The whole name
+     * when there's nothing version-like in it.
+     */
+    static String versionOf(String displayName) {
+        if (displayName == null) return null;
+        Matcher matcher = VERSION.matcher(displayName);
+        String last = null;
+        while (matcher.find()) last = matcher.group();
+        return last != null ? last : displayName;
     }
 
     /** The Java a Minecraft version needs: 21 from 1.20.5, 17 from 1.18, 8 before that. */

@@ -79,6 +79,10 @@ public class GameServer {
     @Column(name = "pufferpanel_id", length = 8)
     private String pufferpanelId;
 
+    /** The network MOTD this server shows; null keeps its own. */
+    @Column(name = "motd_template_id")
+    private Long motdTemplateId;
+
     // ---- public listing: what the Discord bot's /serverinfo shows players, blank until filled in ----
 
     @Column(name = "public_address", nullable = false, length = 100)
@@ -161,6 +165,8 @@ public class GameServer {
     public Instant getWhitelistSyncedAt() { return whitelistSyncedAt; }
     public String getPufferpanelId() { return pufferpanelId; }
     public void setPufferpanelId(String pufferpanelId) { this.pufferpanelId = pufferpanelId; }
+    public Long getMotdTemplateId() { return motdTemplateId; }
+    public void setMotdTemplateId(Long motdTemplateId) { this.motdTemplateId = motdTemplateId; }
     public Boolean getSyncBans() { return syncBans; }
     public String getBanVersion() { return banVersion; }
     public Instant getBansSyncedAt() { return bansSyncedAt; }

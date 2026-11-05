@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { api } from '../../api'
-import { minecraftVersions, packRunsOn, slugify } from '../../format'
+import { minecraftVersions, motdMissing, packRunsOn, packVersion, renderMotd, slugify } from '../../format'
 import { useAction, useApi } from '../../hooks'
 import { Dialog } from '../ui/Dialog'
 import { ErrorNote } from '../ui/ErrorNote'
 import { Field } from '../ui/Field'
 import { Icon } from '../ui/Icon'
+import { MinecraftText } from '../ui/MinecraftText'
 import { Note } from '../ui/Note'
 import { ModpackPicker } from './ModpackPicker'
 
@@ -57,6 +58,22 @@ export function CreateServerDialog({ onClose, onCreated }) {
   const [values, setValues] = useState({})
   const { run, busy, error } = useAction()
 
+  // the network MOTD: the default until someone picks; 0 is the template's own
+  const { data: motds } = useApi('/api/admin/motds')
+  const [motdPick, setMotdPick] = useState(null)
+  const motdId = motdPick ?? motds?.find((m) => m.isDefault)?.id ?? 0
+  const motd = motds?.find((m) => m.id === motdId)
+  // what the server's listing will hold: the hub fills it from the pack
+  const listing = {
+    modpack: path === 'modpack' ? modpack?.pack.name : undefined,
+    version: path === 'modpack' ? packVersion(modpack?.file?.displayName) : undefined,
+    name: name.trim(),
+  }
+  const motdRendered = motd ? renderMotd(motd.text, listing) : null
+  // the hub writes it into the template's own MOTD setting, so that field gives way to the preview
+  const motdFills = Boolean(motdRendered && variables.some((v) => v.key === 'motd'))
+  const shownVariables = motdFills ? variables.filter((v) => v.key !== 'motd') : variables
+
   const valueOf = (v) => (v.key in values ? values[v.key] : v.value)
   const templateName = templates?.find((t) => t.name === template)?.display ?? template
   const nodeName = nodes?.find((n) => String(n.id) === nodeId)?.name ?? nodes?.[0]?.name
@@ -90,6 +107,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
     setName('')
     setId('')
     setFilled({ id: '', name: '' })
+    setMotdPick(null)
   }
 
   function back() {
@@ -112,6 +130,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
         values,
         nodeId: nodeId === '' ? null : Number(nodeId),
         modpack: path === 'modpack' && modpack?.file ? { modId: modpack.pack.id, fileId: modpack.file.fileId } : null,
+        motdTemplateId: motdId || null,
       }
       onCreated(await api('/api/admin/pufferpanel/servers', { method: 'POST', body }))
       return null
@@ -248,6 +267,18 @@ export function CreateServerDialog({ onClose, onCreated }) {
                   </Field>
                 )}
               </div>
+              {motds?.length > 0 && (
+                <Field label="MOTD" hint="One of the network MOTDs, filled in with this server's pack and version.">
+                  <select value={motdId} onChange={(e) => setMotdPick(Number(e.target.value))}>
+                    <option value={0}>None (the template's own)</option>
+                    {motds.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
             </>
           )}
 
@@ -258,10 +289,24 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </Note>
           )}
 
+          {current === 'Settings' && motdFills && (
+            <div className="field">
+              <span>MOTD</span>
+              <MinecraftText text={motdRendered} />
+              <small>From the {motd.name} MOTD. Change it in Basics.</small>
+            </div>
+          )}
+          {current === 'Settings' && motd && !motdRendered && (
+            <Note>
+              The {motd.name} MOTD needs the server's {motdMissing(motd.text, listing).join(' and ')}, so the template's own
+              MOTD is used for now. Fill in the listing later and the server switches to it.
+            </Note>
+          )}
+
           {current === 'Settings' &&
             (variables.length > 0 ? (
               <div className="wizard-grid">
-                {variables.map((v) => (
+                {shownVariables.map((v) => (
                   <TemplateSetting
                     key={v.key}
                     variable={v}
@@ -295,9 +340,17 @@ export function CreateServerDialog({ onClose, onCreated }) {
                   <dd>{nodeName}</dd>
                 </>
               )}
-              {variables.map((v) => (
+              {shownVariables.map((v) => (
                 <ReviewRow key={v.key} label={v.display} value={valueOf(v)} />
               ))}
+              {motdRendered && (
+                <>
+                  <dt>MOTD</dt>
+                  <dd>
+                    <MinecraftText text={motdRendered} />
+                  </dd>
+                </>
+              )}
             </dl>
           )}
 

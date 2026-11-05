@@ -17,6 +17,7 @@ import io.github.falphir.hub.entity.NetworkBan;
 import io.github.falphir.hub.entity.WhitelistedPlayer;
 import io.github.falphir.hub.service.BanService;
 import io.github.falphir.hub.service.LinkCodeService;
+import io.github.falphir.hub.service.MotdService;
 import io.github.falphir.hub.service.ServerService;
 import io.github.falphir.hub.service.WhitelistService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,11 +45,13 @@ public class BridgeController {
     private final WhitelistService whitelistService;
     private final BanService banService;
     private final LinkCodeService linkCodes;
+    private final MotdService motds;
     private final long whitelistSyncIntervalSeconds;
 
     public BridgeController(ServerService serverService, WhitelistService whitelistService, BanService banService,
-            LinkCodeService linkCodes,
+            LinkCodeService linkCodes, MotdService motds,
             @Value("${lodestone.whitelist-sync-interval-seconds:10}") long whitelistSyncIntervalSeconds) {
+        this.motds = motds;
         this.serverService = serverService;
         this.whitelistService = whitelistService;
         this.banService = banService;
@@ -59,14 +62,14 @@ public class BridgeController {
     @PostMapping("/hello")
     @Operation(summary = "Server check-in",
             description = "Called by the mod on startup with its versions and settings. Returns how often to send heartbeats and to poll the whitelist, "
-                    + "and the network kick message (empty: use the mod config's own).")
+                    + "the network kick message (empty: use the mod config's own), and this server's network MOTD (null: keep its own).")
     public HelloResponse hello(Authentication authentication, @Valid @RequestBody(required = false) HelloRequest request) {
         HelloRequest r = request != null ? request : new HelloRequest(null, null, null, null, null, null);
         GameServer server = serverService.checkIn(authentication.getName(),
                 r.modVersion(), r.minecraftVersion(), r.loaderVersion(), r.syncWhitelist(), r.enforceWhitelist(), r.syncBans());
         return new HelloResponse(server.getId(), server.getName(), "Connected to WTC Lodestone",
                 serverService.heartbeatInterval().toSeconds(), whitelistSyncIntervalSeconds, whitelistService.kickMessage(),
-                banService.message());
+                banService.message(), motds.renderFor(server));
     }
 
     public record HelloRequest(
@@ -82,7 +85,9 @@ public class BridgeController {
     public record HelloResponse(String serverId, String name, String message, long heartbeatIntervalSeconds,
             long whitelistSyncIntervalSeconds, String whitelistMessage,
             /** What a network-banned player is told; {reason} and {expires} are the mod's to fill in. */
-            String banMessage) {}
+            String banMessage,
+            /** This server's network MOTD, filled in; null: keep its own. */
+            String motd) {}
 
     @PostMapping("/heartbeat")
     @Operation(summary = "Server heartbeat",
@@ -93,11 +98,11 @@ public class BridgeController {
                 : request.players().stream().map(p -> new ServerService.OnlinePlayer(p.uuid(), p.name())).toList();
         serverService.recordHeartbeat(authentication.getName(), request.playerCount(), request.maxPlayers(),
                 request.tps(), request.msptAvg(), request.memoryUsedMb(), request.memoryMaxMb(), players);
-        return new HeartbeatResponse(whitelistService.kickMessage(), banService.message());
+        return new HeartbeatResponse(whitelistService.kickMessage(), banService.message(), motds.renderFor(authentication.getName()));
     }
 
-    /** Older mods discard the body, so adding to it is safe. */
-    public record HeartbeatResponse(String whitelistMessage, String banMessage) {}
+    /** Older mods discard the body, so adding to it is safe. {@code motd} null: keep the server's own. */
+    public record HeartbeatResponse(String whitelistMessage, String banMessage, String motd) {}
 
     public record HeartbeatRequest(
             @Min(0) int playerCount,
