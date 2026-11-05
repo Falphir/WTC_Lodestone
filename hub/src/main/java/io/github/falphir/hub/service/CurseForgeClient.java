@@ -3,6 +3,7 @@ package io.github.falphir.hub.service;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -10,8 +11,11 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.json.JsonParserFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -127,6 +131,65 @@ public class CurseForgeClient {
             });
         } catch (RestClientException e) {
             throw new CurseForgeException("Couldn't download the server files: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * What a pack version runs on, from the {@code manifest.json} in its own (client) file: CurseForge's
+     * API only says "NeoForge" and "1.21.1", never which NeoForge. The manifest is the zip's first entry,
+     * so only the start of the file is read, however big the rest is. Null when it can't be had (a pack
+     * only the CurseForge app may download, or one without a manifest), since a guess is never needed.
+     */
+    public PackManifest manifest(int modId, int fileId) {
+        Object url;
+        try {
+            url = api("/v1/mods/{id}/files/{file}/download-url", modId, fileId).get("data");
+        } catch (CurseForgeException e) {
+            return null;
+        }
+        if (!(url instanceof String link) || link.isBlank()) return null;
+        try {
+            return http.get().uri(URI.create(link.replace(" ", "%20"))).exchange((request, response) -> {
+                if (response.getStatusCode().isError()) return null;
+                // closing early is what stops the download: the rest of the zip is never read
+                try (ZipInputStream zip = new ZipInputStream(response.getBody())) {
+                    ZipEntry entry;
+                    for (int seen = 0; seen < MANIFEST_WITHIN && (entry = zip.getNextEntry()) != null; seen++) {
+                        if (entry.getName().equals("manifest.json")) {
+                            return PackManifest.parse(new String(zip.readAllBytes(), StandardCharsets.UTF_8));
+                        }
+                    }
+                    return null;
+                }
+            });
+        } catch (RestClientException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** How many entries in to look for manifest.json before deciding a pack has none. */
+    private static final int MANIFEST_WITHIN = 5;
+
+    /** {@code loader}: neoforge, forge, fabric...; {@code recommendedRamMb} null when the pack doesn't say. */
+    public record PackManifest(String minecraftVersion, String loader, String loaderVersion, Integer recommendedRamMb) {
+
+        static PackManifest parse(String json) {
+            Map<String, Object> manifest = JsonParserFactory.getJsonParser().parseMap(json);
+            Map<?, ?> minecraft = manifest.get("minecraft") instanceof Map<?, ?> m ? m : Map.of();
+            // the one marked primary, else the first
+            Map<?, ?> primary = Map.of();
+            for (Object entry : list(minecraft.get("modLoaders"))) {
+                if (!(entry instanceof Map<?, ?> loader)) continue;
+                if (primary.isEmpty() || Boolean.TRUE.equals(loader.get("primary"))) primary = loader;
+                if (Boolean.TRUE.equals(loader.get("primary"))) break;
+            }
+            // "neoforge-21.1.265" → neoforge, 21.1.265
+            String id = string(primary.get("id"));
+            int dash = id == null ? -1 : id.indexOf('-');
+            return new PackManifest(string(minecraft.get("version")),
+                    dash > 0 ? id.substring(0, dash).toLowerCase() : id,
+                    dash > 0 ? id.substring(dash + 1) : null,
+                    minecraft.get("recommendedRam") instanceof Number ram ? ram.intValue() : null);
         }
     }
 

@@ -6,7 +6,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +79,25 @@ public class ServerProvisioningService {
     public List<CurseForgeClient.PackFile> modpackFiles(int modId) {
         requireCurseForge();
         return curseForge(() -> curseForge.serverFiles(modId));
+    }
+
+    /** What a pack version needs from PufferPanel: the template, and that template's settings filled in from the pack. */
+    public record PackSetup(String template, Map<String, Object> values, String loader, String loaderVersion,
+            String minecraftVersion) {}
+
+    /**
+     * The template a pack version runs on and its settings, from the pack's manifest. Empty (no template)
+     * when the manifest can't be had or names a loader there's no template for; the admin picks one then.
+     */
+    public PackSetup packSetup(int modId, int fileId) {
+        requireCurseForge();
+        requireConfigured();
+        CurseForgeClient.PackManifest manifest = curseForge.manifest(modId, fileId);
+        Set<String> onPanel = call(panel::templates).stream().map(t -> String.valueOf(t.get("name"))).collect(Collectors.toSet());
+        // the settings the form shows, so a suggestion is never one create() would refuse as internal
+        PackTemplates.Suggestion guess = PackTemplates.suggest(manifest, name -> !onPanel.contains(name) ? null
+                : template(name).variables().stream().map(Variable::key).collect(Collectors.toSet()));
+        return new PackSetup(guess.template(), guess.values(), guess.loader(), guess.loaderVersion(), guess.minecraftVersion());
     }
 
     public List<Map<String, Object>> templates() {

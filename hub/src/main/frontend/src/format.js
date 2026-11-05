@@ -76,5 +76,22 @@ export function formatMemory(mb) {
 
 export const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`
 
+/** A server id made from a name: lowercase, anything but letters/digits/_ becomes "-", as the hub's id rule allows. */
+export const slugify = (name) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+
+const LOADERS = { neoforge: 'NeoForge', forge: 'Forge', fabric: 'Fabric', quilt: 'Quilt' }
+
+/** What a pack runs on, from the hub's pack setup: "NeoForge 21.1.265, Minecraft 1.21.1". */
+export function packRunsOn(setup) {
+  const loader = setup?.loader && [LOADERS[setup.loader] ?? setup.loader, setup.loaderVersion].filter(Boolean).join(' ')
+  const minecraft = setup?.minecraftVersion && `Minecraft ${setup.minecraftVersion}`
+  return [loader, minecraft].filter(Boolean).join(', ')
+}
+
 /** The Minecraft version(s) of a CurseForge pack version, out of its mix of game versions and loader names. */
 export const minecraftVersions = (packFile) => packFile?.gameVersions?.filter((v) => /^\d/.test(v)).join(', ') ?? ''

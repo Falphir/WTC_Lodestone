@@ -1,30 +1,48 @@
 import { useState } from 'react'
 import { api } from '../../api'
+import { minecraftVersions, packRunsOn, slugify } from '../../format'
 import { useAction, useApi } from '../../hooks'
 import { Dialog } from '../ui/Dialog'
 import { ErrorNote } from '../ui/ErrorNote'
 import { Field } from '../ui/Field'
 import { Icon } from '../ui/Icon'
 import { Note } from '../ui/Note'
-import { minecraftVersions } from '../../format'
 import { ModpackPicker } from './ModpackPicker'
+
+const STEPS = {
+  blank: ['Basics', 'Settings', 'Review'],
+  modpack: ['Modpack', 'Basics', 'Settings', 'Review'],
+}
 
 /**
  * Creates a server on PufferPanel from one of its templates and registers it on the hub in one
  * step. Split into steps so a template with a dozen settings doesn't make one endless form: the
  * step bar and the buttons stay put, and only the middle scrolls. Each step is its own pass of
- * the browser's own validation, since only the current step's fields are on the page. The Modpack
- * step is there only when the hub has a CurseForge API key.
+ * the browser's own validation, since only the current step's fields are on the page.
+ * <p>
+ * With a CurseForge API key on the hub it opens on a choice: a blank server, or one from a modpack.
+ * From a modpack, the pack comes first, since it decides the rest: leaving that step fills in the
+ * name, id, template and the template's versions from the pack (all still editable).
  */
 export function CreateServerDialog({ onClose, onCreated }) {
   const { data: templates, error: templatesError } = useApi('/api/admin/pufferpanel/templates')
   const { data: nodes } = useApi('/api/admin/pufferpanel/nodes')
-  const { data: curseForge } = useApi('/api/admin/curseforge')
-  const steps = curseForge?.configured ? ['Basics', 'Modpack', 'Settings', 'Review'] : ['Basics', 'Settings', 'Review']
+  const { data: curseForge, error: curseForgeError } = useApi('/api/admin/curseforge')
+  const canChoose = Boolean(curseForge?.configured)
+  // null: still on the opening choice
+  const [chosen, setChosen] = useState(null)
+  const path = canChoose ? chosen : 'blank'
+  const steps = path ? STEPS[path] : []
   const [step, setStep] = useState(0)
   const current = steps[step]
   const last = step === steps.length - 1
+
   const [modpack, setModpack] = useState(null)
+  const setupPath = path === 'modpack' && modpack?.file
+    ? `/api/admin/curseforge/modpacks/${modpack.pack.id}/files/${modpack.file.fileId}/setup`
+    : null
+  const { data: setup, stale: setupStale, error: setupError } = useApi(setupPath)
+
   const [template, setTemplate] = useState('')
   const templatePath = template ? `/api/admin/pufferpanel/templates/${encodeURIComponent(template)}` : null
   const { data: detail, stale } = useApi(templatePath)
@@ -32,6 +50,8 @@ export function CreateServerDialog({ onClose, onCreated }) {
 
   const [id, setId] = useState('')
   const [name, setName] = useState('')
+  // what the pack last filled in, so picking another pack replaces it but never something typed
+  const [filled, setFilled] = useState({ id: '', name: '' })
   const [nodeId, setNodeId] = useState('')
   // only what was changed; everything else keeps the template's default on the hub side
   const [values, setValues] = useState({})
@@ -40,14 +60,46 @@ export function CreateServerDialog({ onClose, onCreated }) {
   const valueOf = (v) => (v.key in values ? values[v.key] : v.value)
   const templateName = templates?.find((t) => t.name === template)?.display ?? template
   const nodeName = nodes?.find((n) => String(n.id) === nodeId)?.name ?? nodes?.[0]?.name
+  // the pack's suggestion applies to its own template only, and a setting stops being "from the pack" once changed
+  const fromPack = (key) => setup?.template === template && key in (setup?.values ?? {}) && values[key] === setup.values[key]
 
   function pickTemplate(next) {
     setTemplate(next)
     setValues({})
   }
 
+  /** Leaving the Modpack step: the pack decides the template and its versions, and suggests a name. */
+  function applyPack() {
+    if (setup?.template) {
+      setTemplate(setup.template)
+      setValues(setup.values)
+    }
+    const suggested = { name: modpack.pack.name.slice(0, 40), id: slugify(modpack.pack.name) }
+    if (!name || name === filled.name) setName(suggested.name)
+    if (!id || id === filled.id) setId(suggested.id)
+    setFilled(suggested)
+  }
+
+  /** Each path starts fresh: what a pack filled in has no business in a blank server, and the other way round. */
+  function choose(next) {
+    setChosen(next)
+    setStep(0)
+    setModpack(null)
+    setTemplate('')
+    setValues({})
+    setName('')
+    setId('')
+    setFilled({ id: '', name: '' })
+  }
+
+  function back() {
+    if (step > 0) setStep(step - 1)
+    else setChosen(null)
+  }
+
   function submit(event) {
     event.preventDefault()
+    if (current === 'Modpack') applyPack()
     if (!last) {
       setStep(step + 1)
       return
@@ -59,36 +111,89 @@ export function CreateServerDialog({ onClose, onCreated }) {
         name: name.trim(),
         values,
         nodeId: nodeId === '' ? null : Number(nodeId),
-        modpack: modpack?.file ? { modId: modpack.pack.id, fileId: modpack.file.fileId } : null,
+        modpack: path === 'modpack' && modpack?.file ? { modId: modpack.pack.id, fileId: modpack.file.fileId } : null,
       }
       onCreated(await api('/api/admin/pufferpanel/servers', { method: 'POST', body }))
       return null
     })
   }
 
+  // the pack's Minecraft version, for matching a template by hand when none was picked for it
+  const packMinecraft = setup?.minecraftVersion || minecraftVersions(modpack?.file)
+
   return (
     <Dialog onClose={onClose} className="dialog-wizard">
       <header className="wizard-head">
         <h2>New server</h2>
-        <ol className="wizard-steps">
-          {steps.map((label, i) => (
-            <li key={label} aria-current={i === step ? 'step' : undefined} className={i < step ? 'done' : undefined}>
-              <span className="wizard-step-number">{i < step ? <Icon name="check" /> : i + 1}</span>
-              {label}
-            </li>
-          ))}
-        </ol>
+        {path && (
+          <ol className="wizard-steps">
+            {steps.map((label, i) => (
+              <li key={label} aria-current={i === step ? 'step' : undefined} className={i < step ? 'done' : undefined}>
+                <span className="wizard-step-number">{i < step ? <Icon name="check" /> : i + 1}</span>
+                {label}
+              </li>
+            ))}
+          </ol>
+        )}
       </header>
 
       <form className="wizard-form" onSubmit={submit}>
         <div className="wizard-body">
+          {!path && (
+            <>
+              {!curseForge && !curseForgeError && <p className="muted">Loading…</p>}
+              {canChoose && (
+                <div className="modpack-results path-choices">
+                  <button type="button" className="modpack-card" onClick={() => choose('modpack')}>
+                    <span className="path-icon">
+                      <Icon name="download" />
+                    </span>
+                    <span>
+                      <strong>From a CurseForge modpack</strong>
+                      <small className="muted">
+                        Pick a pack and a version. Its server files go on the server, and the template and its versions
+                        are chosen to match.
+                      </small>
+                    </span>
+                  </button>
+                  <button type="button" className="modpack-card" onClick={() => choose('blank')}>
+                    <span className="path-icon">
+                      <Icon name="servers" />
+                    </span>
+                    <span>
+                      <strong>Blank server</strong>
+                      <small className="muted">Pick a template and its settings. You add the server's files yourself.</small>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {current === 'Modpack' && (
+            <>
+              <ModpackPicker value={modpack} onChange={setModpack} />
+              {modpack?.file && setupStale && <p className="muted">Reading what the pack runs on…</p>}
+              {modpack?.file && !setupStale && setup && (
+                <p className="muted">
+                  {setup.template
+                    ? `Runs on ${packRunsOn(setup)}: the template and its versions will be set to match.`
+                    : packRunsOn(setup)
+                      ? `Runs on ${packRunsOn(setup)}. No template matched, so you'll pick one next.`
+                      : "Couldn't tell what this pack runs on, so you'll pick the template next."}
+                </p>
+              )}
+              <ErrorNote>{setupError}</ErrorNote>
+            </>
+          )}
+
           {current === 'Basics' && (
             <>
               <p className="muted">
                 Creates it on PufferPanel and registers it here, with its mod config and the WTC Lodestone mod already in
                 place.
-                {curseForge?.configured
-                  ? ' Next, you can pick a CurseForge modpack to put on it.'
+                {path === 'modpack'
+                  ? ' The modpack\'s server files are added right after.'
                   : " You upload the modpack's server files in PufferPanel afterwards."}
               </p>
               <div className="form-row">
@@ -109,7 +214,16 @@ export function CreateServerDialog({ onClose, onCreated }) {
                 </Field>
               </div>
               <div className="form-row">
-                <Field label="Template">
+                <Field
+                  label="Template"
+                  hint={
+                    path === 'modpack' && setup?.template === template
+                      ? `Picked from the pack: ${packRunsOn(setup)}.`
+                      : path === 'modpack' && packMinecraft
+                        ? `Pick one that runs ${packRunsOn(setup) || `Minecraft ${packMinecraft}`}.`
+                        : undefined
+                  }
+                >
                   <select value={template} onChange={(e) => pickTemplate(e.target.value)} required>
                     <option value="" disabled>
                       {templates ? 'Pick a template' : 'Loading…'}
@@ -137,11 +251,10 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </>
           )}
 
-          {current === 'Modpack' && <ModpackPicker value={modpack} onChange={setModpack} />}
-
-          {current === 'Settings' && minecraftVersions(modpack?.file) && (
+          {current === 'Settings' && path === 'modpack' && setup?.template !== template && packMinecraft && (
             <Note>
-              {modpack.pack.name} is for Minecraft {minecraftVersions(modpack.file)}: set the template's version to match.
+              {modpack.pack.name} runs on {packRunsOn(setup) || `Minecraft ${packMinecraft}`}: set the template's versions to
+              match.
             </Note>
           )}
 
@@ -153,6 +266,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
                     key={v.key}
                     variable={v}
                     value={valueOf(v)}
+                    fromPack={fromPack(v.key)}
                     onChange={(value) => setValues((current) => ({ ...current, [v.key]: value }))}
                   />
                 ))}
@@ -167,14 +281,14 @@ export function CreateServerDialog({ onClose, onCreated }) {
               <dd>{name}</dd>
               <dt>Server ID</dt>
               <dd className="mono">{id}</dd>
-              <dt>Template</dt>
-              <dd>{templateName}</dd>
-              {curseForge?.configured && (
+              {path === 'modpack' && (
                 <>
                   <dt>Modpack</dt>
-                  <dd>{modpack?.file ? `${modpack.pack.name} · ${modpack.file.displayName}` : 'None, uploaded by hand'}</dd>
+                  <dd>{`${modpack.pack.name} · ${modpack.file.displayName}`}</dd>
                 </>
               )}
+              <dt>Template</dt>
+              <dd>{templateName}</dd>
               {nodes?.length > 1 && (
                 <>
                   <dt>Node</dt>
@@ -194,25 +308,27 @@ export function CreateServerDialog({ onClose, onCreated }) {
           <button type="button" className="button" onClick={onClose}>
             Cancel
           </button>
-          <div className="button-row">
-            {step > 0 && (
-              <button type="button" className="button" disabled={busy} onClick={() => setStep(step - 1)}>
-                Back
+          {path && (
+            <div className="button-row">
+              {(step > 0 || canChoose) && (
+                <button type="button" className="button" disabled={busy} onClick={back}>
+                  Back
+                </button>
+              )}
+              <button
+                type="submit"
+                className="button button-primary"
+                disabled={
+                  busy ||
+                  (current === 'Modpack' && (!modpack?.file || setupStale)) ||
+                  (current === 'Basics' && !template) ||
+                  (current !== 'Modpack' && stale)
+                }
+              >
+                {!last ? 'Next' : busy ? 'Creating…' : 'Create server'}
               </button>
-            )}
-            <button
-              type="submit"
-              className="button button-primary"
-              disabled={
-                busy ||
-                (current === 'Basics' && !template) ||
-                (current === 'Modpack' && modpack && !modpack.file) ||
-                (step > 0 && stale)
-              }
-            >
-              {!last ? 'Next' : busy ? 'Creating…' : 'Create server'}
-            </button>
-          </div>
+            </div>
+          )}
         </footer>
       </form>
     </Dialog>
@@ -222,8 +338,9 @@ export function CreateServerDialog({ onClose, onCreated }) {
 /** Template descriptions are written for PufferPanel's own page and can carry HTML; here they're plain hints. */
 const plain = (text) => text?.replace(/<[^>]*>/g, '').trim() || undefined
 
-/** One of a template's settings, as the input its type calls for. */
-function TemplateSetting({ variable: v, value, onChange }) {
+/** One of a template's settings, as the input its type calls for. `fromPack`: its value came from the modpack. */
+function TemplateSetting({ variable: v, value, fromPack, onChange }) {
+  const hint = [fromPack && 'From the pack.', plain(v.desc)].filter(Boolean).join(' ') || undefined
   if (v.type === 'boolean' && !(v.options?.length > 0)) {
     return (
       <div className="field">
@@ -231,7 +348,7 @@ function TemplateSetting({ variable: v, value, onChange }) {
           <input type="checkbox" checked={value === true || value === 'true'} onChange={(e) => onChange(e.target.checked)} />
           <span>{v.display}</span>
         </label>
-        {plain(v.desc) && <small>{plain(v.desc)}</small>}
+        {hint && <small>{hint}</small>}
       </div>
     )
   }
@@ -259,7 +376,7 @@ function TemplateSetting({ variable: v, value, onChange }) {
     input = <input value={value ?? ''} onChange={(e) => onChange(e.target.value)} required={v.required} />
   }
   return (
-    <Field label={v.display} hint={plain(v.desc)}>
+    <Field label={v.display} hint={hint}>
       {input}
     </Field>
   )

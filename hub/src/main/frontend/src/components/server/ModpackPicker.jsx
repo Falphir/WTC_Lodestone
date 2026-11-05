@@ -6,8 +6,7 @@ import { Field } from '../ui/Field'
 
 /**
  * The New server dialog's modpack step: search CurseForge, pick a pack, pick one of its versions that
- * comes with server files. `value` is `{ pack, file }` or null for none, which is a fine answer too:
- * the server is then created without one, as before.
+ * comes with server files. `value` is `{ pack, file }`, or null until one is picked.
  */
 export function ModpackPicker({ value, onChange }) {
   const [query, setQuery] = useState('')
@@ -59,7 +58,8 @@ export function ModpackPicker({ value, onChange }) {
         </Field>
         <ErrorNote>
           {filesError ||
-            (versions?.length === 0 && 'No version of this pack comes with server files. Pick another, or go without one.')}
+            (versions?.length === 0 &&
+              'No version of this pack comes with server files. Pick another, or go back and create a blank server.')}
         </ErrorNote>
       </>
     )
@@ -68,7 +68,7 @@ export function ModpackPicker({ value, onChange }) {
   return (
     <>
       <p className="muted">
-        Optional. Pick a CurseForge pack and its server files are added for you; skip this to upload them by hand.
+        Pick a pack and one of its versions. Its server files are added for you, and the template is chosen to match.
       </p>
       <Field label="Search CurseForge">
         <input

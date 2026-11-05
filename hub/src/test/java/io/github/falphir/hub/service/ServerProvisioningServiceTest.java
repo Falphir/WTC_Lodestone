@@ -122,6 +122,21 @@ class ServerProvisioningServiceTest {
     }
 
     @Test
+    void aPacksSetupIsTheMatchingTemplateWithItsSettingsFilledIn() {
+        when(curseForge.isConfigured()).thenReturn(true);
+        when(curseForge.manifest(100, 200)).thenReturn(new CurseForgeClient.PackManifest("1.21.1", "neoforge", "21.1.265", 8196));
+        when(panel.templates()).thenReturn(List.of(Map.of("name", "minecraft-neoforge"), Map.of("name", "minecraft-forge")));
+        when(panel.template("minecraft-neoforge")).thenReturn(Map.of("data", Map.of(
+                "version", Map.of("value", "21.1.209"), "javaversion", Map.of("value", "21"), "memory", Map.of("value", 1024))));
+
+        var setup = provisioning.packSetup(100, 200);
+
+        assertThat(setup.template()).isEqualTo("minecraft-neoforge");
+        assertThat(setup.values()).containsEntry("version", "21.1.265").containsEntry("memory", 8196).containsEntry("javaversion", "21");
+        verify(panel, never()).template("minecraft-forge"); // only the matched template is looked at
+    }
+
+    @Test
     void aPackThatCantBeDownloadedIsRefusedBeforeAnythingIsCreated() {
         when(curseForge.isConfigured()).thenReturn(true);
         when(curseForge.modpack(100)).thenReturn(new CurseForgeClient.Modpack(100, "Locked", null, null, null, false));

@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -80,6 +81,44 @@ class CurseForgeClientTest {
 
         assertThat(Files.readAllBytes(target)).containsExactly(1, 2, 3);
         assertThat(last).containsExactly(3, 3); // every byte counted, against the size the CDN sent
+    }
+
+    @Test
+    void readsTheLoaderFromTheManifestAtTheStartOfThePacksOwnFile() throws IOException {
+        curseForge.expect(requestTo(CurseForgeClient.API + "/v1/mods/1/files/10/download-url"))
+                .andRespond(withSuccess("{\"data\":\"https://edge.forgecdn.net/files/1/10/ATM10.zip\"}", MediaType.APPLICATION_JSON));
+        curseForge.expect(requestTo("https://edge.forgecdn.net/files/1/10/ATM10.zip"))
+                .andRespond(withSuccess(zip(Map.of("manifest.json", """
+                        {"minecraft":{"version":"1.21.1","modLoaders":[
+                          {"id":"forge-99","primary":false},{"id":"neoforge-21.1.265","primary":true}],"recommendedRam":8196}}
+                        """)), MediaType.APPLICATION_OCTET_STREAM));
+
+        assertThat(client.manifest(1, 10)).isEqualTo(new CurseForgeClient.PackManifest("1.21.1", "neoforge", "21.1.265", 8196));
+    }
+
+    @Test
+    void noManifestOrNoDownloadIsNoAnswerRatherThanAnError() throws IOException {
+        curseForge.expect(requestTo(CurseForgeClient.API + "/v1/mods/1/files/10/download-url"))
+                .andRespond(withSuccess("{\"data\":\"https://edge.forgecdn.net/x.zip\"}", MediaType.APPLICATION_JSON));
+        curseForge.expect(requestTo("https://edge.forgecdn.net/x.zip"))
+                .andRespond(withSuccess(zip(Map.of("overrides/config/a.toml", "x")), MediaType.APPLICATION_OCTET_STREAM));
+        curseForge.expect(requestTo(CurseForgeClient.API + "/v1/mods/2/files/20/download-url"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)); // only the CurseForge app may download it
+
+        assertThat(client.manifest(1, 10)).isNull();
+        assertThat(client.manifest(2, 20)).isNull();
+    }
+
+    private static byte[] zip(Map<String, String> entries) throws IOException {
+        var bytes = new java.io.ByteArrayOutputStream();
+        try (var zip = new java.util.zip.ZipOutputStream(bytes)) {
+            for (var e : entries.entrySet()) {
+                zip.putNextEntry(new java.util.zip.ZipEntry(e.getKey()));
+                zip.write(e.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        }
+        return bytes.toByteArray();
     }
 
     @Test

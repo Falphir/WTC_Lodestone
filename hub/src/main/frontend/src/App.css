@@ -1475,6 +1475,24 @@ button.modpack-card {
   cursor: pointer;
 }
 
+/* the New server dialog's opening choice: an icon where a pack card has its logo, and the text in full */
+.modpack-card > .path-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.path-choices .modpack-card small {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
 button.modpack-card:hover:not(:disabled) {
   border-color: var(--accent);
   background: var(--accent-wash);

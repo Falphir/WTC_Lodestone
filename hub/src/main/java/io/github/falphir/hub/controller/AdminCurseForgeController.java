@@ -52,4 +52,13 @@ public class AdminCurseForgeController {
     public List<CurseForgeClient.PackFile> files(@PathVariable int id) {
         return provisioning.modpackFiles(id);
     }
+
+    @GetMapping("/modpacks/{id}/files/{fileId}/setup")
+    @Operation(summary = "What a modpack version runs on",
+            description = "The PufferPanel template for this pack version and that template's settings filled in from the pack's "
+                    + "manifest: loader version, Minecraft version, Java and recommended memory. `template` is null when the "
+                    + "manifest can't be read or names a loader with no matching template; the versions it found still come back.")
+    public ServerProvisioningService.PackSetup setup(@PathVariable int id, @PathVariable int fileId) {
+        return provisioning.packSetup(id, fileId);
+    }
 }
