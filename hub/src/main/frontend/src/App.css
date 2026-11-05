@@ -1423,17 +1423,158 @@
   margin: 0;
 }
 
-/* Minecraft text as the server list shows it: its colours on its dark background, spaces kept */
+/* Minecraft text as the server list shows it: its colours on its dark background, spaces kept, and about
+   as wide as the list's ~270px MOTD area. A proportional font, not a monospace one: Minecraft's space is
+   4px against 6px for most letters, and a monospace font makes a line of spaced-out text far too wide. */
 .mc-text {
+  box-sizing: border-box;
+  width: min(100%, 340px);
   padding: 8px 10px;
   border-radius: 6px;
   background: #1d1d1d;
   color: #aaaaaa;
-  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-family: inherit;
   font-size: 13px;
+  letter-spacing: 0.02em;
   line-height: 1.45;
   white-space: pre;
   overflow-x: auto;
+}
+
+/* Minecraft's colour and format codes as classes: mc-c-6 is §6 gold, mc-l is §l bold, and so on. A run's
+   classes are both how it looks and which codes it stands for. No colour class is the server list's gray. */
+.mc-c-0 { --mc: #000000; }
+.mc-c-1 { --mc: #0000aa; }
+.mc-c-2 { --mc: #00aa00; }
+.mc-c-3 { --mc: #00aaaa; }
+.mc-c-4 { --mc: #aa0000; }
+.mc-c-5 { --mc: #aa00aa; }
+.mc-c-6 { --mc: #ffaa00; }
+.mc-c-7 { --mc: #aaaaaa; }
+.mc-c-8 { --mc: #555555; }
+.mc-c-9 { --mc: #5555ff; }
+.mc-c-a { --mc: #55ff55; }
+.mc-c-b { --mc: #55ffff; }
+.mc-c-c { --mc: #ff5555; }
+.mc-c-d { --mc: #ff55ff; }
+.mc-c-e { --mc: #ffff55; }
+.mc-c-f { --mc: #ffffff; }
+
+.mc-text [class*='mc-c-'] {
+  color: var(--mc);
+}
+
+.mc-l { font-weight: 700; }
+.mc-o { font-style: italic; }
+.mc-n { text-decoration: underline; }
+.mc-m { text-decoration: line-through; }
+.mc-n.mc-m { text-decoration: underline line-through; }
+
+.mc-line[data-align='center'] {
+  text-align: center;
+}
+
+.mc-line[data-align='right'] {
+  text-align: right;
+}
+
+/* the MOTD editor's buttons: colour swatches, then styles, alignment and variables */
+.motd-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.motd-swatches,
+.motd-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/* a swatch is filled with its mc-c-* class's colour */
+.motd-swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--mc);
+  cursor: pointer;
+}
+
+.motd-swatch:hover,
+.motd-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.motd-tools .icon-button {
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.motd-tools-gap {
+  width: 8px;
+}
+
+.motd-tools .icon-button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+/* the editor itself: the preview's look, typed into */
+.motd-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* as wide as the dialog, with the font growing to match: everything is .mc-text's 13px-in-340px scaled to
+   the editor's width (cqi, the .motd-editor container's width), so a centred line still sits where it will
+   in the game, on a desktop dialog and a phone alike */
+.motd-editor {
+  container-type: inline-size;
+}
+
+.motd-editor-box {
+  width: 100%;
+  padding: calc(100cqi * 8 / 340) calc(100cqi * 10 / 340);
+  font-size: calc(100cqi * 13 / 340);
+  min-height: calc(2 * 1.45em + 100cqi * 16 / 340);
+  caret-color: #ffffff;
+  cursor: text;
+}
+
+.motd-editor-box:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.motd-editor-box ::selection {
+  background: rgba(92, 196, 209, 0.45);
+}
+
+/* a {modpack}-style variable: a tag in the run's colour, filled in per server */
+.motd-var {
+  padding: 0 3px;
+  border: 1px dashed currentColor;
+  border-radius: 3px;
+  font-size: 0.9em;
+  user-select: all;
+}
+
+.motd-code-toggle {
+  align-self: flex-start;
+}
+
+.button-small {
+  height: 32px;
+  padding: 0 8px;
+  font-size: var(--fs-sm);
 }
 
 /* a network MOTD in the list: name and use above, its preview below, actions on the right */

@@ -27,6 +27,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class MotdService {
 
     private static final Pattern VARIABLE = Pattern.compile("\\{(modpack|version|name)}");
+    /** A line that starts with {center} or {right}; without one it's left as written. */
+    private static final Pattern ALIGN = Pattern.compile("^\\{(center|right)}");
 
     public record MotdView(long id, String name, String text, boolean isDefault, List<String> usedBy) {}
 
@@ -116,20 +118,41 @@ public class MotdService {
         return render(find(id).getText(), modpack, version, name);
     }
 
-    /** Fills in the variables; null when one the text uses is blank. */
+    /**
+     * Fills in the variables, then lines up each line that starts with {center} or {right}: the spaces
+     * that do it depend on this server's pack and version, which is why it happens here and not when the
+     * MOTD is written. Null when a variable the text uses is blank.
+     */
     static String render(String text, String modpack, String version, String name) {
         Map<String, String> values = Map.of(
                 "modpack", modpack == null ? "" : modpack,
                 "version", version == null ? "" : version,
                 "name", name == null ? "" : name);
-        Matcher matcher = VARIABLE.matcher(text);
         StringBuilder out = new StringBuilder();
-        while (matcher.find()) {
-            String value = values.get(matcher.group(1));
-            if (value.isBlank()) return null;
-            matcher.appendReplacement(out, Matcher.quoteReplacement(value));
+        // whether underline/strikethrough is on carries over a line break, as in the game
+        MinecraftFont.Lines lines = new MinecraftFont.Lines();
+        for (String line : text.split("\n", -1)) {
+            MinecraftFont.Alignment alignment = MinecraftFont.Alignment.LEFT;
+            Matcher marker = ALIGN.matcher(line);
+            if (marker.find()) {
+                alignment = MinecraftFont.Alignment.valueOf(marker.group(1).toUpperCase());
+                line = line.substring(marker.end());
+            }
+            Matcher matcher = VARIABLE.matcher(line);
+            StringBuilder filled = new StringBuilder();
+            while (matcher.find()) {
+                String value = values.get(matcher.group(1));
+                if (value.isBlank()) return null;
+                matcher.appendReplacement(filled, Matcher.quoteReplacement(value));
+            }
+            matcher.appendTail(filled);
+            // spaces typed to line it up by hand would only push it off-centre now; a struck-through or
+            // underlined one is a stripe you can see, though, and stays
+            String trimmed = lines.trimBlankSpaces(filled.toString());
+            String done = alignment == MinecraftFont.Alignment.LEFT ? filled.toString() : MinecraftFont.pad(trimmed, alignment);
+            if (!out.isEmpty()) out.append('\n');
+            out.append(done);
         }
-        matcher.appendTail(out);
         return out.toString();
     }
 

@@ -1,19 +1,13 @@
 import { useState } from 'react'
-import { renderMotd } from '../../format'
 import { Dialog } from '../ui/Dialog'
 import { ErrorNote } from '../ui/ErrorNote'
 import { Field } from '../ui/Field'
-import { MinecraftText } from '../ui/MinecraftText'
+import { MotdEditor } from './MotdEditor'
 
-/** What the preview fills the variables with, since no one server is being looked at here. */
-const SAMPLE = { modpack: 'Greg-E', version: '0.6.4a', name: 'WTC Genesis' }
-
-/** Adds a network MOTD, or edits one (`motd` given), with a preview as the server list shows it. */
+/** Adds a network MOTD, or edits one (`motd` given). The editor shows it as it looks, so it needs no preview. */
 export function MotdEditDialog({ motd, busy, error, onClose, onSave }) {
   const [name, setName] = useState(motd?.name ?? '')
   const [text, setText] = useState(motd?.text ?? '')
-  // a pasted server.properties line has \n for its line break
-  const preview = renderMotd(text.replace(/\\n/g, '\n'), SAMPLE)
 
   return (
     <Dialog onClose={onClose} className="dialog-wizard">
@@ -31,17 +25,13 @@ export function MotdEditDialog({ motd, busy, error, onClose, onSave }) {
           <Field label="Name" hint="Only for picking it on the dashboard.">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="WTC" maxLength={60} required autoFocus />
           </Field>
-          <Field
-            label="MOTD"
-            hint="Two lines. {modpack}, {version} and {name} are filled in from each server's listing. § or & codes add colour (§6 gold, §e yellow, §7 gray) and style (§l bold, §m strikethrough, §r reset)."
-          >
-            <textarea className="mono" value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={300} wrap="off" required />
-          </Field>
+          {/* not a Field: a <label> around the toolbar would hand a click on "MOTD" to its first swatch */}
           <div className="field">
-            <span>Preview</span>
-            <MinecraftText text={preview ?? text} />
+            <span id="motd-text-label">MOTD</span>
+            <MotdEditor value={text} onChange={setText} labelledBy="motd-text-label" />
             <small>
-              Filled in with {SAMPLE.modpack} {SAMPLE.version}. Spacing is close to the game's, not exact.
+              Two lines. Select text to colour or style it; alignment is for the line the caret is on. Each server gets its own
+              pack and version in the tags, lined up to match.
             </small>
           </div>
           <ErrorNote>{error}</ErrorNote>
@@ -50,7 +40,7 @@ export function MotdEditDialog({ motd, busy, error, onClose, onSave }) {
           <button type="button" className="button" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="button button-primary" disabled={busy}>
+          <button type="submit" className="button button-primary" disabled={busy || !text.trim()}>
             {busy ? 'Saving…' : 'Save'}
           </button>
         </footer>

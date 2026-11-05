@@ -1,5 +1,5 @@
 import { api } from '../../api'
-import { motdMissing } from '../../format'
+import { motdMissing, renderMotd } from '../../format'
 import { useAction, useApi } from '../../hooks'
 import { ErrorNote } from '../ui/ErrorNote'
 import { Field } from '../ui/Field'
@@ -15,7 +15,11 @@ export function ServerMotd({ server, onSaved }) {
   const { data: motds } = useApi('/api/admin/motds', { topics: ['servers'] })
   const { run, busy, error } = useAction(onSaved)
   const picked = motds?.find((m) => m.id === server.motd?.templateId)
-  const missing = picked ? motdMissing(picked.text, { modpack: server.listing.modpack, version: server.listing.modpackVersion, name: server.name }) : []
+  const listing = { modpack: server.listing.modpack, version: server.listing.modpackVersion, name: server.name }
+  const missing = picked ? motdMissing(picked.text, listing) : []
+  // rendered here rather than shown as the hub sent it: the hub's alignment is spaces sized for the game's
+  // font, which would sit off-centre in the preview's; with the markers kept, the preview lines it up itself
+  const preview = picked ? renderMotd(picked.text, listing) : null
 
   function pick(value) {
     run(async () => {
@@ -44,7 +48,7 @@ export function ServerMotd({ server, onSaved }) {
           ))}
         </select>
       </Field>
-      {server.motd?.rendered && <MinecraftText text={server.motd.rendered} />}
+      {preview && <MinecraftText text={preview} />}
       {picked && missing.length > 0 && (
         <p className="muted">
           Fill in the listing's {missing.join(' and ')} to use this MOTD. Until then the server keeps its own.
