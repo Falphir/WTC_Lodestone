@@ -3,8 +3,10 @@ package io.github.falphir.hub.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -122,6 +124,47 @@ class ServerProvisioningServiceTest {
         assertThat(server.getLauncher()).isEqualTo("CurseForge");
         verify(modpackSetup).start("prov-test", PANEL_ID, PACK, PACK_FILE);
         verify(panel, never()).install(anyString()); // runs once the pack's files are in
+    }
+
+    @Test
+    void aNeoForge1211PackGetsTheModJar() {
+        whenCreatingFromAPackThatRunsOn(new CurseForgeClient.PackManifest("1.21.1", "neoforge", "21.1.265", null));
+
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+                Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin");
+
+        verify(panel).putFile(PANEL_ID, "mods/wtc_lodestone-neoforge-1.21.1-1.0.0.jar", new byte[] {1, 2, 3});
+        assertThat(created.warnings()).isEmpty();
+    }
+
+    @Test
+    void aForge1201PackSkipsTheJarWithAWarning() {
+        // the only build is NeoForge 1.21.1: a Forge server couldn't load it
+        whenCreatingFromAPackThatRunsOn(new CurseForgeClient.PackManifest("1.20.1", "forge", "47.3.0", null));
+
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+                Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin");
+
+        verify(modRelease, never()).latestNeoForgeJar();
+        verify(panel, never()).putFile(eq(PANEL_ID), startsWith("mods/"), any(byte[].class));
+        assertThat(created.warnings()).containsExactly("No WTC Lodestone build for Forge 1.20.1 yet: the mod wasn't installed.");
+    }
+
+    @Test
+    void aBlankTemplateStillGetsTheModJar() {
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest(
+                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
+
+        verify(panel).putFile(PANEL_ID, "mods/wtc_lodestone-neoforge-1.21.1-1.0.0.jar", new byte[] {1, 2, 3});
+        verify(curseForge, never()).manifest(anyInt(), anyInt()); // nothing to ask without a pack
+        assertThat(created.warnings()).isEmpty();
+    }
+
+    private void whenCreatingFromAPackThatRunsOn(CurseForgeClient.PackManifest manifest) {
+        when(curseForge.isConfigured()).thenReturn(true);
+        when(curseForge.modpack(100)).thenReturn(PACK);
+        when(curseForge.file(100, 200)).thenReturn(PACK_FILE);
+        when(curseForge.manifest(100, 200)).thenReturn(manifest);
     }
 
     @Test

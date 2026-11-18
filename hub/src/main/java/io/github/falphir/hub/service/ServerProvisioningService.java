@@ -210,10 +210,7 @@ public class ServerProvisioningService {
         List<String> warnings = new ArrayList<>();
         attempt(warnings, "write the mod config", () ->
                 panel.putFile(panelId, CONFIG_PATH, modConfig(hubUrl, request.hubId(), registered.token()).getBytes(StandardCharsets.UTF_8)));
-        attempt(warnings, "add the WTC Lodestone mod jar", () -> {
-            ModRelease.Jar jar = modRelease.latestNeoForgeJar();
-            panel.putFile(panelId, "mods/" + jar.fileName(), jar.bytes());
-        });
+        addModJar(warnings, panelId, request.modpack());
         if (pack != null) {
             // the install runs once the pack's files are in place
             modpackSetup.start(request.hubId(), panelId, pack, packFile);
@@ -225,6 +222,41 @@ public class ServerProvisioningService {
                 pack == null ? "" : " with " + pack.name() + " " + packFile.displayName(),
                 warnings.isEmpty() ? "" : ", with warnings: " + warnings);
         return new Created(request.hubId(), request.name(), panelId, registered.token(), warnings, pack != null);
+    }
+
+    /**
+     * The mod jar goes in mods/ only where there's a build for it. A blank template gets it as always; a
+     * pack says what it runs on through its manifest (as for picking its template), and one the release
+     * has no build for gets a warning instead, since a jar for another loader or version wouldn't load.
+     */
+    private void addModJar(List<String> warnings, String panelId, Modpack modpack) {
+        if (modpack != null) {
+            CurseForgeClient.PackManifest runsOn = curseForge.manifest(modpack.modId(), modpack.fileId());
+            if (runsOn == null) {
+                warnings.add("Couldn't tell what the pack runs on, so the WTC Lodestone mod wasn't installed.");
+                return;
+            }
+            if (!ModRelease.hasBuildFor(runsOn.loader(), runsOn.minecraftVersion())) {
+                warnings.add("No WTC Lodestone build for " + loaderName(runsOn.loader()) + " " + runsOn.minecraftVersion()
+                        + " yet: the mod wasn't installed.");
+                return;
+            }
+        }
+        attempt(warnings, "add the WTC Lodestone mod jar", () -> {
+            ModRelease.Jar jar = modRelease.latestNeoForgeJar();
+            panel.putFile(panelId, "mods/" + jar.fileName(), jar.bytes());
+        });
+    }
+
+    /** A loader's name as its own project writes it; the manifest has it lower-case. */
+    private static String loaderName(String loader) {
+        return switch (loader == null ? "" : loader) {
+            case "neoforge" -> "NeoForge";
+            case "forge" -> "Forge";
+            case "fabric" -> "Fabric";
+            case "quilt" -> "Quilt";
+            default -> loader;
+        };
     }
 
     private static String cut(String value, int max) {

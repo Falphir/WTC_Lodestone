@@ -23,6 +23,19 @@ public class ModRelease {
 
     public record Jar(String fileName, byte[] bytes) {}
 
+    /** What the release's one jar is built for, as mod/gradle.properties has it. */
+    static final String LOADER = "neoforge";
+    static final String MINECRAFT = "1.21.1";
+
+    /**
+     * Whether the release has a jar for this loader and Minecraft version. The one place that knows which
+     * builds exist: it becomes "pick the matching jar" when a Forge 1.20.1 build is added (issue #8).
+     * Static, so it holds wherever this bean is mocked.
+     */
+    static boolean hasBuildFor(String loader, String minecraftVersion) {
+        return LOADER.equals(loader) && MINECRAFT.equals(minecraftVersion);
+    }
+
     private final String repo;
     private final RestClient http;
 
