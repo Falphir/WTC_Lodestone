@@ -4,6 +4,8 @@ import io.github.falphir.hub.entity.GameServer;
 import io.github.falphir.hub.entity.ServerHeartbeat;
 import io.github.falphir.hub.repository.GameServerRepository;
 import io.github.falphir.hub.repository.ServerHeartbeatRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 public class ServerService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServerService.class);
+
     /** A server that missed this many heartbeats in a row counts as offline. */
     private static final int MISSED_HEARTBEATS_OFFLINE = 3;
 
@@ -35,6 +39,7 @@ public class ServerService {
     private final ServerHeartbeatRepository heartbeats;
     private final ApplicationEventPublisher events;
     private final PufferPanelClient panel;
+    private final MotdService motds;
     private final Duration heartbeatInterval;
 
     /**
@@ -51,9 +56,10 @@ public class ServerService {
     private EntityManager entityManager;
 
     public ServerService(GameServerRepository repository, TokenService tokens, ServerHeartbeatRepository heartbeats,
-            ApplicationEventPublisher events, PufferPanelClient panel,
+            ApplicationEventPublisher events, PufferPanelClient panel, MotdService motds,
             @Value("${lodestone.heartbeat-interval-seconds:60}") int heartbeatIntervalSeconds) {
         this.panel = panel;
+        this.motds = motds;
         this.repository = repository;
         this.tokens = tokens;
         this.heartbeats = heartbeats;
@@ -68,6 +74,12 @@ public class ServerService {
 
     public Duration offlineAfter() {
         return heartbeatInterval.multipliedBy(MISSED_HEARTBEATS_OFFLINE);
+    }
+
+    /** Whether a hub server already has this id, for checks that must happen before anything else is created. */
+    @Transactional(readOnly = true)
+    public boolean isRegistered(String id) {
+        return repository.existsById(id);
     }
 
     /**
@@ -168,6 +180,14 @@ public class ServerService {
             if (patch.pufferpanelId().isBlank()) server.setPufferpanelId(null);
             else linkPanelServer(server, patch.pufferpanelId());
         }
+        if (patch.motdTemplateId() != null) {
+            if (patch.motdTemplateId() == 0) {
+                server.setMotdTemplateId(null);
+            } else {
+                motds.requireExists(patch.motdTemplateId());
+                server.setMotdTemplateId(patch.motdTemplateId());
+            }
+        }
     }
 
     /**
@@ -204,9 +224,20 @@ public class ServerService {
                 .collect(Collectors.toMap(GameServer::getPufferpanelId, GameServer::getId));
     }
 
-    /** Only non-null fields are changed, the same merge the Discord config patch uses. {@code pufferpanelId} "" unlinks. */
+    /**
+     * Only non-null fields are changed, the same merge the Discord config patch uses. {@code pufferpanelId}
+     * "" unlinks; {@code motdTemplateId} 0 goes back to the server's own MOTD.
+     */
     public record Patch(String id, String name, String publicAddress, String modpack, String modpackUrl,
-            String modpackVersion, String launcher, String iconUrl, Boolean published, String pufferpanelId) {}
+            String modpackVersion, String launcher, String iconUrl, Boolean published, String pufferpanelId,
+            Long motdTemplateId) {
+
+        /** Everything but the MOTD, which most changes leave alone. */
+        public Patch(String id, String name, String publicAddress, String modpack, String modpackUrl,
+                String modpackVersion, String launcher, String iconUrl, Boolean published, String pufferpanelId) {
+            this(id, name, publicAddress, modpack, modpackUrl, modpackVersion, launcher, iconUrl, published, pufferpanelId, null);
+        }
+    }
 
     /** Issues a new token for a server, invalidating the old one. Returned once and never stored. */
     @Transactional
@@ -253,8 +284,27 @@ public class ServerService {
     /** Removes a server and its heartbeat history. It stops being able to authenticate immediately. */
     @Transactional
     public void remove(String id) {
-        if (!repository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown server '" + id + "'");
+        remove(id, false);
+    }
+
+    /**
+     * As {@link #remove(String)}, and with {@code alsoOnPufferPanel} also deletes the PufferPanel server
+     * it's linked to, files and world included. The panel goes first: if it refuses, the hub keeps its
+     * entry, so the admin can try again rather than be left with a server the hub no longer knows.
+     */
+    @Transactional
+    public void remove(String id, boolean alsoOnPufferPanel) {
+        GameServer server = find(id);
+        if (alsoOnPufferPanel && server.getPufferpanelId() != null) {
+            if (!panel.isConfigured()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "PufferPanel isn't configured");
+            }
+            try {
+                panel.deleteServer(server.getPufferpanelId());
+            } catch (PufferPanelClient.PanelException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, e.getMessage(), e);
+            }
+            LOGGER.info("Deleted PufferPanel server {} along with hub server {}", server.getPufferpanelId(), id);
         }
         heartbeats.deleteByServerId(id); // the FK from server_heartbeats has no ON DELETE CASCADE
         online.remove(id);

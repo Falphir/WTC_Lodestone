@@ -8,6 +8,7 @@ const NAV = [
   { path: 'whitelist', label: 'Whitelist', icon: 'whitelist' },
   { path: 'bans', label: 'Bans', icon: 'bans' },
   { path: 'admins', label: 'Admins', icon: 'admins' },
+  { path: 'config', label: 'Configuration', icon: 'settings' },
 ]
 
 const THEMES = [

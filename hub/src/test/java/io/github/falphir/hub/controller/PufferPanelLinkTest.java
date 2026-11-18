@@ -1,8 +1,12 @@
 package io.github.falphir.hub.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -98,6 +102,30 @@ class PufferPanelLinkTest {
                 .andExpect(content().json("[]"));
         register("pp-link-a", GENESIS).andExpect(status().isServiceUnavailable());
         register("pp-link-plain", null).andExpect(status().isCreated()); // unlinked servers are unaffected
+    }
+
+    @Test
+    void removingCanTakeThePufferPanelServerWithIt() throws Exception {
+        register("pp-link-a", GENESIS).andExpect(status().isCreated());
+        register("pp-link-b", SKYBLOCK).andExpect(status().isCreated());
+
+        mvc.perform(delete("/api/admin/servers/pp-link-a").param("pufferpanel", "true").header("Authorization", admin))
+                .andExpect(status().isNoContent());
+        verify(panel).deleteServer(GENESIS);
+
+        // without the flag, only the hub's entry goes
+        mvc.perform(delete("/api/admin/servers/pp-link-b").header("Authorization", admin)).andExpect(status().isNoContent());
+        verify(panel, never()).deleteServer(SKYBLOCK);
+    }
+
+    @Test
+    void ifPufferPanelRefusesTheHubKeepsItsEntry() throws Exception {
+        register("pp-link-a", GENESIS).andExpect(status().isCreated());
+        doThrow(new PufferPanelClient.PanelException("PufferPanel failed the request (HTTP 500)", null)).when(panel).deleteServer(GENESIS);
+
+        mvc.perform(delete("/api/admin/servers/pp-link-a").param("pufferpanel", "true").header("Authorization", admin))
+                .andExpect(status().isBadGateway());
+        assertThat(serverField("pp-link-a", "pufferpanelId")).isEqualTo(GENESIS);
     }
 
     private ResultActions register(String id, String pufferpanelId) throws Exception {

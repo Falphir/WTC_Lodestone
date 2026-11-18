@@ -206,9 +206,24 @@ The hub can talk to PufferPanel (written against **2.7.1**). Leave this out and 
    LODESTONE_PUFFERPANEL_URL=http://127.0.0.1:8080     # the panel's own address; likely what holds 8080 on this box
    LODESTONE_PUFFERPANEL_CLIENT_ID=...
    LODESTONE_PUFFERPANEL_CLIENT_SECRET=...
+   # the hub as a game server reaches it: written into servers made with "New server"
+   LODESTONE_PUFFERPANEL_SERVER_HUB_URL=http://127.0.0.1:8081
    ```
 3. Check it: signed in to the dashboard, open `/api/admin/pufferpanel` (or call it with your admin
    token). `connected: true` with the right `serverCount` means it works; otherwise `error` says why.
+4. To add a server: **New server** on the Servers page. Pick a template and its settings; the hub
+   creates it on PufferPanel, registers it, writes its mod config and the mod jar, and starts the
+   install. Then upload the modpack's server files in PufferPanel and start it from its page.
+5. Optional, to skip that upload: a CurseForge API key (apply at
+   [console.curseforge.com](https://console.curseforge.com/)) adds a **Modpack** step to New server.
+   Add it to `/etc/lodestone/hub.env` and restart the hub:
+   ```bash
+   LODESTONE_CURSEFORGE_API_KEY=...
+   ```
+   The hub then downloads the chosen version's server files, keeps the pack's folders (not its start
+   scripts or installers), puts them on the server and runs the install after them. That takes a few
+   minutes in the background; the server's page shows how it's going. Packs whose authors only allow
+   the CurseForge app to download them can't be picked, and are still uploaded by hand.
 
 ---
 

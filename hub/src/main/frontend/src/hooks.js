@@ -18,6 +18,7 @@ export function useRoute() {
  * Loads `path` from the hub API. It reloads when the hub announces a change on one of `topics`
  * (narrowed to `serverId` if given), and every `refreshMs` as a fallback for when the live
  * connection is down. While a new path loads, the previous data stays available (`stale` is true).
+ * A null `path` loads nothing yet, for a fetch that waits on a choice the user hasn't made.
  */
 export function useApi(path, { refreshMs, topics = [], serverId } = {}) {
   const [state, setState] = useState({ path: null, data: null, error: null })
@@ -25,6 +26,7 @@ export function useApi(path, { refreshMs, topics = [], serverId } = {}) {
   const topicKey = topics.join(',')
 
   useEffect(() => {
+    if (!path) return undefined
     let cancelled = false
     const load = () =>
       api(path).then(

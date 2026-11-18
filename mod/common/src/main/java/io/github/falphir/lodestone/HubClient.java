@@ -93,8 +93,40 @@ public final class HubClient {
         return LodestoneConfig.colorCodes(BanMessages.render(hub.isBlank() ? BanMessages.DEFAULT : hub, reason, expires));
     }
 
-    /** The kick and ban messages ride on both the hello and the heartbeat response. */
+    /**
+     * This server's network MOTD as the hub last sent it, already filled in; null when the hub says it
+     * has none (keep its own). Written from the HTTP threads, applied on the server thread.
+     */
+    private static volatile String hubMotd = null;
+
+    /** What {@link #applyMotd} last put in place, and the server's own MOTD from before. Server thread only. */
+    private static String appliedMotd = null;
+    private static String ownMotd = null;
+
+    /**
+     * Puts the hub's MOTD in place, or the server's own back once the hub has none. Called every tick,
+     * so it's only a comparison until something changes; vanilla rebuilds the server-list status every
+     * few seconds, which is when players see it. Only in memory: server.properties is left alone.
+     */
+    public static void applyMotd(MinecraftServer server) {
+        String wanted = hubMotd;
+        if (Objects.equals(wanted, appliedMotd)) return;
+        if (wanted != null) {
+            if (appliedMotd == null) ownMotd = server.getMotd();
+            server.setMotd(LodestoneConfig.colorCodes(wanted));
+        } else {
+            server.setMotd(ownMotd);
+        }
+        appliedMotd = wanted;
+    }
+
+    /** The kick and ban messages, and the MOTD, ride on both the hello and the heartbeat response. */
     private static void readMessages(JsonObject body) {
+        // an older hub sends no "motd" at all, which must leave things as they are; null means "none"
+        if (body.has("motd")) {
+            JsonElement motd = body.get("motd");
+            hubMotd = motd.isJsonNull() ? null : motd.getAsString();
+        }
         JsonElement message = body.get("whitelistMessage");
         if (message != null && !message.isJsonNull()) {
             hubWhitelistMessage = message.getAsString();

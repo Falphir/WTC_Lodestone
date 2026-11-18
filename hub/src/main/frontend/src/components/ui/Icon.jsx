@@ -9,6 +9,10 @@ import {
   faDownload,
   faEye,
   faEyeSlash,
+  faGear,
+  faAlignLeft,
+  faAlignCenter,
+  faAlignRight,
   faGauge,
   faKey,
   faMagnifyingGlass,
@@ -57,6 +61,10 @@ const ICONS = {
   trash: faTrashCan,
   show: faEye,
   hide: faEyeSlash,
+  settings: faGear,
+  alignLeft: faAlignLeft,
+  alignCenter: faAlignCenter,
+  alignRight: faAlignRight,
 }
 
 export function Icon({ name, size = 16 }) {

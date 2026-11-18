@@ -1,5 +1,8 @@
 package io.github.falphir.hub.service;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -8,6 +11,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -47,31 +51,40 @@ public class PufferPanelClient {
 
     /** Why a call to the panel failed, worded for an admin. Never carries the secret or the token. */
     public static class PanelException extends RuntimeException {
-        PanelException(String message, Throwable cause) {
+        public PanelException(String message, Throwable cause) {
             super(message, cause);
         }
     }
 
     private final LodestoneProperties.PufferPanel config;
     private final RestClient http;
+    /** For the slow calls (a modpack's upload and unpacking), which would outlast the usual timeout. */
+    private final RestClient bulk;
 
     private String token;
     private Instant tokenExpires = Instant.EPOCH;
 
     @Autowired
     public PufferPanelClient(LodestoneProperties properties) {
-        this(properties.pufferpanel(), RestClient.builder().requestFactory(timeouts()));
+        this(properties.pufferpanel(), RestClient.builder().requestFactory(timeout(Duration.ofSeconds(10))),
+                RestClient.builder().requestFactory(timeout(Duration.ofMinutes(30))));
     }
 
     /** Takes the builder so tests can bind it to a mock server. */
     PufferPanelClient(LodestoneProperties.PufferPanel config, RestClient.Builder builder) {
-        this.config = config;
-        this.http = isConfigured() ? builder.baseUrl(config.url().replaceAll("/+$", "")).build() : null;
+        this(config, builder, builder);
     }
 
-    private static JdkClientHttpRequestFactory timeouts() {
+    private PufferPanelClient(LodestoneProperties.PufferPanel config, RestClient.Builder builder, RestClient.Builder bulkBuilder) {
+        this.config = config;
+        String base = isConfigured() ? config.url().replaceAll("/+$", "") : null;
+        this.http = base != null ? builder.baseUrl(base).build() : null;
+        this.bulk = base != null ? bulkBuilder.baseUrl(base).build() : null;
+    }
+
+    private static JdkClientHttpRequestFactory timeout(Duration read) {
         var factory = new JdkClientHttpRequestFactory();
-        factory.setReadTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(read);
         return factory;
     }
 
@@ -107,6 +120,131 @@ public class PufferPanelClient {
     public boolean isRunning(String panelId) {
         Map<?, ?> status = get("/proxy/daemon/server/{id}/status", Map.class, panelId);
         return status != null && Boolean.TRUE.equals(status.get("running"));
+    }
+
+    /** The hub's address as a game server sees it, for the mod config of servers it creates. Null when unset. */
+    public String serverHubUrl() {
+        return config == null || config.serverHubUrl() == null || config.serverHubUrl().isBlank() ? null : config.serverHubUrl();
+    }
+
+    /** Every template the panel has, as the panel describes them ({@code name}, {@code display}, ...). */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> templates() {
+        List<Map<String, Object>> all = get("/api/templates", List.class);
+        return all == null ? List.of() : all;
+    }
+
+    /**
+     * One template in full: its server definition ({@code data} variables, {@code install}, {@code run},
+     * {@code environment}...), which is also exactly the shape a new server is created from.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> template(String name) {
+        return get("/api/templates/{name}", Map.class, name);
+    }
+
+    /** The panel's nodes ({@code id}, {@code name}, {@code isLocal}...). */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> nodes() {
+        List<Map<String, Object>> all = get("/api/nodes", List.class);
+        return all == null ? List.of() : all;
+    }
+
+    /** Creates a server from a template's definition plus {@code node}, {@code users} and {@code name}; returns its new id. */
+    public String createServer(Map<String, Object> body) {
+        Map<?, ?> created = post("/api/servers", body, Map.class);
+        if (created == null || !(created.get("id") instanceof String id)) {
+            throw new PanelException("PufferPanel created the server but didn't say its id", null);
+        }
+        return id;
+    }
+
+    /**
+     * Writes a file into a panel server, creating it or replacing it. {@code path} is relative to the
+     * server's folder, e.g. config/wtc_lodestone-common.toml; it's put in the URL as is, so its slashes
+     * stay slashes. The panel won't create missing folders on a file write ("no such file or
+     * directory" on a server that's only just been created), so the parent folder is made first with
+     * {@code ?folder}, which makes the whole path like mkdir -p and is fine when it already exists.
+     */
+    public void putFile(String panelId, String path, byte[] content) {
+        makeParentFolder(panelId, path);
+        call(bearer -> http.put().uri("/proxy/daemon/server/{id}/file/" + path, panelId)
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(content)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    /**
+     * As {@link #putFile(String, String, byte[])}, streaming a file from disk: for ones too big to hold
+     * in memory. {@code progress} hears how much of it has been sent.
+     */
+    public void putFile(String panelId, String path, Path content, TransferProgress progress) {
+        makeParentFolder(panelId, path);
+        var counted = new FileSystemResource(content) {
+            @Override
+            public InputStream getInputStream() throws IOException {
+                return new TransferProgress.Counting(super.getInputStream(), contentLength(), progress);
+            }
+        };
+        call(bearer -> bulk.put().uri("/proxy/daemon/server/{id}/file/" + path, panelId)
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(counted)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    private void makeParentFolder(String panelId, String path) {
+        int slash = path.lastIndexOf('/');
+        if (slash > 0) {
+            call(bearer -> http.put().uri("/proxy/daemon/server/{id}/file/" + path.substring(0, slash) + "?folder", panelId)
+                    .header("Authorization", bearer)
+                    .retrieve()
+                    .toBodilessEntity());
+        }
+    }
+
+    /**
+     * Unpacks an archive that's in the server's folder into the server's root. The panel answers once
+     * it's done, so this can take a while. It won't unpack over a file that's already there.
+     */
+    public void extract(String panelId, String archive) {
+        call(bearer -> bulk.get().uri("/proxy/daemon/server/{id}/extract/" + archive, panelId)
+                .header("Authorization", bearer)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    /**
+     * Deletes a folder in the server's folder, with everything in it. One that's already gone counts as
+     * deleted. Only for folders: 2.7.1's delete lists the path as a folder first, so on a lone file it
+     * fails with "readdirent: not a directory".
+     */
+    public void deleteFolder(String panelId, String path) {
+        try {
+            call(bearer -> http.delete().uri("/proxy/daemon/server/{id}/file/" + path, panelId)
+                    .header("Authorization", bearer)
+                    .retrieve()
+                    .toBodilessEntity());
+        } catch (PanelException e) {
+            if (!(e.getCause() instanceof HttpClientErrorException.NotFound)) throw e;
+        }
+    }
+
+    /** Runs the server's install steps (from its template) in the background. */
+    public void install(String panelId) {
+        power(panelId, "install");
+    }
+
+    /** Deletes a panel server, files and world included. One that's already gone counts as deleted. */
+    public void deleteServer(String panelId) {
+        try {
+            call(bearer -> http.delete().uri("/api/servers/{id}", panelId).header("Authorization", bearer).retrieve().toBodilessEntity());
+        } catch (PanelException e) {
+            if (!(e.getCause() instanceof HttpClientErrorException.NotFound)) throw e;
+        }
     }
 
     /** A GET against the panel, signed in. Later steps build their calls on this. */

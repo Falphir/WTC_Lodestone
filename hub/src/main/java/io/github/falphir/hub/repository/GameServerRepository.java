@@ -17,6 +17,9 @@ public interface GameServerRepository extends JpaRepository<GameServer, String> 
     /** Every server linked to a PufferPanel server, to mark the panel's list with who holds what. */
     List<GameServer> findByPufferpanelIdNotNull();
 
+    /** The servers showing a network MOTD, to say which ones use it. */
+    List<GameServer> findByMotdTemplateId(Long motdTemplateId);
+
     /**
      * Bulk update, not a load-then-save: changing an entity's own @Id through the persistence
      * context is unreliable (a later flush would still look for the row under its old id).
