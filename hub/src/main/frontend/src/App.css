@@ -1659,6 +1659,26 @@ button.modpack-card {
   cursor: pointer;
 }
 
+/* a small "Beta" pill beside the name of something still new */
+.beta-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.note > .beta-tag:first-child {
+  margin-left: 0;
+  margin-right: 4px;
+}
+
 /* the New server dialog's opening choice: an icon where a pack card has its logo, and the text in full */
 .modpack-card > .path-icon {
   display: grid;

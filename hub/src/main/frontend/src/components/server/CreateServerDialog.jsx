@@ -168,7 +168,9 @@ export function CreateServerDialog({ onClose, onCreated }) {
                       <Icon name="download" />
                     </span>
                     <span>
-                      <strong>From a CurseForge modpack</strong>
+                      <strong>
+                        From a CurseForge modpack <span className="beta-tag">Beta</span>
+                      </strong>
                       <small className="muted">
                         Pick a pack and a version. Its server files go on the server, and the template and its versions
                         are chosen to match.
@@ -191,6 +193,10 @@ export function CreateServerDialog({ onClose, onCreated }) {
 
           {current === 'Modpack' && (
             <>
+              <Note>
+                <span className="beta-tag">Beta</span> Creating from a modpack is new. Check the server's files and its
+                first start in PufferPanel before opening it to players.
+              </Note>
               <ModpackPicker value={modpack} onChange={setModpack} />
               {modpack?.file && setupStale && <p className="muted">Reading what the pack runs on…</p>}
               {modpack?.file && !setupStale && setup && (
