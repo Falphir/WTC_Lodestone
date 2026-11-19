@@ -55,7 +55,7 @@ class BridgeSyncTest {
         String admin = adminToken();
 
         mvc.perform(post("/api/bridge/hello").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"modVersion\":\"1.2.0\",\"minecraftVersion\":\"1.21.1\",\"loaderVersion\":\"21.1.231\",\"syncWhitelist\":true}"))
+                        .content("{\"modVersion\":\"1.2.0\",\"minecraftVersion\":\"1.21.1\",\"loader\":\"neoforge\",\"loaderVersion\":\"21.1.231\",\"syncWhitelist\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.heartbeatIntervalSeconds").value(60))
                 .andExpect(jsonPath("$.whitelistSyncIntervalSeconds").value(10));
@@ -71,6 +71,7 @@ class BridgeSyncTest {
                 .andExpect(status().isOk());
 
         assertThat(serverView(admin, "$.mod.version")).isEqualTo("1.2.0");
+        assertThat(serverView(admin, "$.mod.loader")).isEqualTo("neoforge");
         assertThat(serverView(admin, "$.whitelist.enabled")).isEqualTo(true);
         assertThat(serverView(admin, "$.whitelist.current")).isEqualTo(true);
         assertThat(serverView(admin, "$.status")).isEqualTo("ONLINE");

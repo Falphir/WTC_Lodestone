@@ -64,9 +64,9 @@ public class BridgeController {
             description = "Called by the mod on startup with its versions and settings. Returns how often to send heartbeats and to poll the whitelist, "
                     + "the network kick message (empty: use the mod config's own), and this server's network MOTD (null: keep its own).")
     public HelloResponse hello(Authentication authentication, @Valid @RequestBody(required = false) HelloRequest request) {
-        HelloRequest r = request != null ? request : new HelloRequest(null, null, null, null, null, null);
+        HelloRequest r = request != null ? request : new HelloRequest(null, null, null, null, null, null, null);
         GameServer server = serverService.checkIn(authentication.getName(),
-                r.modVersion(), r.minecraftVersion(), r.loaderVersion(), r.syncWhitelist(), r.enforceWhitelist(), r.syncBans());
+                r.modVersion(), r.minecraftVersion(), r.loader(), r.loaderVersion(), r.syncWhitelist(), r.enforceWhitelist(), r.syncBans());
         return new HelloResponse(server.getId(), server.getName(), "Connected to WTC Lodestone",
                 serverService.heartbeatInterval().toSeconds(), whitelistSyncIntervalSeconds, whitelistService.kickMessage(),
                 banService.message(), motds.renderFor(server));
@@ -75,6 +75,8 @@ public class BridgeController {
     public record HelloRequest(
             @Size(max = 32) String modVersion,
             @Size(max = 32) String minecraftVersion,
+            /** "neoforge", "forge"; null from mods older than this field. */
+            @Size(max = 32) String loader,
             @Size(max = 32) String loaderVersion,
             Boolean syncWhitelist,
             /** The server's own enforce-whitelist setting; null from mods older than this field. */
