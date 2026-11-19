@@ -1,10 +1,10 @@
 import { Badge } from '../ui/Badge'
-import { whitelistSync } from '../../format'
+import { loaderName, whitelistSync } from '../../format'
 
 /** What the mod reported about itself on check-in. */
 export function ServerSetup({ server }) {
   const sync = whitelistSync(server)
-  const { version, minecraftVersion, loaderVersion } = server.mod
+  const { version, minecraftVersion, loader, loaderVersion } = server.mod
   return (
     <dl className="setup">
       <div>
@@ -16,7 +16,8 @@ export function ServerSetup({ server }) {
         <dd className="mono">{minecraftVersion ?? 'Not reported'}</dd>
       </div>
       <div>
-        <dt>NeoForge</dt>
+        {/* mods older than the loader field don't say which */}
+        <dt>{loader ? loaderName(loader) : 'Loader'}</dt>
         <dd className="mono">{loaderVersion ?? 'Not reported'}</dd>
       </div>
       <div>
