@@ -34,6 +34,8 @@ bin/
 
 ### Minecraft Modding ###
 run/
+# a dev server per loader that needs its own world (forge-1.20.1's runs in run-forge-1.20.1/)
+run-*/
 !**/src/**/run/
 **/src/generated/**/.cache/
 repo/
