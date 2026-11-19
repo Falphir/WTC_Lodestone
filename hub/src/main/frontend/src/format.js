@@ -119,9 +119,12 @@ export const slugify = (name) =>
 
 const LOADERS = { neoforge: 'NeoForge', forge: 'Forge', fabric: 'Fabric', quilt: 'Quilt' }
 
+/** A loader's name as its project writes it, from the lower-case id a manifest or the mod reports. */
+export const loaderName = (loader) => LOADERS[loader] ?? loader
+
 /** What a pack runs on, from the hub's pack setup: "NeoForge 21.1.265, Minecraft 1.21.1". */
 export function packRunsOn(setup) {
-  const loader = setup?.loader && [LOADERS[setup.loader] ?? setup.loader, setup.loaderVersion].filter(Boolean).join(' ')
+  const loader = setup?.loader && [loaderName(setup.loader), setup.loaderVersion].filter(Boolean).join(' ')
   const minecraft = setup?.minecraftVersion && `Minecraft ${setup.minecraftVersion}`
   return [loader, minecraft].filter(Boolean).join(', ')
 }

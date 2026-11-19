@@ -43,6 +43,10 @@ public class GameServer {
     @Column(name = "minecraft_version", length = 32)
     private String minecraftVersion;
 
+    /** "neoforge", "forge": the loader the mod reported it runs on; null until it says. */
+    @Column(name = "loader", length = 32)
+    private String loader;
+
     @Column(name = "loader_version", length = 32)
     private String loaderVersion;
 
@@ -125,10 +129,11 @@ public class GameServer {
     }
 
     /** Stores what the mod reported about itself on check-in. */
-    public void reportSetup(String modVersion, String minecraftVersion, String loaderVersion, Boolean syncWhitelist,
+    public void reportSetup(String modVersion, String minecraftVersion, String loader, String loaderVersion, Boolean syncWhitelist,
             Boolean enforceWhitelist, Boolean syncBans) {
         this.modVersion = modVersion;
         this.minecraftVersion = minecraftVersion;
+        this.loader = loader;
         this.loaderVersion = loaderVersion;
         this.syncWhitelist = syncWhitelist;
         this.enforceWhitelist = enforceWhitelist;
@@ -158,6 +163,7 @@ public class GameServer {
     public Instant getLastSeen() { return lastSeen; }
     public String getModVersion() { return modVersion; }
     public String getMinecraftVersion() { return minecraftVersion; }
+    public String getLoader() { return loader; }
     public String getLoaderVersion() { return loaderVersion; }
     public Boolean getSyncWhitelist() { return syncWhitelist; }
     public Boolean getEnforceWhitelist() { return enforceWhitelist; }

@@ -186,7 +186,7 @@ public final class HubClient {
     }
 
     /** Checks in with the hub: reports this server's setup, and logs whether the connection and token work. */
-    public static void hello(String modVersion, String minecraftVersion, String loaderVersion, boolean enforceWhitelist) {
+    public static void hello(Lodestone.Platform platform, boolean enforceWhitelist) {
         String url = baseUrl() + "/api/bridge/hello";
 
         if (LodestoneConfig.dryRun()) {
@@ -195,9 +195,10 @@ public final class HubClient {
         }
 
         JsonObject body = new JsonObject();
-        body.addProperty("modVersion", modVersion);
-        body.addProperty("minecraftVersion", minecraftVersion);
-        body.addProperty("loaderVersion", loaderVersion);
+        body.addProperty("modVersion", platform.modVersion());
+        body.addProperty("minecraftVersion", platform.minecraftVersion());
+        body.addProperty("loader", platform.loader());
+        body.addProperty("loaderVersion", platform.loaderVersion());
         body.addProperty("syncWhitelist", LodestoneConfig.syncWhitelist());
         // server.properties, not ours: with this off, syncing the whitelist never kicks anyone,
         // so the hub shows it rather than letting the mismatch pass silently.
@@ -265,7 +266,7 @@ public final class HubClient {
         long memoryMaxMb = runtime.maxMemory() / (1024 * 1024);
         // mspt is the honest number: tps saturates at 20 the moment a tick fits in its 50ms budget,
         // so it can't show a server going from comfortable to nearly-late.
-        double mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
+        double mspt = Lodestone.averageTickMillis(server);
         double tps = Math.min(20.0, 1000.0 / Math.max(50.0, mspt));
 
         JsonArray players = new JsonArray();

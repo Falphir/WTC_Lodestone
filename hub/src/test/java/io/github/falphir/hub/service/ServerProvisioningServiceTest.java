@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,27 +63,32 @@ class ServerProvisioningServiceTest {
     void panelWithANeoForgeTemplate() {
         when(panel.isConfigured()).thenReturn(true);
         when(panel.serverHubUrl()).thenReturn("http://127.0.0.1:8081");
-        when(panel.template("neoforge")).thenReturn(Map.of(
-                "name", "neoforge",
+        when(panel.template("minecraft-neoforge")).thenReturn(Map.of(
+                "name", "minecraft-neoforge",
                 "display", "NeoForge",
                 "readme", "notes",
                 "data", Map.of(
                         "memory", Map.of("type", "integer", "value", 2048, "display", "Memory (MB)"),
                         "port", Map.of("type", "integer", "value", 25565),
+                        "version", Map.of("type", "string", "value", "21.1.265"),
                         "secret", Map.of("type", "string", "value", "x", "internal", true)),
                 "supportedEnvironments", List.of(Map.of("type", "standard"))));
         when(panel.nodes()).thenReturn(List.of(Map.of("id", 0, "name", "LocalNode")));
         when(panel.createServer(any())).thenReturn(PANEL_ID);
         // registering links it, and linking checks the panel has it
         when(panel.listServers()).thenReturn(List.of(new PufferPanelClient.PanelServer(PANEL_ID, "Provisioned", 0, null, 25570, "minecraft-java")));
-        when(modRelease.latestNeoForgeJar()).thenReturn(new ModRelease.Jar("wtc_lodestone-neoforge-1.21.1-1.0.0.jar", new byte[] {1, 2, 3}));
+        // the release has a NeoForge 1.21.1 and a Forge 1.20.1 build, and nothing else
+        when(modRelease.jarFor("neoforge", "1.21.1"))
+                .thenReturn(Optional.of(new ModRelease.Jar("wtc_lodestone-neoforge-1.21.1-1.0.0.jar", new byte[] {1, 2, 3})));
+        when(modRelease.jarFor("forge", "1.20.1"))
+                .thenReturn(Optional.of(new ModRelease.Jar("wtc_lodestone-forge-1.20.1-1.0.0.jar", new byte[] {4, 5, 6})));
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void createsTheServerRegistersItAndWritesItsModConfigAndJar() {
         var created = provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of("memory", 4096, "port", 25570), null), "admin");
+                "minecraft-neoforge", null, "prov-test", "Provisioned", Map.of("memory", 4096, "port", 25570), null), "admin");
 
         ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
         verify(panel).createServer(body.capture());
@@ -112,7 +118,7 @@ class ServerProvisioningServiceTest {
         when(curseForge.modpack(100)).thenReturn(PACK);
         when(curseForge.file(100, 200)).thenReturn(PACK_FILE);
 
-        var created = provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test", "Provisioned",
                 Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin");
 
         assertThat(created.modpackPending()).isTrue();
@@ -130,7 +136,7 @@ class ServerProvisioningServiceTest {
     void aNeoForge1211PackGetsTheModJar() {
         whenCreatingFromAPackThatRunsOn(new CurseForgeClient.PackManifest("1.21.1", "neoforge", "21.1.265", null));
 
-        var created = provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test", "Provisioned",
                 Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin");
 
         verify(panel).putFile(PANEL_ID, "mods/wtc_lodestone-neoforge-1.21.1-1.0.0.jar", new byte[] {1, 2, 3});
@@ -138,26 +144,60 @@ class ServerProvisioningServiceTest {
     }
 
     @Test
-    void aForge1201PackSkipsTheJarWithAWarning() {
-        // the only build is NeoForge 1.21.1: a Forge server couldn't load it
+    void aForge1201PackGetsTheForgeJar() {
         whenCreatingFromAPackThatRunsOn(new CurseForgeClient.PackManifest("1.20.1", "forge", "47.3.0", null));
 
-        var created = provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test", "Provisioned",
                 Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin");
 
-        verify(modRelease, never()).latestNeoForgeJar();
-        verify(panel, never()).putFile(eq(PANEL_ID), startsWith("mods/"), any(byte[].class));
-        assertThat(created.warnings()).containsExactly("No WTC Lodestone build for Forge 1.20.1 yet: the mod wasn't installed.");
+        verify(panel).putFile(PANEL_ID, "mods/wtc_lodestone-forge-1.20.1-1.0.0.jar", new byte[] {4, 5, 6});
+        assertThat(created.warnings()).isEmpty();
     }
 
     @Test
-    void aBlankTemplateStillGetsTheModJar() {
+    void aPackWithoutABuildSkipsTheJarWithAWarning() {
+        // a jar for another loader or version wouldn't load
+        whenCreatingFromAPackThatRunsOn(new CurseForgeClient.PackManifest("1.20.1", "fabric", "0.16.0", null));
+
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test", "Provisioned",
+                Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin");
+
+        verify(panel, never()).putFile(eq(PANEL_ID), startsWith("mods/"), any(byte[].class));
+        assertThat(created.warnings()).containsExactly("No WTC Lodestone build for Fabric 1.20.1 yet: the mod wasn't installed.");
+    }
+
+    @Test
+    void aBlankTemplateGetsTheJarItsSettingsRunOn() {
         var created = provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
+                "minecraft-neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
 
         verify(panel).putFile(PANEL_ID, "mods/wtc_lodestone-neoforge-1.21.1-1.0.0.jar", new byte[] {1, 2, 3});
         verify(curseForge, never()).manifest(anyInt(), anyInt()); // nothing to ask without a pack
         assertThat(created.warnings()).isEmpty();
+    }
+
+    @Test
+    void aBlankForgeTemplateGetsTheForgeJar() {
+        when(panel.template("minecraft-forge")).thenReturn(Map.of("name", "minecraft-forge", "data", Map.of(
+                "version", Map.of("type", "string", "value", "1.21.1-52.0.0"))));
+
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest(
+                "minecraft-forge", null, "prov-test", "Provisioned", Map.of("version", "1.20.1-47.4.28"), null), "admin");
+
+        // the value chosen in the form, not the template's default
+        verify(panel).putFile(PANEL_ID, "mods/wtc_lodestone-forge-1.20.1-1.0.0.jar", new byte[] {4, 5, 6});
+        assertThat(created.warnings()).isEmpty();
+    }
+
+    @Test
+    void aTemplateThatCantBeReadSkipsTheJarWithAWarning() {
+        when(panel.template("vanilla")).thenReturn(Map.of("name", "vanilla", "data", Map.of()));
+
+        var created = provisioning.create(new ServerProvisioningService.CreateRequest(
+                "vanilla", null, "prov-test", "Provisioned", Map.of(), null), "admin");
+
+        verify(panel, never()).putFile(eq(PANEL_ID), startsWith("mods/"), any(byte[].class));
+        assertThat(created.warnings()).containsExactly("Couldn't tell what the server runs, so the WTC Lodestone mod wasn't installed.");
     }
 
     private void whenCreatingFromAPackThatRunsOn(CurseForgeClient.PackManifest manifest) {
@@ -188,12 +228,12 @@ class ServerProvisioningServiceTest {
         when(curseForge.isConfigured()).thenReturn(true);
         when(curseForge.modpack(100)).thenReturn(PACK);
         when(curseForge.file(100, 200)).thenReturn(new CurseForgeClient.PackFile(200, 201, "All the Mods 10-8.4", List.of("1.21.1"), null));
-        when(panel.template("neoforge")).thenReturn(Map.of("name", "neoforge", "data", Map.of(
+        when(panel.template("minecraft-neoforge")).thenReturn(Map.of("name", "minecraft-neoforge", "data", Map.of(
                 "motd", Map.of("type", "string", "value", "A Minecraft Server"),
                 "memory", Map.of("type", "integer", "value", 2048))));
         long motd = motds.create("provisioning-test-motd", "§6WTC\\n§2{modpack} §8| §7v{version}").id();
 
-        provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned", Map.of(),
+        provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test", "Provisioned", Map.of(),
                 new ServerProvisioningService.Modpack(100, 200), motd), "admin");
 
         ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
@@ -209,11 +249,11 @@ class ServerProvisioningServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void aMotdTypedIntoTheFormWinsOverTheChosenOne() {
-        when(panel.template("neoforge")).thenReturn(Map.of("name", "neoforge", "data", Map.of(
+        when(panel.template("minecraft-neoforge")).thenReturn(Map.of("name", "minecraft-neoforge", "data", Map.of(
                 "motd", Map.of("type", "string", "value", "A Minecraft Server"))));
         long motd = motds.create("provisioning-test-motd-2", "Welcome to {name}").id();
 
-        provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned",
+        provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test", "Provisioned",
                 Map.of("motd", "Mine"), null, motd), "admin");
 
         ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
@@ -227,7 +267,7 @@ class ServerProvisioningServiceTest {
         when(curseForge.modpack(100)).thenReturn(new CurseForgeClient.Modpack(100, "Locked", null, null, null, false));
         when(curseForge.file(100, 200)).thenReturn(PACK_FILE);
 
-        assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test",
+        assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test",
                 "Provisioned", Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin"))
                 .hasMessageContaining("CurseForge app");
         verify(panel, never()).createServer(any());
@@ -237,7 +277,7 @@ class ServerProvisioningServiceTest {
     void aModpackWithoutCurseForgeConfiguredIsRefused() {
         when(curseForge.isConfigured()).thenReturn(false);
 
-        assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test",
+        assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test",
                 "Provisioned", Map.of(), new ServerProvisioningService.Modpack(100, 200)), "admin"))
                 .hasMessageContaining("CurseForge isn't configured");
         verify(panel, never()).createServer(any());
@@ -246,27 +286,27 @@ class ServerProvisioningServiceTest {
     @Test
     void anUnknownOrInternalSettingIsRefusedBeforeAnythingIsCreated() {
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of("secret", "y"), null), "admin"))
+                "minecraft-neoforge", null, "prov-test", "Provisioned", Map.of("secret", "y"), null), "admin"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("no setting 'secret'");
         verify(panel, never()).createServer(any());
     }
 
     @Test
     void aTakenHubIdIsRefusedBeforeThePanelIsAsked() {
-        provisioning.create(new ServerProvisioningService.CreateRequest("neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
+        provisioning.create(new ServerProvisioningService.CreateRequest("minecraft-neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
 
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Again", Map.of(), null), "admin"))
+                "minecraft-neoforge", null, "prov-test", "Again", Map.of(), null), "admin"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("already exists");
         verify(panel).createServer(any()); // only the first one
     }
 
     @Test
     void aMissingJarIsAWarningNotAFailure() {
-        when(modRelease.latestNeoForgeJar()).thenThrow(new IllegalStateException("couldn't reach GitHub"));
+        when(modRelease.jarFor("neoforge", "1.21.1")).thenThrow(new IllegalStateException("couldn't reach GitHub"));
 
         var created = provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
+                "minecraft-neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin");
 
         assertThat(created.warnings()).singleElement().asString().contains("mod jar", "couldn't reach GitHub");
         verify(panel).install(PANEL_ID);
@@ -278,7 +318,7 @@ class ServerProvisioningServiceTest {
         when(panel.listServers()).thenReturn(List.of());
 
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin"))
+                "minecraft-neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin"))
                 .isInstanceOf(ResponseStatusException.class);
         verify(panel).deleteServer(PANEL_ID);
         verify(panel, never()).putFile(anyString(), anyString(), any(byte[].class));
@@ -289,7 +329,7 @@ class ServerProvisioningServiceTest {
         when(panel.serverHubUrl()).thenReturn(null);
 
         assertThatThrownBy(() -> provisioning.create(new ServerProvisioningService.CreateRequest(
-                "neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin"))
+                "minecraft-neoforge", null, "prov-test", "Provisioned", Map.of(), null), "admin"))
                 .hasMessageContaining("LODESTONE_PUFFERPANEL_SERVER_HUB_URL");
         verify(panel, never()).createServer(any());
     }

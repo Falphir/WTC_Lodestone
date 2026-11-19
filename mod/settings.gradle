@@ -12,3 +12,4 @@ plugins {
 // build.gradle), so common/ is a source directory rather than a project of its own --
 // there is nothing to build without a loader to build it against.
 include 'neoforge'
+include 'forge-1.20.1'

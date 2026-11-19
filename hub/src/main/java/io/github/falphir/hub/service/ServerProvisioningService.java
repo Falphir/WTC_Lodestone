@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -210,7 +211,7 @@ public class ServerProvisioningService {
         List<String> warnings = new ArrayList<>();
         attempt(warnings, "write the mod config", () ->
                 panel.putFile(panelId, CONFIG_PATH, modConfig(hubUrl, request.hubId(), registered.token()).getBytes(StandardCharsets.UTF_8)));
-        addModJar(warnings, panelId, request.modpack());
+        addModJar(warnings, panelId, request.modpack(), request.template(), data);
         if (pack != null) {
             // the install runs once the pack's files are in place
             modpackSetup.start(request.hubId(), panelId, pack, packFile);
@@ -225,26 +226,34 @@ public class ServerProvisioningService {
     }
 
     /**
-     * The mod jar goes in mods/ only where there's a build for it. A blank template gets it as always; a
-     * pack says what it runs on through its manifest (as for picking its template), and one the release
-     * has no build for gets a warning instead, since a jar for another loader or version wouldn't load.
+     * The mod jar goes in mods/ only where the release has a build for what the server runs, since a jar
+     * for another loader or version wouldn't load. A pack says what it runs through its manifest (as for
+     * picking its template), a blank server through its template and the settings chosen for it.
      */
-    private void addModJar(List<String> warnings, String panelId, Modpack modpack) {
+    private void addModJar(List<String> warnings, String panelId, Modpack modpack, String template, Map<String, Object> data) {
+        PackTemplates.RunsOn runsOn;
         if (modpack != null) {
-            CurseForgeClient.PackManifest runsOn = curseForge.manifest(modpack.modId(), modpack.fileId());
-            if (runsOn == null) {
-                warnings.add("Couldn't tell what the pack runs on, so the WTC Lodestone mod wasn't installed.");
-                return;
-            }
-            if (!ModRelease.hasBuildFor(runsOn.loader(), runsOn.minecraftVersion())) {
+            CurseForgeClient.PackManifest manifest = curseForge.manifest(modpack.modId(), modpack.fileId());
+            runsOn = manifest == null ? null : new PackTemplates.RunsOn(manifest.loader(), manifest.minecraftVersion());
+        } else {
+            Map<String, Object> settings = new HashMap<>();
+            data.forEach((key, variable) -> {
+                if (variable instanceof Map<?, ?> v && v.get("value") != null) settings.put(key, v.get("value"));
+            });
+            runsOn = PackTemplates.runsOn(template, settings);
+        }
+        if (runsOn == null || runsOn.loader() == null || runsOn.minecraftVersion() == null) {
+            warnings.add("Couldn't tell what the server runs, so the WTC Lodestone mod wasn't installed.");
+            return;
+        }
+        attempt(warnings, "add the WTC Lodestone mod jar", () -> {
+            Optional<ModRelease.Jar> jar = modRelease.jarFor(runsOn.loader(), runsOn.minecraftVersion());
+            if (jar.isEmpty()) {
                 warnings.add("No WTC Lodestone build for " + loaderName(runsOn.loader()) + " " + runsOn.minecraftVersion()
                         + " yet: the mod wasn't installed.");
                 return;
             }
-        }
-        attempt(warnings, "add the WTC Lodestone mod jar", () -> {
-            ModRelease.Jar jar = modRelease.latestNeoForgeJar();
-            panel.putFile(panelId, "mods/" + jar.fileName(), jar.bytes());
+            panel.putFile(panelId, "mods/" + jar.get().fileName(), jar.get().bytes());
         });
     }
 

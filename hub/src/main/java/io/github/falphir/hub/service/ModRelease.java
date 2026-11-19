@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,26 +16,13 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Fetches the WTC Lodestone mod jar from the newest GitHub release, so a server created from the
+ * Fetches a WTC Lodestone mod jar from the newest GitHub release, so a server created from the
  * dashboard has it in mods/ from its first start. The repo is public, so no token is involved.
  */
 @Component
 public class ModRelease {
 
     public record Jar(String fileName, byte[] bytes) {}
-
-    /** What the release's one jar is built for, as mod/gradle.properties has it. */
-    static final String LOADER = "neoforge";
-    static final String MINECRAFT = "1.21.1";
-
-    /**
-     * Whether the release has a jar for this loader and Minecraft version. The one place that knows which
-     * builds exist: it becomes "pick the matching jar" when a Forge 1.20.1 build is added (issue #8).
-     * Static, so it holds wherever this bean is mocked.
-     */
-    static boolean hasBuildFor(String loader, String minecraftVersion) {
-        return LOADER.equals(loader) && MINECRAFT.equals(minecraftVersion);
-    }
 
     private final String repo;
     private final RestClient http;
@@ -59,8 +47,14 @@ public class ModRelease {
         return factory;
     }
 
-    /** The NeoForge jar of the latest release. Throws with an admin-readable message when it can't. */
-    public Jar latestNeoForgeJar() {
+    /**
+     * The latest release's jar for this loader and Minecraft version, named
+     * wtc_lodestone-<loader>-<minecraft>-<version>.jar as release.yml publishes it; empty when the release
+     * has no such build, so the releases alone decide which builds exist. Throws with an admin-readable
+     * message when GitHub can't be asked.
+     */
+    public Optional<Jar> jarFor(String loader, String minecraftVersion) {
+        String prefix = "wtc_lodestone-" + loader + "-" + minecraftVersion + "-";
         try {
             // Spliced in rather than passed as {repo}: a URI variable gets its "/" encoded as %2F,
             // which GitHub answers with a 404. The repo is the hub's own config, not user input.
@@ -71,14 +65,14 @@ public class ModRelease {
             List<?> assets = release == null || !(release.get("assets") instanceof List<?> list) ? List.of() : list;
             for (Object asset : assets) {
                 if (asset instanceof Map<?, ?> a && a.get("name") instanceof String name
-                        && name.startsWith("wtc_lodestone-neoforge-") && name.endsWith(".jar")
+                        && name.startsWith(prefix) && name.endsWith(".jar")
                         && a.get("browser_download_url") instanceof String url) {
                     byte[] bytes = http.get().uri(URI.create(url)).retrieve().body(byte[].class);
                     if (bytes == null || bytes.length == 0) throw new IllegalStateException("the download was empty");
-                    return new Jar(name, bytes);
+                    return Optional.of(new Jar(name, bytes));
                 }
             }
-            throw new IllegalStateException("the latest release of " + repo + " has no NeoForge jar");
+            return Optional.empty();
         } catch (RestClientResponseException e) {
             throw new IllegalStateException("GitHub answered HTTP " + e.getStatusCode().value() + " for " + repo + "'s latest release", e);
         } catch (RestClientException e) {
