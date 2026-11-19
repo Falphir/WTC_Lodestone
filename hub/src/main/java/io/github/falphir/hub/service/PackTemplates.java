@@ -56,6 +56,32 @@ final class PackTemplates {
         return new Suggestion(template, values, pack.loader(), pack.loaderVersion(), mc);
     }
 
+    /** What a server runs: a loader as a manifest names it, and its Minecraft version. */
+    record RunsOn(String loader, String minecraftVersion) {}
+
+    /** NeoForge's own version carries Minecraft's: 21.1.77 is for 1.21.1, 21.0.x for 1.21. */
+    private static final Pattern NEOFORGE = Pattern.compile("(\\d+)\\.(\\d+)\\..*");
+
+    /**
+     * The other way round from {@link #suggest}: what a server made from this template with these settings
+     * runs, so a blank server gets the mod jar built for it. Null when it can't be told.
+     */
+    static RunsOn runsOn(String template, Map<String, Object> settings) {
+        String version = settings.get("version") instanceof Object v ? String.valueOf(v) : "";
+        return switch (template == null ? "" : template) {
+            case "minecraft-neoforge" -> {
+                Matcher m = NEOFORGE.matcher(version);
+                yield m.matches() ? new RunsOn("neoforge", "1." + m.group(1) + (m.group(2).equals("0") ? "" : "." + m.group(2))) : null;
+            }
+            // version is <minecraft>-<forge>, as suggest writes it
+            case "minecraft-forge", "minecraft-forge-legacy" ->
+                    version.contains("-") ? new RunsOn("forge", version.substring(0, version.indexOf('-'))) : null;
+            case "minecraft-fabric" -> settings.get("game-version") instanceof Object v && !String.valueOf(v).isBlank()
+                    ? new RunsOn("fabric", String.valueOf(v)) : null;
+            default -> null;
+        };
+    }
+
     /** The last dotted version in a name: "All the Mods 10-8.4" → 8.4, "v0.6.4a" → 0.6.4a. */
     private static final Pattern VERSION = Pattern.compile("\\d+(?:\\.\\d+)+[A-Za-z0-9]*");
 

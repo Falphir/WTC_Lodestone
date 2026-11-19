@@ -82,4 +82,25 @@ class PackTemplatesTest {
         assertThat(PackTemplates.javaFor("1.18")).isEqualTo("17");
         assertThat(PackTemplates.javaFor("1.17.1")).isEqualTo("8");
     }
+
+    @Test
+    void aTemplatesSettingsTellWhatItRuns() {
+        assertThat(PackTemplates.runsOn("minecraft-neoforge", Map.of("version", "21.1.265")))
+                .isEqualTo(new PackTemplates.RunsOn("neoforge", "1.21.1"));
+        assertThat(PackTemplates.runsOn("minecraft-neoforge", Map.of("version", "21.0.167")))
+                .isEqualTo(new PackTemplates.RunsOn("neoforge", "1.21"));
+        assertThat(PackTemplates.runsOn("minecraft-forge", Map.of("version", "1.20.1-47.4.28")))
+                .isEqualTo(new PackTemplates.RunsOn("forge", "1.20.1"));
+        assertThat(PackTemplates.runsOn("minecraft-forge-legacy", Map.of("version", "1.16.5-36.2.39", "mc-version", "1.16.5")))
+                .isEqualTo(new PackTemplates.RunsOn("forge", "1.16.5"));
+        assertThat(PackTemplates.runsOn("minecraft-fabric", Map.of("game-version", "1.20.1")))
+                .isEqualTo(new PackTemplates.RunsOn("fabric", "1.20.1"));
+    }
+
+    @Test
+    void aTemplateItCantReadRunsNothingKnown() {
+        assertThat(PackTemplates.runsOn("minecraft-neoforge", Map.of("version", "latest"))).isNull();
+        assertThat(PackTemplates.runsOn("minecraft-forge", Map.of())).isNull();
+        assertThat(PackTemplates.runsOn("vanilla", Map.of("version", "1.21.1"))).isNull();
+    }
 }
