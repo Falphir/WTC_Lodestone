@@ -1,6 +1,6 @@
 # WTC Lodestone
 
-Cross-server integration for the **WTC Network**. A server-side NeoForge mod runs on each modpack
+Cross-server integration for the **WTC Network**. A server-side mod (NeoForge or Forge) runs on each modpack
 server and checks in with a central service (the **hub**), which gives staff one place to see every
 server's health, one whitelist shared across the whole network, and a Discord bot that can approve
 applications and link accounts without anyone touching a server console.
@@ -43,7 +43,7 @@ Every arrow points at the hub, and that is the whole design:
 
 | Folder | What it is |
 |---|---|
-| `mod/` | Server-side NeoForge 1.21.1 mod (`wtc_lodestone`); `common/` holds the loader-free code |
+| `mod/` | Server-side mod (`wtc_lodestone`) for NeoForge 1.21.1 (`neoforge/`) and Forge 1.20.1 (`forge-1.20.1/`); `common/` holds the loader-free code both build |
 | `hub/` | Spring Boot service: REST API, WebSocket, and it serves the dashboard |
 | `hub/src/main/frontend/` | Dashboard (React + Vite, plain JS/JSX), built into the hub jar |
 | `discord/` | Discord bot (discord.js): applications, approvals, account linking |
@@ -56,7 +56,7 @@ is a plain Node project.
 
 ## Tech stack
 
-- **Mod:** NeoForge 1.21.1, Java 21, ModDevGradle
+- **Mod:** NeoForge 1.21.1 (Java 21) and Forge 1.20.1 (Java 17), ModDevGradle
 - **Hub:** Spring Boot, Java 21, Spring Data JPA, Flyway, Spring Security
 - **Database:** MariaDB
 - **Dashboard:** React, Vite, plain JS/JSX, ESLint
@@ -119,7 +119,14 @@ cd mod
 ./gradlew :neoforge:runServer      # Windows: .\gradlew.bat :neoforge:runServer
 ```
 
-On the first run, accept the EULA in `mod/run/eula.txt` and run again.
+On the first run, accept the EULA in `mod/run/eula.txt` and run again. The Forge 1.20.1 build runs
+the same way with `:forge-1.20.1:runServer`, in `mod/run-forge-1.20.1/`; it needs a JDK 17 next to
+the 21 Gradle runs on.
+
+`./gradlew build` builds both jars: `neoforge/build/libs/wtc_lodestone-neoforge-1.21.1-<version>.jar`
+and `forge-1.20.1/build/libs/wtc_lodestone-forge-1.20.1-<version>.jar`. A `v*` tag attaches both to
+the GitHub release, and a server created from the dashboard gets the one matching its loader and
+Minecraft version.
 
 ### 5. Discord bot
 
