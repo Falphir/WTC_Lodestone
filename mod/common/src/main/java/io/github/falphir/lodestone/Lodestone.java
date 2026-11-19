@@ -1,5 +1,7 @@
 package io.github.falphir.lodestone;
 
+import java.util.function.ToDoubleFunction;
+
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -17,15 +19,27 @@ public final class Lodestone {
     public static final String MODID = "wtc_lodestone";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    private static Platform platform = new Platform("unknown", "unknown", "unknown");
+    private static Platform platform = new Platform("unknown", "unknown", "unknown", "unknown", server -> 0);
     private static int ticksUntilHeartbeat = HubClient.heartbeatIntervalTicks();
     private static int ticksUntilWhitelistSync = HubClient.whitelistSyncIntervalTicks();
     private static int ticksUntilBanSync = HubClient.whitelistSyncIntervalTicks();
 
     private Lodestone() {}
 
-    /** What the loader knows about this installation, reported to the hub on check-in. */
-    public record Platform(String modVersion, String minecraftVersion, String loaderVersion) {}
+    /**
+     * What only the loader knows: this installation's versions, reported to the hub on check-in, and
+     * the server's average tick time in milliseconds, which vanilla exposes differently from one
+     * Minecraft version to the next (1.21.1's getAverageTickTimeNanos() doesn't exist on 1.20.1).
+     *
+     * @param loader "neoforge", "forge" and so on, as the hub names the jars it installs
+     */
+    public record Platform(String modVersion, String minecraftVersion, String loader, String loaderVersion,
+            ToDoubleFunction<MinecraftServer> averageTickMillis) {}
+
+    /** The server's average tick time in milliseconds, however this loader's Minecraft gets it. */
+    static double averageTickMillis(MinecraftServer server) {
+        return platform.averageTickMillis().applyAsDouble(server);
+    }
 
     /** Called once while the loader starts up, before any server exists. */
     public static void init(java.nio.file.Path configDir, Platform platform) {
@@ -49,8 +63,7 @@ public final class Lodestone {
             LOGGER.warn("syncWhitelist is on but enforce-whitelist is false in server.properties - "
                     + "players removed from the hub whitelist will stay connected until they disconnect");
         }
-        HubClient.hello(platform.modVersion(), platform.minecraftVersion(), platform.loaderVersion(),
-                server.isEnforceWhitelist());
+        HubClient.hello(platform, server.isEnforceWhitelist());
         if (LodestoneConfig.syncWhitelist()) HubClient.syncWhitelist(server);
         if (LodestoneConfig.syncBans()) HubClient.syncBans(server);
     }

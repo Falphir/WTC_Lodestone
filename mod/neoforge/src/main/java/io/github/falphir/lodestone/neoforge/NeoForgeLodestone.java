@@ -24,7 +24,8 @@ public class NeoForgeLodestone {
         NeoForge.EVENT_BUS.register(this);
         VersionInfo versions = FMLLoader.versionInfo();
         Lodestone.init(FMLPaths.CONFIGDIR.get(), new Lodestone.Platform(
-                modContainer.getModInfo().getVersion().toString(), versions.mcVersion(), versions.neoForgeVersion()));
+                modContainer.getModInfo().getVersion().toString(), versions.mcVersion(), "neoforge", versions.neoForgeVersion(),
+                server -> server.getAverageTickTimeNanos() / 1_000_000.0));
     }
 
     @SubscribeEvent
