@@ -246,18 +246,13 @@ The hub can talk to PufferPanel (written against **2.7.1**). Leave this out and 
 
 ```bash
 sudo /opt/lodestone/repo/deploy/deploy.sh            # deploy the newest release
-sudo /opt/lodestone/repo/deploy/deploy.sh v0.1.0     # deploy (or roll back to) a tag
+sudo /opt/lodestone/repo/deploy/deploy.sh v0.1.0     # deploy a tag (see Rolling back for older ones)
+sudo /opt/lodestone/repo/deploy/deploy.sh --rollback # undo the last deploy, database included
 systemctl status lodestone-hub lodestone-bot
 journalctl -u lodestone-hub -f
 systemctl list-timers lodestone-backup.timer
+cat /opt/lodestone/deploys.log                        # what was deployed when, and the dump before it
 curl -fsS localhost:8081/actuator/health
-```
-
-Rolling back a release that added a Flyway migration means restoring the dump `deploy.sh` took
-before the swap — there are no down-migrations:
-
-```bash
-gunzip < /var/backups/lodestone/wtc_lodestone-TIMESTAMP.sql.gz | sudo mariadb wtc_lodestone
 ```
 
 Changing a bot command or option description needs the commands re-registered once:
@@ -265,3 +260,86 @@ Changing a bot command or option description needs the commands re-registered on
 ```bash
 sudo runuser -u lodestone -- sh -c 'cd /opt/lodestone/bot && npm run deploy'
 ```
+
+---
+
+## Rolling back
+
+Flyway has no down-migrations: the hub migrates the database on boot, and an older hub can't undo
+that. So how you go back depends on whether the release you're leaving added a migration. Check by
+comparing its newest migrations with the deploy's time in `/opt/lodestone/deploys.log`:
+
+```bash
+sudo mariadb wtc_lodestone -e "SELECT version, description, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5"
+```
+
+- **Nothing installed since the deploy:** the database is still fine for the older release, so just
+  deploy it again: `sudo /opt/lodestone/repo/deploy/deploy.sh v0.2.0`.
+- **Something was installed:** the database has to go back too, using the dump `deploy.sh` took
+  right before the swap.
+
+```bash
+sudo /opt/lodestone/repo/deploy/deploy.sh --rollback          # undo the last deploy
+sudo /opt/lodestone/repo/deploy/deploy.sh --rollback v0.2.0 /var/backups/lodestone/wtc_lodestone-20261120-100000.sql.gz
+```
+
+With no arguments it reads the last line of `deploys.log` and puts back the tag that deploy replaced,
+restoring the dump that deploy took. It refuses to guess when the last line is already a rollback,
+or names no previous tag. In that case pass both. In order, it:
+
+1. **Checks** the dump (`gzip -t`) and downloads the older release, while the hub is still up. A bad
+   dump or a missing tag stops it there.
+2. **Dumps the current state,** so the rollback itself can be undone. Its path is printed and logged
+   as `leaving=`.
+3. **Stops** the bot and the hub.
+4. **Drops and recreates the database, then restores the dump into it.** Restoring over the live
+   database is not enough: the dump only replaces the tables it contains. A table the newer
+   migration created would survive while the restored Flyway history says it was never made, and
+   deploying that release again would fail on "table already exists". The `lodestone` user's grants
+   are on the database's name, so they survive the drop.
+5. **Swaps in the older jar and bot, starts them,** waits for health and logs a `rollback` line.
+
+If the script itself is the problem, these are the same steps by hand:
+
+```bash
+DUMP=/var/backups/lodestone/wtc_lodestone-TIMESTAMP.sql.gz
+gzip -t "$DUMP"                                    # stop here if this complains
+sudo systemctl start lodestone-backup.service      # the state you're leaving, just in case
+sudo systemctl stop lodestone-bot lodestone-hub
+sudo mariadb -e "DROP DATABASE wtc_lodestone; CREATE DATABASE wtc_lodestone CHARACTER SET utf8mb4;"
+gunzip < "$DUMP" | sudo mariadb wtc_lodestone
+sudo /opt/lodestone/repo/deploy/deploy.sh v0.2.0   # the release that dump came from
+```
+
+**A rollback loses everything written since that dump:** whitelist adds and removals, Discord
+links, bans, applications, MOTD and server edits, heartbeat history. It also reaches the game
+servers. Within one whitelist poll (10s), the mods bring each server's whitelist and the hub's bans
+back in line with the restored lists. So someone whitelisted after the deploy is off again, and
+someone unbanned is banned again. Redo those changes once the hub is back.
+
+Dumps are kept 14 days (`lodestone-backup.service`). After that, rolling back needs a copy kept
+somewhere else. The mod jars on the game servers aren't touched either way.
+
+### Rehearsing a restore
+
+A dump that has never been restored is a hope, not a backup. After the first deploy, and now and
+then after that, restore the newest one into a scratch database next to the live one. Nothing is
+stopped and the live database is only read:
+
+```bash
+DUMP=$(ls -t /var/backups/lodestone/*.sql.gz | head -n 1)
+gzip -t "$DUMP"
+sudo mariadb -e "CREATE DATABASE wtc_lodestone_restore_test CHARACTER SET utf8mb4;"
+gunzip < "$DUMP" | sudo mariadb wtc_lodestone_restore_test
+for db in wtc_lodestone wtc_lodestone_restore_test; do
+  sudo mariadb -N -e "SELECT '$db',
+    (SELECT MAX(CAST(version AS UNSIGNED)) FROM $db.flyway_schema_history) AS migration,
+    (SELECT COUNT(*) FROM $db.servers) AS servers,
+    (SELECT COUNT(*) FROM $db.whitelisted_players) AS whitelist,
+    (SELECT COUNT(*) FROM $db.network_bans) AS bans"
+done
+sudo mariadb -e "DROP DATABASE wtc_lodestone_restore_test;"
+```
+
+The two lines should agree, apart from rows written since the dump. A restore that errors, or a
+migration number that doesn't match, means the dumps need fixing before they're needed.

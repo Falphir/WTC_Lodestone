@@ -175,11 +175,26 @@ curl -fsS localhost:8081/actuator/health
 `restart: unless-stopped` brings everything back after a reboot on its own.
 
 Rolling back a release that added a Flyway migration means restoring the dump `update.sh` took
-before it, then deploying the older tag:
+before it, then deploying the older tag. A release that added no migration just needs
+`update.sh <older tag>`.
+
+The database is dropped and recreated before the restore, not restored over. The dump only
+replaces the tables it contains, so a table the newer migration created would survive while the
+restored Flyway history says it was never made, and redeploying that release would fail on it.
+The app user can drop and recreate its own database.
 
 ```bash
+DUMP=/var/backups/lodestone/wtc_lodestone-TIMESTAMP.sql.gz
+gzip -t "$DUMP"                       # stop here if this complains
+sudo sh backup.sh                     # the state you're leaving, just in case
 sudo docker compose stop hub bot
-gunzip < /var/backups/lodestone/wtc_lodestone-TIMESTAMP.sql.gz | sudo docker compose exec -T mariadb \
+sudo docker compose exec -T mariadb sh -c 'MYSQL_PWD="$MARIADB_PASSWORD" mariadb -u"$MARIADB_USER" \
+  -e "DROP DATABASE $MARIADB_DATABASE; CREATE DATABASE $MARIADB_DATABASE CHARACTER SET utf8mb4;"'
+gunzip < "$DUMP" | sudo docker compose exec -T mariadb \
   sh -c 'MYSQL_PWD="$MARIADB_PASSWORD" mariadb -u"$MARIADB_USER" "$MARIADB_DATABASE"'
 sudo sh update.sh v0.1.0
 ```
+
+Everything written since the dump is lost, and the mods bring each server's whitelist and bans back
+to the restored lists within one poll. [`../README.md`](../README.md#rolling-back) has the details,
+and a way to rehearse a restore that works here the same way through `docker compose exec`.
