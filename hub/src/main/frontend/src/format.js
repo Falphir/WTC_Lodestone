@@ -131,3 +131,38 @@ export function packRunsOn(setup) {
 
 /** The Minecraft version(s) of a CurseForge pack version, out of its mix of game versions and loader names. */
 export const minecraftVersions = (packFile) => packFile?.gameVersions?.filter((v) => /^\d/.test(v)).join(', ') ?? ''
+
+// What each audit action reads as on the History page. An action the hub adds later and this
+// doesn't know yet shows as its key, which still says what it is.
+const AUDIT_ACTIONS = {
+  'whitelist.add': 'Whitelisted',
+  'whitelist.import': 'Imported a whitelist',
+  'whitelist.remove': 'Removed from the whitelist',
+  'whitelist.link': 'Linked to Discord',
+  'whitelist.link-code': 'Linked with a code',
+  'whitelist.kick-message': 'Changed the kick message',
+  'ban.add': 'Banned',
+  'ban.remove': 'Unbanned',
+  'ban.message': 'Changed the ban message',
+  'application.approved': 'Approved an application',
+  'application.denied': 'Denied an application',
+  'server.register': 'Registered a server',
+  'server.create': 'Created a server',
+  'server.edit': 'Edited a server',
+  'server.reset-token': "Reset a server's token",
+  'server.remove': 'Removed a server',
+  'server.start': 'Started a server',
+  'server.stop': 'Stopped a server',
+  'server.restart': 'Restarted a server',
+  'server.kill': 'Killed a server',
+  'motd.create': 'Added a MOTD',
+  'motd.edit': 'Edited a MOTD',
+  'motd.default': 'Made a MOTD the default',
+  'motd.delete': 'Deleted a MOTD',
+  'admin.create': 'Added an admin',
+  'admin.edit': 'Edited an admin',
+  'admin.delete': 'Removed an admin',
+  'discord.config': 'Changed the Discord bot settings',
+}
+
+export const auditAction = (action) => AUDIT_ACTIONS[action] ?? action

@@ -11,6 +11,7 @@ import SignIn from './pages/SignIn'
 const Admins = lazy(() => import('./pages/Admins'))
 const Bans = lazy(() => import('./pages/Bans'))
 const Configuration = lazy(() => import('./pages/Configuration'))
+const History = lazy(() => import('./pages/History'))
 const Overview = lazy(() => import('./pages/Overview'))
 const ServerDetail = lazy(() => import('./pages/ServerDetail'))
 const Servers = lazy(() => import('./pages/Servers'))
@@ -65,6 +66,7 @@ function App() {
   else if (section === 'bans') page = <Bans />
   else if (section === 'admins') page = <Admins />
   else if (section === 'config') page = <Configuration />
+  else if (section === 'history') page = <History />
   else page = <Overview />
 
   return (
