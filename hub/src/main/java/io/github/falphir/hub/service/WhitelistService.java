@@ -26,9 +26,11 @@ public class WhitelistService {
     private final TokenService hashing;
     private final ApplicationEventPublisher events;
     private final LinkCodeService linkCodes;
+    private final AuditLog audit;
 
     public WhitelistService(WhitelistedPlayerRepository repository, WhitelistStateRepository state,
-            MojangProfiles mojang, TokenService hashing, ApplicationEventPublisher events, LinkCodeService linkCodes) {
+            MojangProfiles mojang, TokenService hashing, ApplicationEventPublisher events, LinkCodeService linkCodes, AuditLog audit) {
+        this.audit = audit;
         this.linkCodes = linkCodes;
         this.repository = repository;
         this.state = state;
@@ -68,6 +70,7 @@ public class WhitelistService {
         WhitelistState row = state.findById(1).orElseGet(() -> new WhitelistState(false));
         row.setKickMessage(message == null || message.isBlank() ? null : message.strip());
         state.save(row);
+        audit.record("whitelist.kick-message", "Kick message", row.getKickMessage() == null ? "reset to the default" : null);
         events.publishEvent(HubEvent.whitelist());
     }
 
@@ -114,6 +117,7 @@ public class WhitelistService {
         }
         WhitelistedPlayer player = repository.save(new WhitelistedPlayer(profile.uuid(), profile.name(), addedBy));
         markPopulated();
+        audit.record("whitelist.add", profile.name(), profile.uuid());
         events.publishEvent(HubEvent.whitelist());
         return player;
     }
@@ -130,6 +134,8 @@ public class WhitelistService {
             added++;
         }
         if (added > 0) {
+            audit.record("whitelist.import", added + (added == 1 ? " player" : " players"),
+                    entries.size() - added == 0 ? null : (entries.size() - added) + " already whitelisted or repeated");
             markPopulated();
             events.publishEvent(HubEvent.whitelist());
         }
@@ -139,10 +145,11 @@ public class WhitelistService {
     /** Removing a player drops any Discord link with it, since that's just a column on the same row now. */
     @Transactional
     public void remove(String uuid) {
-        if (!repository.existsById(uuid)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player is not whitelisted");
-        }
-        repository.deleteById(uuid);
+        WhitelistedPlayer player = repository.findById(uuid)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player is not whitelisted"));
+        repository.delete(player);
+        audit.record("whitelist.remove", player.getName(),
+                player.getDiscordId() == null ? uuid : uuid + ", and its link to Discord " + player.getDiscordId());
         events.publishEvent(HubEvent.whitelist());
     }
 
@@ -162,6 +169,7 @@ public class WhitelistService {
         });
         player.linkDiscord(discordId, canonicalUsername);
         WhitelistedPlayer saved = repository.save(player);
+        audit.record("whitelist.link", player.getName(), "Discord " + discordId);
         events.publishEvent(HubEvent.whitelist());
         return saved;
     }
@@ -185,8 +193,11 @@ public class WhitelistService {
             // Hibernate flushes inserts before deletes, and discord_id is unique
             repository.flush();
         });
+        boolean wasWhitelisted = repository.existsById(pending.uuid());
         player.linkDiscord(discordId, pending.name());
         WhitelistedPlayer saved = repository.save(player);
+        audit.record("whitelist.link-code", pending.name(),
+                "Discord " + discordId + (wasWhitelisted ? "" : ", and whitelisted"));
         markPopulated();
         events.publishEvent(HubEvent.whitelist());
         return saved;

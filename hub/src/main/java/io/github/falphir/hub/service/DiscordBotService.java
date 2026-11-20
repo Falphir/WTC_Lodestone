@@ -17,9 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class DiscordBotService {
 
     private final DiscordConfigRepository configRepository;
+    private final AuditLog audit;
 
-    public DiscordBotService(DiscordConfigRepository configRepository) {
+    public DiscordBotService(DiscordConfigRepository configRepository, AuditLog audit) {
         this.configRepository = configRepository;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -42,7 +44,9 @@ public class DiscordBotService {
         if (patch.brandName() != null) config.setBrandName(patch.brandName());
         if (patch.brandColor() != null) config.setBrandColor(patch.brandColor());
         if (patch.brandIconUrl() != null) config.setBrandIconUrl(patch.brandIconUrl());
-        return configRepository.save(config);
+        DiscordConfig saved = configRepository.save(config);
+        audit.record("discord.config", "Discord bot settings", AuditLog.fieldsSet(patch));
+        return saved;
     }
 
     public record Patch(String applicationsChannelId, String welcomeChannelId, String serverInfoChannelId,

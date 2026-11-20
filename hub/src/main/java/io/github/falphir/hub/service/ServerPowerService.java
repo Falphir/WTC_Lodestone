@@ -39,6 +39,7 @@ public class ServerPowerService {
     private final ServerService servers;
     private final PufferPanelClient panel;
     private final ApplicationEventPublisher events;
+    private final AuditLog audit;
     private final Duration pollEvery;
     private final Duration stopTimeout;
 
@@ -47,13 +48,14 @@ public class ServerPowerService {
     private final Set<String> restarting = ConcurrentHashMap.newKeySet();
 
     @Autowired
-    public ServerPowerService(ServerService servers, PufferPanelClient panel, ApplicationEventPublisher events) {
-        this(servers, panel, events, Duration.ofSeconds(2), Duration.ofMinutes(3));
+    public ServerPowerService(ServerService servers, PufferPanelClient panel, ApplicationEventPublisher events, AuditLog audit) {
+        this(servers, panel, events, audit, Duration.ofSeconds(2), Duration.ofMinutes(3));
     }
 
     /** Lets tests restart in milliseconds. */
-    ServerPowerService(ServerService servers, PufferPanelClient panel, ApplicationEventPublisher events,
+    ServerPowerService(ServerService servers, PufferPanelClient panel, ApplicationEventPublisher events, AuditLog audit,
             Duration pollEvery, Duration stopTimeout) {
+        this.audit = audit;
         this.servers = servers;
         this.panel = panel;
         this.events = events;
@@ -90,6 +92,8 @@ public class ServerPowerService {
         } else {
             call(() -> { panel.power(panelId, action); return null; });
         }
+        // only once the panel took it: a refused action changed nothing
+        audit.record("server." + action, hubId, "PufferPanel " + panelId);
         events.publishEvent(HubEvent.servers(hubId));
     }
 

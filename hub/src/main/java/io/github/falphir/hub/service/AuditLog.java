@@ -1,6 +1,8 @@
 package io.github.falphir.hub.service;
 
+import java.lang.reflect.RecordComponent;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import io.github.falphir.hub.entity.AuditEntry;
@@ -50,6 +52,19 @@ public class AuditLog {
     @Transactional(readOnly = true)
     public List<AuditEntry> page(Long before, int limit) {
         return entries.findByIdLessThanOrderByIdDesc(before == null ? Long.MAX_VALUE : before, Limit.of(limit));
+    }
+
+    /** For a patch's audit detail: the names of the fields it sets, never their values. Null when none. */
+    public static String fieldsSet(Record patch) {
+        List<String> names = new ArrayList<>();
+        for (RecordComponent component : patch.getClass().getRecordComponents()) {
+            try {
+                if (component.getAccessor().invoke(patch) != null) names.add(component.getName());
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return names.isEmpty() ? null : String.join(", ", names);
     }
 
     private static String actor() {

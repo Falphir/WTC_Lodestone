@@ -55,9 +55,12 @@ public class ServerService {
     @PersistenceContext
     private EntityManager entityManager;
 
+    private final AuditLog audit;
+
     public ServerService(GameServerRepository repository, TokenService tokens, ServerHeartbeatRepository heartbeats,
-            ApplicationEventPublisher events, PufferPanelClient panel, MotdService motds,
+            ApplicationEventPublisher events, PufferPanelClient panel, MotdService motds, AuditLog audit,
             @Value("${lodestone.heartbeat-interval-seconds:60}") int heartbeatIntervalSeconds) {
+        this.audit = audit;
         this.panel = panel;
         this.motds = motds;
         this.repository = repository;
@@ -89,12 +92,19 @@ public class ServerService {
      */
     @Transactional
     public RegisteredServer register(String id, String name, Patch listing) {
+        return register(id, name, listing, true);
+    }
+
+    /** {@code audited} false: the caller records the change itself (creating a server from the dashboard). */
+    @Transactional
+    RegisteredServer register(String id, String name, Patch listing, boolean audited) {
         if (repository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Server '" + id + "' already exists");
         }
         String token = tokens.generateToken();
         GameServer server = repository.save(new GameServer(id, name, tokens.hash(token)));
         if (listing != null) applyListing(listing, server);
+        if (audited) audit.record("server.register", id, name);
         events.publishEvent(HubEvent.servers(id));
         return new RegisteredServer(id, name, token);
     }
@@ -162,6 +172,9 @@ public class ServerService {
         }
 
         applyListing(patch, server);
+        String fields = AuditLog.fieldsSet(patch);
+        audit.record("server.edit", server.getId(),
+                newId != null && !newId.equals(id) ? "renamed from " + id + (fields == null ? "" : "; " + fields) : fields);
         events.publishEvent(HubEvent.servers(server.getId()));
         return server;
     }
@@ -245,6 +258,7 @@ public class ServerService {
         GameServer server = find(id);
         String token = tokens.generateToken();
         server.rotateToken(tokens.hash(token));
+        audit.record("server.reset-token", id, null);
         events.publishEvent(HubEvent.servers(id));
         return new RegisteredServer(server.getId(), server.getName(), token);
     }
@@ -309,6 +323,8 @@ public class ServerService {
         heartbeats.deleteByServerId(id); // the FK from server_heartbeats has no ON DELETE CASCADE
         online.remove(id);
         repository.deleteById(id);
+        audit.record("server.remove", id, alsoOnPufferPanel && server.getPufferpanelId() != null
+                ? "and PufferPanel server " + server.getPufferpanelId() : null);
         events.publishEvent(HubEvent.servers(id));
     }
 

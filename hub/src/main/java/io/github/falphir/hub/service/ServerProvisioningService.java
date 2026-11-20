@@ -69,9 +69,11 @@ public class ServerProvisioningService {
     private final CurseForgeClient curseForge;
     private final ModpackSetup modpackSetup;
     private final MotdService motds;
+    private final AuditLog audit;
 
     public ServerProvisioningService(PufferPanelClient panel, ServerService servers, ModRelease modRelease,
-            CurseForgeClient curseForge, ModpackSetup modpackSetup, MotdService motds) {
+            CurseForgeClient curseForge, ModpackSetup modpackSetup, MotdService motds, AuditLog audit) {
+        this.audit = audit;
         this.motds = motds;
         this.panel = panel;
         this.servers = servers;
@@ -197,7 +199,7 @@ public class ServerProvisioningService {
             registered = servers.register(request.hubId(), request.name(), pack == null
                     ? new ServerService.Patch(null, null, null, null, null, null, null, null, null, panelId, request.motdTemplateId())
                     : new ServerService.Patch(null, null, null, packName, cut(pack.websiteUrl(), 300),
-                            packVersion, "CurseForge", cut(pack.logoUrl(), 300), null, panelId, request.motdTemplateId()));
+                            packVersion, "CurseForge", cut(pack.logoUrl(), 300), null, panelId, request.motdTemplateId()), false);
         } catch (RuntimeException e) {
             // nothing on the hub points at it, so don't leave it behind on the panel either
             try {
@@ -207,6 +209,8 @@ public class ServerProvisioningService {
             }
             throw e;
         }
+        audit.record("server.create", request.hubId(), "from template " + request.template()
+                + (pack == null ? "" : " with " + pack.name() + " " + packFile.displayName()) + ", PufferPanel " + panelId);
 
         List<String> warnings = new ArrayList<>();
         attempt(warnings, "write the mod config", () ->

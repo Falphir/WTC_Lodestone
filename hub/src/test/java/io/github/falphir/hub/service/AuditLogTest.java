@@ -109,8 +109,8 @@ class AuditLogTest {
 
     @Test
     void theEndpointListsEntriesAndRefusesABadLimit() throws Exception {
+        admins.create("audit-tester", "audit-tester-password"); // records itself, so it goes first
         audit.record("server.edit", "alpha", "name");
-        admins.create("audit-tester", "audit-tester-password");
         String token = JsonPath.read(mvc.perform(post("/api/auth/token").with(httpBasic("audit-tester", "audit-tester-password")))
                 .andReturn().getResponse().getContentAsString(), "$.token");
 

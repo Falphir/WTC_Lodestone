@@ -35,8 +35,11 @@ public class MotdService {
     private final MotdTemplateRepository motds;
     private final GameServerRepository servers;
     private final ApplicationEventPublisher events;
+    private final AuditLog audit;
 
-    public MotdService(MotdTemplateRepository motds, GameServerRepository servers, ApplicationEventPublisher events) {
+    public MotdService(MotdTemplateRepository motds, GameServerRepository servers, ApplicationEventPublisher events,
+            AuditLog audit) {
+        this.audit = audit;
         this.motds = motds;
         this.servers = servers;
         this.events = events;
@@ -54,6 +57,7 @@ public class MotdService {
         MotdTemplate motd = motds.save(new MotdTemplate(cleanName, normalize(text)));
         // the first one is the default, so creating a server has one to offer from the start
         if (motds.count() == 1) motd.setDefault(true);
+        audit.record("motd.create", cleanName, null);
         changed();
         return view(motd);
     }
@@ -63,8 +67,10 @@ public class MotdService {
         MotdTemplate motd = find(id);
         String cleanName = name.trim();
         if (motds.existsByNameAndIdNot(cleanName, id)) throw duplicate(cleanName);
+        String oldName = motd.getName();
         motd.setName(cleanName);
         motd.setText(normalize(text));
+        audit.record("motd.edit", cleanName, oldName.equals(cleanName) ? null : "renamed from " + oldName);
         changed();
         return view(motd);
     }
@@ -74,6 +80,7 @@ public class MotdService {
         MotdTemplate motd = find(id);
         motds.findByIsDefaultTrue().ifPresent(old -> old.setDefault(false));
         motd.setDefault(true);
+        audit.record("motd.default", motd.getName(), null);
         changed();
         return view(motd);
     }
@@ -88,6 +95,7 @@ public class MotdService {
                     "'" + motd.getName() + "' is used by " + String.join(", ", usedBy) + ". Pick another MOTD for them first");
         }
         motds.delete(motd);
+        audit.record("motd.delete", motd.getName(), null);
         changed();
     }
 

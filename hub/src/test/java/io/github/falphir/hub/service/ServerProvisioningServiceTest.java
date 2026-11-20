@@ -55,6 +55,9 @@ class ServerProvisioningServiceTest {
     @Autowired
     private MotdService motds;
 
+    @Autowired
+    private AuditLog audit;
+
     private static final CurseForgeClient.Modpack PACK = new CurseForgeClient.Modpack(
             100, "All the Mods 10", "kitchen sink", "https://media.forgecdn.net/atm10.png", "https://www.curseforge.com/minecraft/modpacks/atm10", true);
     private static final CurseForgeClient.PackFile PACK_FILE = new CurseForgeClient.PackFile(200, 201, "ATM10-5.1", List.of("1.21.1"), "2026-10-01T00:00:00Z");
@@ -110,6 +113,9 @@ class ServerProvisioningServiceTest {
         verify(panel).install(PANEL_ID);
         assertThat(created.modpackPending()).isFalse();
         verify(modpackSetup, never()).start(any(), any(), any(), any());
+        // one row for the whole creation, not a second one for the registration inside it
+        assertThat(audit.page(null, 5)).extracting(e -> e.getAction() + " " + e.getTarget())
+                .contains("server.create prov-test").doesNotContain("server.register prov-test");
     }
 
     @Test

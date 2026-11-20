@@ -21,8 +21,9 @@ class ServerPowerServiceTest {
 
     private final ServerService servers = mock(ServerService.class);
     private final PufferPanelClient panel = mock(PufferPanelClient.class);
+    private final AuditLog audit = mock(AuditLog.class);
     private final ServerPowerService power = new ServerPowerService(
-            servers, panel, mock(ApplicationEventPublisher.class), Duration.ofMillis(10), Duration.ofMillis(300));
+            servers, panel, mock(ApplicationEventPublisher.class), audit, Duration.ofMillis(10), Duration.ofMillis(300));
 
     @BeforeEach
     void linked() {
@@ -35,6 +36,7 @@ class ServerPowerServiceTest {
         power.act("atm10", "stop", "admin");
 
         verify(panel).power(PANEL_ID, "stop");
+        verify(audit).record("server.stop", "atm10", "PufferPanel " + PANEL_ID);
     }
 
     @Test
