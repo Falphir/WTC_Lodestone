@@ -6,10 +6,12 @@ Run by <WHO RUNS IT>. Questions or requests: <HOW TO CONTACT, e.g. DM a staff me
 • **Account link:** your Minecraft account ID and name, linked to your Discord ID, so we can whitelist you on our servers.
 • **While you play:** servers report who's online. This is never stored.
 • **Server logs:** the website and servers log IP addresses, kept up to 14 days for security.
+• **Staff history:** when staff whitelist, ban, link or approve someone, we record which staff member did it, when, and the Minecraft name or Discord ID it was done to. If you're staff acting through the Discord bot, that includes your Discord name and ID. It's how staff can see who changed what.
 
 **How long**
 • Approved applications are deleted from our database after 1 day, and denied ones once the re-apply wait ends (<COOLDOWN> days). The public post stays in Discord unless you ask us to delete it.
 • Your link and whitelist entry stay while you're a member. They're removed automatically if you leave this Discord server or lose the member role.
+• Staff history is deleted after 180 days.
 • Backups are kept for 14 days.
 
 **Who else sees it**

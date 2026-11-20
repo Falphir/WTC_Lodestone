@@ -71,3 +71,7 @@ deploy/caddy_config/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ---------- Local tooling ----------
+# Playwright MCP's browser screenshots and logs
+.playwright-mcp/

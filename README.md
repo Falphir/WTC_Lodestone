@@ -11,6 +11,8 @@ What it does today:
   hub derives `ONLINE` / `LAGGING` / `OFFLINE` from those heartbeats and keeps a history to chart.
 - **Network whitelist** — one list on the hub, mirrored into every server's `whitelist.json`.
 - **Staff dashboard** — React app served by the hub, live-updated over a WebSocket.
+- **History** — every staff change, from the dashboard or the Discord bot, with who made it and when
+  (the dashboard's History page, kept 180 days).
 - **Discord** — applications with staff approve/deny, and Discord ↔ Minecraft account linking.
 
 ---
