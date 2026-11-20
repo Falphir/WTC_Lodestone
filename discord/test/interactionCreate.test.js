@@ -15,7 +15,7 @@ function loadDispatcher() {
     id: hubPath,
     filename: hubPath,
     loaded: true,
-    exports: { getDiscordConfig: async () => ({ brandName: 'WTC' }) },
+    exports: { getDiscordConfig: async () => ({ brandName: 'WTC' }), actingFor: (_user, fn) => fn() },
   };
   delete require.cache[require.resolve('../src/events/interactionCreate')];
   return require('../src/events/interactionCreate');

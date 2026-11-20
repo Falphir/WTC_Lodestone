@@ -132,3 +132,23 @@ test('a ban for an unknown account comes back as null; an unban of someone not b
   assert.equal(await hub.ban('Nobody', null, null), null);
   await assert.doesNotReject(hub.unban('u-2'));
 });
+
+test('calls made for a Discord user name them for the audit log, and only those', async () => {
+  const seen = [];
+  globalThis.fetch = async (url, opts) => {
+    seen.push({ url, onBehalfOf: opts.headers['X-Lodestone-On-Behalf-Of'] });
+    if (url.endsWith('/api/auth/token')) {
+      return jsonResponse(200, { token: 'tok', expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+    }
+    return jsonResponse(201, {});
+  };
+  const hub = freshHub();
+
+  await hub.actingFor({ id: '123', username: 'staffér' }, () => hub.whitelistAdd('Notch'));
+  await hub.whitelistAdd('Jeb_');
+
+  const [login, forStaff, onItsOwn] = seen;
+  assert.equal(login.onBehalfOf, undefined, 'signing in is the bot itself');
+  assert.equal(forStaff.onBehalfOf, 'staff?r (123)', 'non-ASCII is replaced, since it goes in a header');
+  assert.equal(onItsOwn.onBehalfOf, undefined);
+});
