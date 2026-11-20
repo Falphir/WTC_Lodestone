@@ -18,9 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class DiscordApplicationService {
 
     private final DiscordApplicationRepository applications;
+    private final AuditLog audit;
 
-    public DiscordApplicationService(DiscordApplicationRepository applications) {
+    public DiscordApplicationService(DiscordApplicationRepository applications, AuditLog audit) {
         this.applications = applications;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -50,6 +52,8 @@ public class DiscordApplicationService {
     public DiscordApplication setApplicationDecision(String discordId, String status) {
         DiscordApplication app = applications.findById(discordId).orElseGet(() -> new DiscordApplication(discordId));
         app.decide(status);
+        // the applicant is only known by Discord id here; the bot names the staff member deciding
+        audit.record("application." + status, "Discord " + discordId, null);
         return applications.save(app);
     }
 

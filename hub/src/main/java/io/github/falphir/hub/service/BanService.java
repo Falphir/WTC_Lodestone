@@ -37,9 +37,11 @@ public class BanService {
     private final MojangProfiles mojang;
     private final TokenService hashing;
     private final ApplicationEventPublisher events;
+    private final AuditLog audit;
 
     public BanService(NetworkBanRepository bans, BanSettingsRepository settings, MojangProfiles mojang, TokenService hashing,
-            ApplicationEventPublisher events) {
+            ApplicationEventPublisher events, AuditLog audit) {
+        this.audit = audit;
         this.settings = settings;
         this.bans = bans;
         this.mojang = mojang;
@@ -59,6 +61,7 @@ public class BanService {
         BanSettings row = settings.findById(1).orElseGet(() -> new BanSettings(1));
         row.setMessage(message == null || message.isBlank() ? null : message.strip());
         settings.save(row);
+        audit.record("ban.message", "Ban message", row.getMessage() == null ? "reset to the default" : null);
         events.publishEvent(HubEvent.bans());
     }
 
@@ -98,16 +101,18 @@ public class BanService {
         NetworkBan ban = bans.findById(profile.uuid()).orElseGet(() -> new NetworkBan(profile.uuid(), profile.name()));
         ban.ban(profile.name(), reason, expiresAt, bannedBy);
         NetworkBan saved = bans.save(ban);
+        audit.record("ban.add", profile.name(), (reason == null || reason.isBlank() ? "no reason" : reason)
+                + (expiresAt == null ? ", permanent" : ", until " + expiresAt));
         events.publishEvent(HubEvent.bans());
         return saved;
     }
 
     @Transactional
     public void unban(String uuid) {
-        if (!bans.existsById(uuid)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player is not banned");
-        }
-        bans.deleteById(uuid);
+        NetworkBan ban = bans.findById(uuid)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player is not banned"));
+        bans.delete(ban);
+        audit.record("ban.remove", ban.getName(), uuid);
         events.publishEvent(HubEvent.bans());
     }
 

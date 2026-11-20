@@ -17,8 +17,11 @@ public class AdminUserService {
     private final AdminUserRepository repository;
     private final PasswordEncoder encoder;
     private final ApplicationEventPublisher events;
+    private final AuditLog audit;
 
-    public AdminUserService(AdminUserRepository repository, PasswordEncoder encoder, ApplicationEventPublisher events) {
+    public AdminUserService(AdminUserRepository repository, PasswordEncoder encoder, ApplicationEventPublisher events,
+            AuditLog audit) {
+        this.audit = audit;
         this.repository = repository;
         this.encoder = encoder;
         this.events = events;
@@ -30,6 +33,7 @@ public class AdminUserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Admin '" + username + "' already exists");
         }
         AdminUser admin = repository.save(new AdminUser(username, encoder.encode(password)));
+        audit.record("admin.create", username, null);
         events.publishEvent(HubEvent.admins());
         return admin;
     }
@@ -53,17 +57,22 @@ public class AdminUserService {
         if (enabled != null) {
             admin.setEnabled(enabled);
         }
+        // what changed, never the password itself
+        java.util.List<String> changes = new java.util.ArrayList<>();
+        if (newPassword != null) changes.add("password changed");
+        if (enabled != null) changes.add(enabled ? "enabled" : "disabled");
+        audit.record("admin.edit", admin.getUsername(), changes.isEmpty() ? null : String.join(", ", changes));
         events.publishEvent(HubEvent.admins());
         return admin;
     }
 
     @Transactional
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown admin");
-        }
+        AdminUser admin = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown admin"));
         requireAnotherEnabledAdmin(id);
-        repository.deleteById(id);
+        repository.delete(admin);
+        audit.record("admin.delete", admin.getUsername(), null);
         events.publishEvent(HubEvent.admins());
     }
 

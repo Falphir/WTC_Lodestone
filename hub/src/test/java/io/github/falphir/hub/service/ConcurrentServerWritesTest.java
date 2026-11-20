@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -33,9 +34,14 @@ class ConcurrentServerWritesTest {
     @Autowired
     private PlatformTransactionManager transactions;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     @AfterEach
     void cleanUp() {
         if (repository.existsById(SERVER)) servers.remove(SERVER);
+        // this test commits for real, so its register/remove rows would otherwise pile up in a dev database
+        jdbc.update("DELETE FROM audit_log WHERE target = ?", SERVER);
     }
 
     @Test

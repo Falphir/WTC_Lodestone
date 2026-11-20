@@ -8,6 +8,7 @@
 //
 // Kept independent of config.js so this module can be loaded -- and tested -- on its own.
 require('dotenv').config();
+const { AsyncLocalStorage } = require('node:async_hooks');
 
 function requireEnv(name) {
   const val = process.env[name];
@@ -21,6 +22,24 @@ const TIMEOUT_MS = 10_000;
 
 let token = null;
 let expiresAt = 0;
+
+// Who in Discord the current interaction is for. The hub signs every change in its audit log with
+// the account that made the call -- always this bot's -- so each call also names the person it was
+// made for. Set once per interaction (events/interactionCreate.js) instead of passed to every call.
+const acting = new AsyncLocalStorage();
+
+/** Runs `fn` with every hub call inside it made on behalf of this Discord user. */
+function actingFor(user, fn) {
+  return acting.run(user, fn);
+}
+
+/** The audit header for the current user: "name (id)", in printable ASCII since it's a header. */
+function onBehalfOf() {
+  const user = acting.getStore();
+  if (!user?.id) return {};
+  const name = String(user.username ?? '').replace(/[^\x20-\x7e]/g, '?');
+  return { 'X-Lodestone-On-Behalf-Of': `${name} (${user.id})` };
+}
 
 function baseUrl() {
   const url = requireEnv('HUB_URL');
@@ -73,6 +92,7 @@ async function request(method, path, { body, ok = [], what } = {}) {
       method,
       headers: {
         Authorization: `Bearer ${t}`,
+        ...onBehalfOf(),
         ...(body !== undefined && { 'Content-Type': 'application/json' }),
       },
       ...(body !== undefined && { body: JSON.stringify(body) }),
@@ -238,6 +258,7 @@ async function clearApplication(discordId) {
 }
 
 module.exports = {
+  actingFor,
   whitelistAdd,
   whitelistRemove,
   listBans,
