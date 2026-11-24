@@ -53,6 +53,9 @@ async function login() {
     headers: { Authorization: `Basic ${basic}` },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
+  if (res.status === 429) {
+    throw new Error(`Hub login throttled after failed attempts, retry after ${res.headers.get('Retry-After') ?? '?'}s`);
+  }
   if (!res.ok) throw new Error(`Hub login failed (HTTP ${res.status}) -- check HUB_USERNAME/HUB_PASSWORD`);
   const body = await res.json();
   token = body.token;

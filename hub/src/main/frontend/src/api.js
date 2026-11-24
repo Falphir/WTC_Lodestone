@@ -44,6 +44,10 @@ export async function signIn(username, password) {
     headers: { Authorization: `Basic ${btoa(`${username}:${password}`)}` },
   })
   if (response.status === 401) throw new Error('Wrong username or password.')
+  if (response.status === 429) {
+    const minutes = Math.ceil((Number(response.headers.get('Retry-After')) || 60) / 60)
+    throw new Error(`Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`)
+  }
   if (!response.ok) throw new Error(`Couldn't sign in (HTTP ${response.status}).`)
   const { token } = await response.json()
   storeToken(token)
