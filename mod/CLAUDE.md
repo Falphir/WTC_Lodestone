@@ -8,7 +8,7 @@ The server-side mod: how calls to the hub are written, how the multi-loader buil
 
 **What happens on start:** on `ServerStartingEvent` it POSTs to `/api/bridge/hello` with its bearer token. The hub's `BridgeController.hello` records `lastSeen`, and echoes back the server's canonical id and name, so the mod can detect a config/token mismatch.
 
-**Hello also sends `HubClient.CAPABILITIES`,** the features this build has. A new mod feature adds its name there, so the dashboard can tell which servers support it.
+**Hello also sends `HubClient.CAPABILITIES`,** the features this build has. A new mod feature adds its name there, so the dashboard can tell which servers support it, and a row to the README's feature table.
 
 **New mod → hub calls follow the same pattern:**
 - a static async call in `HubClient`;
