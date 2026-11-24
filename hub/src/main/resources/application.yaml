@@ -1,3 +1,9 @@
+server:
+  # Behind nginx every request comes from 127.0.0.1. "native" is Tomcat's RemoteIpValve: it takes the
+  # client IP from X-Forwarded-For, but only when the request comes from an internal address (loopback or a
+  # private range, which covers nginx and the Docker variant's bridge). Sign-in throttling counts that IP.
+  forward-headers-strategy: native
+
 spring:
   application:
     name: wtc-lodestone-hub
