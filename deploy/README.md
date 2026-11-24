@@ -94,6 +94,16 @@ EOF
 sudo chown root:lodestone /etc/lodestone/bot.env && sudo chmod 640 /etc/lodestone/bot.env
 ```
 
+Optional hub settings. The defaults are what production runs, so add any of these to `hub.env` only to change one:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `LODESTONE_AUDIT_RETENTION_DAYS` | `180` | How long History (audit log) rows are kept. `PRIVACY.md` says 180. |
+| `LODESTONE_HEARTBEAT_RETENTION_DAYS` | `7` | How long heartbeat history (the server stats charts) is kept. |
+| `LODESTONE_HEARTBEAT_INTERVAL_SECONDS` | `60` | How often servers report. They learn it when they check in, so a change reaches a server on its restart. |
+| `LODESTONE_WHITELIST_SYNC_INTERVAL_SECONDS` | `10` | How often servers poll the whitelist and bans, also learned on check-in. |
+| `LODESTONE_MOD_RELEASE_REPO` | `Falphir/WTC_Lodestone` | The GitHub repo whose latest release supplies the mod jar for servers made with "New server". |
+
 ### 5. Services
 
 ```bash
