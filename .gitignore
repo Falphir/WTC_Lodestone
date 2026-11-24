@@ -10,7 +10,6 @@ build/
 !**/gradle/wrapper/gradle-wrapper.jar
 out/
 bin/
-claude.md
 
 # ---------- NeoForge dev environment (mod/) ----------PRIMARY
 mod/run/
