@@ -1,5 +1,5 @@
 import { api } from '../../api'
-import { motdMissing, renderMotd } from '../../format'
+import { motdMissing, renderMotd, unsupported } from '../../format'
 import { useAction, useApi } from '../../hooks'
 import { ErrorNote } from '../ui/ErrorNote'
 import { Field } from '../ui/Field'
@@ -14,6 +14,7 @@ import { Panel } from '../ui/Panel'
 export function ServerMotd({ server, onSaved }) {
   const { data: motds } = useApi('/api/admin/motds', { topics: ['servers'] })
   const { run, busy, error } = useAction(onSaved)
+  const why = unsupported(server, 'motd')
   const picked = motds?.find((m) => m.id === server.motd?.templateId)
   const listing = { modpack: server.listing.modpack, version: server.listing.modpackVersion, name: server.name }
   const missing = picked ? motdMissing(picked.text, listing) : []
@@ -39,7 +40,7 @@ export function ServerMotd({ server, onSaved }) {
           </>
         }
       >
-        <select value={server.motd?.templateId ?? 0} onChange={(e) => pick(e.target.value)} disabled={busy || !motds}>
+        <select value={server.motd?.templateId ?? 0} onChange={(e) => pick(e.target.value)} disabled={busy || !motds || !!why}>
           <option value={0}>None (keeps its own)</option>
           {motds?.map((m) => (
             <option key={m.id} value={m.id}>
@@ -48,6 +49,7 @@ export function ServerMotd({ server, onSaved }) {
           ))}
         </select>
       </Field>
+      {why && <p className="muted">{why}</p>}
       {preview && <MinecraftText text={preview} />}
       {picked && missing.length > 0 && (
         <p className="muted">
