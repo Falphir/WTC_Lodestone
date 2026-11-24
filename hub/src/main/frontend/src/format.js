@@ -5,8 +5,28 @@ export function isUp(status) {
   return status === 'online' || status === 'lagging'
 }
 
+const FEATURES = {
+  whitelist: 'the network whitelist',
+  bans: 'network bans',
+  motd: 'network MOTDs',
+  linkCodes: 'Discord link codes',
+}
+
+/**
+ * Why this server can't use a feature, from the capabilities its mod build reported (the hub fills in the
+ * 1.0 set for older mods); null when it can.
+ */
+export function unsupported(server, capability) {
+  if (server.mod.capabilities.includes(capability)) return null
+  const { loader, minecraftVersion } = server.mod
+  const build = [loader && loaderName(loader), minecraftVersion].filter(Boolean).join(' ')
+  return `Its WTC Lodestone build${build ? ` (${build})` : ''} doesn't support ${FEATURES[capability] ?? capability}. Update the mod on it.`
+}
+
 /** How a server stands with the network whitelist, from what its mod last reported. */
 export function whitelistSync(server) {
+  const why = unsupported(server, 'whitelist')
+  if (why) return { tone: 'none', label: 'Not supported', detail: why }
   const { enabled, syncedAt, current, enforced } = server.whitelist
   if (enabled === false) return { tone: 'none', label: 'Sync off', detail: 'syncWhitelist is false in its mod config' }
   if (enabled == null) return { tone: 'none', label: 'Unknown', detail: "Its mod hasn't reported whether it syncs" }
@@ -26,6 +46,8 @@ export function whitelistSync(server) {
 
 /** The ban-list counterpart of whitelistSync. Bans don't depend on enforce-whitelist: vanilla checks them first. */
 export function banSync(server) {
+  const why = unsupported(server, 'bans')
+  if (why) return { tone: 'none', label: 'Not supported', detail: why }
   const { enabled, syncedAt, current } = server.bans
   if (enabled === false) return { tone: 'none', label: 'Sync off', detail: 'syncBans is false in its mod config' }
   if (enabled == null) return { tone: 'none', label: 'Unknown', detail: "Its mod hasn't reported whether it syncs bans" }

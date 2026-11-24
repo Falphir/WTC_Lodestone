@@ -22,6 +22,7 @@ No router, no data-fetching library. Four modules in `src/` cover it, and pages 
   - **Figures:** `formatTps`, `formatMspt`/`msptTone` (`TICK_BUDGET_MS`), `formatMemory`, `plural`.
   - **The New server dialog's helpers:** `slugify`, `packRunsOn`, `loaderName`, `minecraftVersions`, `packVersion`.
   - **MOTD previews:** `renderMotd`/`motdMissing`.
+  - **Capabilities:** `unsupported(server, capability)`, the reason a server's mod build can't use a feature (null when it can). `whitelistSync`/`banSync` and `ServerMotd` gray out on it.
   - **The History page's wording:** `auditAction`.
 
 **A fifth module, `motd.js`,** is the MOTD editor's model and the one parser of Minecraft `§`/`&` codes in the dashboard. It has no React in it, so `motd.test.js` runs under plain Node. Read `docs/motd.md` before touching it.

@@ -10,6 +10,13 @@ How a server's health is reported and derived, who's online, and the public list
 
 **Each heartbeat** (`POST /api/bridge/heartbeat`: player count, max players, TPS, memory) is appended to `server_heartbeats` as history for the dashboard's `Sparkline`/`LineChart`. `HeartbeatRetentionTask` prunes it nightly (`lodestone.heartbeat-retention-days`, default 7).
 
+## Capabilities
+
+**Hello carries what the mod build can do** as `capabilities` (`HubClient.CAPABILITIES`, e.g. `["whitelist", "bans", "motd", "linkCodes"]`), stored on `servers.capabilities` (V22).
+- **Null means the 1.0 set:** a mod from before the field gets `GameServer.V1_CAPABILITIES`, so the admin view's `mod.capabilities` is never null.
+- **Unknown names and loaders are kept, never refused:** a newer mod can talk to an older hub.
+- **The hub checks before sending what a server can't apply:** no `motd` capability, no MOTD in hello or heartbeat (`MotdService.renderFor`). The dashboard grays the feature out, saying why (`unsupported` in `format.js`).
+
 ## Who's online
 
 Each heartbeat also carries **who** is on (`players`, uuid + name) and the raw **`msptAvg`**.

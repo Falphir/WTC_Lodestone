@@ -151,6 +151,34 @@ The runbook is [`deploy/README.md`](deploy/README.md).
 
 ---
 
+## Supported versions
+
+| Minecraft | Loader | Gets |
+|---|---|---|
+| 1.21.1 | NeoForge | New features, bug and security fixes |
+| 1.20.1 | Forge | Bug and security fixes only |
+
+What each build supports (its `capabilities`, from `HubClient.CAPABILITIES`):
+
+| Feature | Capability | NeoForge 1.21.1 | Forge 1.20.1 |
+|---|---|:---:|:---:|
+| Network whitelist | `whitelist` | ✅ | ✅ |
+| Network bans | `bans` | ✅ | ✅ |
+| Network MOTD | `motd` | ✅ | ✅ |
+| Discord link codes | `linkCodes` | ✅ | ✅ |
+
+A feature a build doesn't have gets ❌, and a new mod feature adds its row here when it adds its capability.
+
+- **Newest supported Minecraft version:** gets new features.
+- **Older supported versions:** bug fixes and security fixes only. New mod features are ported only if a WTC server needs them.
+- **Dropping a version:** once no WTC server runs it, remove its build in the next release and say so in the release notes.
+- **Hub ↔ mod compatibility:** a hub keeps working with mods from older releases. New fields are optional on both sides.
+
+Each mod build tells the hub what it supports when it checks in, so the dashboard grays out a feature
+on a server whose build doesn't have it, and says why.
+
+---
+
 ## Mod configuration
 
 Config file: `config/wtc_lodestone-common.toml` (in dev: `mod/run/config/`).

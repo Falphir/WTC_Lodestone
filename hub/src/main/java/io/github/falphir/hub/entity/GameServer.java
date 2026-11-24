@@ -1,6 +1,8 @@
 package io.github.falphir.hub.entity;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,6 +19,9 @@ import org.hibernate.annotations.DynamicUpdate;
 @DynamicUpdate
 @Table(name = "servers")
 public class GameServer {
+
+    /** What a mod from before the capabilities field (all reporting mod version 1.0.0) supports. */
+    public static final List<String> V1_CAPABILITIES = List.of("whitelist", "bans", "motd", "linkCodes");
 
     @Id
     @Column(length = 64)
@@ -49,6 +54,10 @@ public class GameServer {
 
     @Column(name = "loader_version", length = 32)
     private String loaderVersion;
+
+    /** What the mod build supports, comma-separated, as it reported it; null: older mod, read as {@link #V1_CAPABILITIES}. */
+    @Column(name = "capabilities", length = 1000)
+    private String capabilities;
 
     /** Whether the server mirrors the network whitelist (its syncWhitelist config); null until it reports. */
     @Column(name = "sync_whitelist")
@@ -129,12 +138,15 @@ public class GameServer {
     }
 
     /** Stores what the mod reported about itself on check-in. */
-    public void reportSetup(String modVersion, String minecraftVersion, String loader, String loaderVersion, Boolean syncWhitelist,
-            Boolean enforceWhitelist, Boolean syncBans) {
+    public void reportSetup(String modVersion, String minecraftVersion, String loader, String loaderVersion,
+            List<String> capabilities, Boolean syncWhitelist, Boolean enforceWhitelist, Boolean syncBans) {
         this.modVersion = modVersion;
         this.minecraftVersion = minecraftVersion;
         this.loader = loader;
         this.loaderVersion = loaderVersion;
+        // names the hub doesn't know are kept as sent; only ones that can't survive the join are dropped
+        this.capabilities = capabilities == null ? null : String.join(",", capabilities.stream()
+                .filter(c -> c != null && !c.isBlank() && !c.contains(",")).toList());
         this.syncWhitelist = syncWhitelist;
         this.enforceWhitelist = enforceWhitelist;
         this.syncBans = syncBans;
@@ -165,6 +177,14 @@ public class GameServer {
     public String getMinecraftVersion() { return minecraftVersion; }
     public String getLoader() { return loader; }
     public String getLoaderVersion() { return loaderVersion; }
+
+    /** What the mod build supports; {@link #V1_CAPABILITIES} for a mod that never said. */
+    public List<String> getCapabilities() {
+        if (capabilities == null) return V1_CAPABILITIES;
+        return capabilities.isEmpty() ? List.of() : Arrays.asList(capabilities.split(","));
+    }
+
+    public boolean supports(String capability) { return getCapabilities().contains(capability); }
     public Boolean getSyncWhitelist() { return syncWhitelist; }
     public Boolean getEnforceWhitelist() { return enforceWhitelist; }
     public String getWhitelistVersion() { return whitelistVersion; }
