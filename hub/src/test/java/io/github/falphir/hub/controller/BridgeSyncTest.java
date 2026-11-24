@@ -216,6 +216,48 @@ class BridgeSyncTest {
     }
 
     @Test
+    void helloWithoutCapabilitiesMeansTheV1Set() throws Exception {
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
+        mvc.perform(post("/api/bridge/hello").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"modVersion\":\"1.0.0\",\"loader\":\"neoforge\"}"))
+                .andExpect(status().isOk());
+        assertThat(serverView(adminToken(), "$.mod.capabilities")).isEqualTo(List.of("whitelist", "bans", "motd", "linkCodes"));
+    }
+
+    @Test
+    void helloKeepsCapabilitiesAndLoadersItDoesNotKnow() throws Exception {
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
+        mvc.perform(post("/api/bridge/hello").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loader\":\"fabric\",\"capabilities\":[\"whitelist\",\"somethingNew\"]}"))
+                .andExpect(status().isOk());
+        String admin = adminToken();
+        assertThat(serverView(admin, "$.mod.capabilities")).isEqualTo(List.of("whitelist", "somethingNew"));
+        assertThat(serverView(admin, "$.mod.loader")).isEqualTo("fabric");
+    }
+
+    @Test
+    void motdIsNotSentToAServerThatCannotApplyIt() throws Exception {
+        String bearer = "Bearer " + servers.register(SERVER, "Sync Test", null).token();
+        String admin = adminToken();
+        String created = mvc.perform(post("/api/admin/motds").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"bridge-test-no-motd\",\"text\":\"§6WTC NETWORK\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int motdId = JsonPath.read(created, "$.id");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/admin/servers/" + SERVER)
+                        .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content("{\"motdTemplateId\":" + motdId + "}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/bridge/hello").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capabilities\":[\"whitelist\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.motd").doesNotExist());
+        mvc.perform(post("/api/bridge/heartbeat").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerCount\":0,\"maxPlayers\":20,\"tps\":20,\"msptAvg\":5,\"memoryUsedMb\":1,\"memoryMaxMb\":2}"))
+                .andExpect(jsonPath("$.motd").doesNotExist());
+    }
+
+    @Test
     void queryTokenOnlyWorksForTheLiveSocket() throws Exception {
         String token = adminToken().substring("Bearer ".length());
         mvc.perform(get("/api/admin/servers").param("access_token", token)).andExpect(status().isUnauthorized());

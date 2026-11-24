@@ -119,10 +119,10 @@ public class ServerService {
     /** Check-in from the mod: marks the server seen and stores what it reported about itself. */
     @Transactional
     public GameServer checkIn(String id, String modVersion, String minecraftVersion, String loader, String loaderVersion,
-            Boolean syncWhitelist, Boolean enforceWhitelist, Boolean syncBans) {
+            List<String> capabilities, Boolean syncWhitelist, Boolean enforceWhitelist, Boolean syncBans) {
         GameServer server = find(id);
         server.markSeen();
-        server.reportSetup(modVersion, minecraftVersion, loader, loaderVersion, syncWhitelist, enforceWhitelist, syncBans);
+        server.reportSetup(modVersion, minecraftVersion, loader, loaderVersion, capabilities, syncWhitelist, enforceWhitelist, syncBans);
         events.publishEvent(HubEvent.servers(id));
         return server;
     }

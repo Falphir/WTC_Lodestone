@@ -105,10 +105,13 @@ public class MotdService {
         find(id);
     }
 
-    /** What this server should show, with its listing filled in; null when it has none, or can't fill one in. */
+    /**
+     * What this server should show, with its listing filled in; null when it has none, can't fill one in,
+     * or runs a mod build that can't apply one.
+     */
     @Transactional(readOnly = true)
     public String renderFor(GameServer server) {
-        if (server.getMotdTemplateId() == null) return null;
+        if (server.getMotdTemplateId() == null || !server.supports("motd")) return null;
         return motds.findById(server.getMotdTemplateId())
                 .map(motd -> render(motd.getText(), server.getModpack(), server.getModpackVersion(), server.getName()))
                 .orElse(null);

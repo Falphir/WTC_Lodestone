@@ -68,7 +68,7 @@ public class AdminServerController {
         ServerHeartbeat latest = serverService.latestHeartbeat(s.getId()).orElse(null);
         return new ServerView(s.getId(), s.getName(), s.isEnabled(), s.getCreatedAt(), s.getLastSeen(),
                 serverService.status(s, latest), latest == null ? null : HeartbeatView.from(latest),
-                new ModView(s.getModVersion(), s.getMinecraftVersion(), s.getLoader(), s.getLoaderVersion()),
+                new ModView(s.getModVersion(), s.getMinecraftVersion(), s.getLoader(), s.getLoaderVersion(), s.getCapabilities()),
                 new WhitelistSyncView(s.getSyncWhitelist(), s.getWhitelistSyncedAt(),
                         s.getWhitelistVersion() != null && s.getWhitelistVersion().equals(whitelistVersion),
                         s.getEnforceWhitelist()),
@@ -115,7 +115,9 @@ public class AdminServerController {
     }
 
     /** What the mod reported on its last check-in; all null until it has checked in with a mod that reports them. */
-    public record ModView(String version, String minecraftVersion, String loader, String loaderVersion) {}
+    public record ModView(String version, String minecraftVersion, String loader, String loaderVersion,
+            @Schema(description = "What its mod build supports; the 1.0 set (whitelist, bans, motd, linkCodes) for a mod that never said. Never null")
+            List<String> capabilities) {}
 
     /**
      * @param enabled  the server's syncWhitelist setting, null until reported
