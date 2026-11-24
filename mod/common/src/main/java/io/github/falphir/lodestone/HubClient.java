@@ -65,6 +65,12 @@ public final class HubClient {
     /** Whitelist version last reported to the hub as applied. Only touched on the server thread. */
     private static String reportedWhitelistVersion = null;
 
+    /**
+     * What this build can do, sent in hello so the hub and dashboard know which features apply here.
+     * A new mod feature adds its entry; the hub keeps names it doesn't know.
+     */
+    public static final List<String> CAPABILITIES = List.of("whitelist", "bans", "motd", "linkCodes");
+
     private HubClient() {}
 
     public static int heartbeatIntervalTicks() {
@@ -204,6 +210,9 @@ public final class HubClient {
         // so the hub shows it rather than letting the mismatch pass silently.
         body.addProperty("enforceWhitelist", enforceWhitelist);
         body.addProperty("syncBans", LodestoneConfig.syncBans());
+        JsonArray capabilities = new JsonArray();
+        CAPABILITIES.forEach(capabilities::add);
+        body.add("capabilities", capabilities);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
