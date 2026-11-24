@@ -12,6 +12,8 @@ What the admin audit log records, how it knows who acted (including through the 
 
 **A new admin mutation records itself:** call `audit.record(action, target, detail)` in the service method, after the change and inside its transaction, so a refused or rolled-back change leaves no row. Nothing passes the admin's name in: `AuditLog` reads it from the `SecurityContext`, and `via` from the `X-Lodestone-On-Behalf-Of` header. Edits record field names, never values (`AuditLog.fieldsSet(patch)`), and never passwords.
 
+**Sign-in lockouts** are the one row that isn't an admin's change: `login.lockout`, written by `LoginThrottle` when an IP or a username first gets locked out (`docs/hub-auth.md`). The actor is `system`, the target is `IP <addr>` or the username, and the detail names the other one.
+
 **Not recorded:** what the mods report, the bot's own application bookkeeping (`pending`/`clear`), the nightly cleanups.
 
 **Creating a server** registers it with `ServerService.register(…, false)` and records a single `server.create`, not a second `server.register`.

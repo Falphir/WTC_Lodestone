@@ -14,3 +14,17 @@ Auth is two separate schemes layered by `SecurityConfig`:
 **Never mix the two:** bridge tokens and admin JWTs are both `Authorization: Bearer ...`, and must never be routed into the other's validator. `adminBearerTokens()` explicitly returns `null` for `/api/bridge/**`, so the JWT decoder never sees a server token.
 
 **The Discord bot** is an ordinary admin account, not a separate scheme: see `docs/discord-bot.md`.
+
+## Sign-in throttling
+
+`httpBasic` is accepted on every `/api/admin/**` request, not just `/api/auth/token`, so the throttle sits on authentication itself, not on one URL:
+- **What counts:** `service/LoginThrottle` listens to Spring's `AuthenticationFailureBadCredentialsEvent`/`AuthenticationSuccessEvent`, for username + password tokens only (Basic anywhere, the `/login` form), never JWTs.
+- **The limits:** an IP locks after 5 failures, a username after 20. A lock lasts 1 minute, doubling with each failure after that, up to 15 minutes. A key with no failure for 15 minutes is forgotten. Constants, not config.
+- **Per IP first:** the username lock only holds back IPs that have failed recently themselves. Someone guessing `discord-bot` from elsewhere locks that name for their own IPs, but the bot, on a clean `127.0.0.1` with the right password, still gets in.
+- **A success** clears that IP's count, not the username's: one good sign-in shouldn't wipe a guessing run from somewhere else.
+- **While locked:** `config/LoginThrottleFilter` (before `UsernamePasswordAuthenticationFilter` and Basic) answers `429` with `Retry-After: <seconds>` and an empty body. It answers before the password is checked, and the same way whether the username exists or not.
+- **The client IP:** `server.forward-headers-strategy: native` turns on Tomcat's `RemoteIpValve`, which takes the client IP from `X-Forwarded-For`. It only does that when the request comes from loopback or a private range, which covers nginx and the Docker variant's bridge gateway. A request straight from the internet can't set its own IP that way.
+- **In memory:** a hub restart forgets every count and lock.
+- **Audited:** the first lock of an IP or a username records `login.lockout` (actor `system`). See `docs/audit-log.md`.
+
+nginx's `limit_req` on `/api/auth/` and `/login` (`deploy/nginx/lodestone.conf`) stays as the first line. This throttle covers the other endpoints, and a hub without nginx in front of it.

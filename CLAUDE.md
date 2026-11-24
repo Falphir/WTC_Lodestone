@@ -85,7 +85,7 @@ Mod and bot (details in their own `CLAUDE.md`):
 
 Read these when the task touches their area. They aren't loaded automatically.
 
-- **Sign-in, tokens, the WebSocket's auth, `SecurityConfig`:** `docs/hub-auth.md`
+- **Sign-in, sign-in throttling, tokens, the WebSocket's auth, `SecurityConfig`:** `docs/hub-auth.md`
 - **Heartbeats, status, who's online, public server listings:** `docs/servers-and-status.md`
 - **The audit log, or the bot's on-behalf-of header:** `docs/audit-log.md`
 - **Network whitelist, Discord link codes, network bans, the kick or ban message:** `docs/whitelist-and-bans.md`

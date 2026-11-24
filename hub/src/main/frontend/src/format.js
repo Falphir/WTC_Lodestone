@@ -184,6 +184,7 @@ const AUDIT_ACTIONS = {
   'admin.create': 'Added an admin',
   'admin.edit': 'Edited an admin',
   'admin.delete': 'Removed an admin',
+  'login.lockout': 'Locked out sign-ins',
   'discord.config': 'Changed the Discord bot settings',
 }
 
