@@ -80,6 +80,16 @@ export function CreateServerDialog({ onClose, onCreated }) {
   // the pack's suggestion applies to its own template only, and a setting stops being "from the pack" once changed
   const fromPack = (key) => setup?.template === template && key in (setup?.values ?? {}) && values[key] === setup.values[key]
 
+  /** The ID follows the name until it's edited by hand. */
+  function changeName(next) {
+    setName(next)
+    if (!id || id === filled.id) {
+      const suggested = slugify(next)
+      setId(suggested)
+      setFilled((f) => ({ ...f, id: suggested }))
+    }
+  }
+
   function pickTemplate(next) {
     setTemplate(next)
     setValues({})
@@ -223,7 +233,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
               </p>
               <div className="form-row">
                 <Field label="Display name">
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="WTC Genesis" maxLength={40} required autoFocus />
+                  <input value={name} onChange={(e) => changeName(e.target.value)} placeholder="WTC Genesis" maxLength={40} required autoFocus />
                 </Field>
                 <Field label="Server ID" hint="Its serverId in the mod config.">
                   <input
