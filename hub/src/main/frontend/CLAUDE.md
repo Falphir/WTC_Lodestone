@@ -12,7 +12,7 @@ No router, no data-fetching library. Four modules in `src/` cover it, and pages 
 - **`live.js`:** one WebSocket for the whole dashboard, opened lazily and only while something is subscribed, with backoff reconnects.
 - **`hooks.js`:**
   - **`useApi(path, { topics, serverId, refreshMs })`** is the only read path. It loads once, reloads on a matching `HubEvent` topic (debounced 300ms, since a burst of heartbeats arrives together), and polls `refreshMs` as the fallback for a dead socket. `useApi(null)` loads nothing.
-  - **`useRoute()`** is the router: `window.location.hash` split into segments, matched by the if-chain in `App.jsx`. The routes are `#/`, `#/servers`, `#/servers/{id}[/{tab}]`, `#/whitelist`, `#/bans`, `#/admins`, `#/history` (the audit log) and `#/config` (network-wide settings, the MOTDs today).
+  - **`useRoute()`** is the router: `window.location.hash` split into segments, matched by the if-chain in `App.jsx`. The routes are `#/`, `#/servers`, `#/servers/{id}[/{tab}]`, `#/whitelist`, `#/bans`, `#/applications[/{discordId}]` (the open one shows beside the list), `#/admins`, `#/history` (the audit log) and `#/config` (network-wide settings, the MOTDs today).
   - **A server page** has three tabs, `stats`, `details` and `manage`. One shows at a time, with a `ServerTabBar` pinned to the bottom like PufferPanel's, and power controls in the header.
   - **Also here:** `useAction` (mutations), `useHubInfo` (`/api/info`, fetched once per process), `useLiveStatus` and `useTheme`.
 - **`format.js`:** the shared display vocabulary, and the reason two pages never disagree about a badge. New formatting goes here, not inline in a page. It holds:
@@ -24,6 +24,7 @@ No router, no data-fetching library. Four modules in `src/` cover it, and pages 
   - **MOTD previews:** `renderMotd`/`motdMissing`.
   - **Capabilities:** `unsupported(server, capability)`, the reason a server's mod build can't use a feature (null when it can). `whitelistSync`/`banSync` and `ServerMotd` gray out on it.
   - **The History page's wording:** `auditAction`.
+  - **Applications:** `applicationStatus`, and `APPLICATION_ANSWERS`/`applicationAnswer`, worded as the bot's own post (`discord/locales/en.json`) so staff read the same thing in both places.
 
 **A fifth module, `motd.js`,** is the MOTD editor's model and the one parser of Minecraft `§`/`&` codes in the dashboard. It has no React in it, so `motd.test.js` runs under plain Node. Read `docs/motd.md` before touching it.
 
@@ -54,6 +55,7 @@ No router, no data-fetching library. Four modules in `src/` cover it, and pages 
   - **`SyncPanel`:** the per-server sync list the Whitelist and Bans pages both show, given `whitelistSync` or `banSync` as `syncOf`.
 - **`whitelist/`:** `WhitelistTable`/`WhitelistRow`, `KickMessagePanel`.
 - **`bans/`:** `BanTable`/`BanRow`, `BanMessagePanel`.
+- **`applications/`:** `ApplicationTable` and `ApplicationDetail` (the answers, and approve/deny while pending).
 - **`motd/`:** the Configuration page's MOTD list (`MotdPanel`), and its `MotdEditDialog`/`MotdEditor`/`MotdToolbar`.
 - **`SidebarNav.jsx` stays loose at the top:** it's the app shell's own nav, belonging to `App.jsx` rather than to a reusable group of one.
 

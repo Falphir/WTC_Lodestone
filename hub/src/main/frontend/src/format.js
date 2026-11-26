@@ -189,3 +189,38 @@ const AUDIT_ACTIONS = {
 }
 
 export const auditAction = (action) => AUDIT_ACTIONS[action] ?? action
+
+// ---- applications ----
+
+const APPLICATION_STATUS = {
+  pending: { tone: 'warn', label: 'Pending' },
+  approved: { tone: 'good', label: 'Approved' },
+  denied: { tone: 'crit', label: 'Denied' },
+}
+
+export const applicationStatus = (status) => APPLICATION_STATUS[status] ?? { tone: 'none', label: status }
+
+// The /apply form's answers in the order the form asks them, worded as the bot's own post words
+// them (discord/locales/en.json, apply.field*), so staff read the same thing in both places.
+export const APPLICATION_ANSWERS = [
+  ['mc', 'Minecraft'],
+  ['age', 'Age'],
+  ['referral', 'How they found us'],
+  ['experience', 'Experience & playstyle'],
+  ['why', 'Why they want to join'],
+]
+
+// The referral select's options (apply.referral_* in the bot's en.json); the hub stores the key.
+const REFERRALS = {
+  friend: 'A friend already here',
+  youtube: 'YouTube or Twitch',
+  reddit: 'Reddit',
+  listing: 'A modpack or server listing',
+  discord: 'Another Discord server',
+  other: 'Somewhere else',
+}
+
+export function applicationAnswer(key, value) {
+  if (!value) return null
+  return key === 'referral' ? (REFERRALS[value] ?? value) : value
+}

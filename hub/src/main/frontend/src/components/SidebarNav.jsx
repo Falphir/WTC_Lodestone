@@ -7,6 +7,7 @@ const NAV = [
   { path: 'servers', label: 'Servers', icon: 'servers' },
   { path: 'whitelist', label: 'Whitelist', icon: 'whitelist' },
   { path: 'bans', label: 'Bans', icon: 'bans' },
+  { path: 'applications', label: 'Applications', icon: 'applications' },
   { path: 'admins', label: 'Admins', icon: 'admins' },
   { path: 'history', label: 'History', icon: 'history' },
   { path: 'config', label: 'Configuration', icon: 'settings' },

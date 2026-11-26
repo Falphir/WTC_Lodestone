@@ -53,6 +53,9 @@ export { StatusBadge } from './server/StatusBadge'
 export { SyncPanel } from './server/SyncPanel'
 export { TokenNotice } from './server/TokenNotice'
 
+export { ApplicationDetail } from './applications/ApplicationDetail'
+export { ApplicationTable } from './applications/ApplicationTable'
+
 export { BanMessagePanel } from './bans/BanMessagePanel'
 export { BanRow } from './bans/BanRow'
 export { BanTable } from './bans/BanTable'

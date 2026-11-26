@@ -82,13 +82,14 @@ public class AdminDiscordApplicationController {
                     + "decision waits in GET /unapplied for the bot.")
     public ApplicationView setDecision(@PathVariable String discordId, @Valid @RequestBody DecisionRequest request) {
         return ApplicationView.from(service.setApplicationDecision(
-                discordId, request.status(), request.reason(), request.applied()));
+                discordId, request.status(), request.reason(), Boolean.TRUE.equals(request.applied())));
     }
 
+    /** applied is optional, so the dashboard can leave it out: Jackson 3 rejects a missing primitive. */
     public record DecisionRequest(
             @NotBlank @Pattern(regexp = "approved|denied") String status,
             @Size(max = 500) String reason,
-            boolean applied) {}
+            Boolean applied) {}
 
     @PutMapping("/{discordId}/applied")
     @ResponseStatus(HttpStatus.NO_CONTENT)

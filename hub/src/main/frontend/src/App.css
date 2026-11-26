@@ -793,6 +793,79 @@
   }
 }
 
+/* ---------- applications ---------- */
+
+/* The list beside the open application. The answers are capped at a reading measure, so the list
+   gets enough room for its three columns; under 1100px the application goes first, since it's
+   what was just opened. */
+.review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review .application {
+    order: -1;
+  }
+}
+
+/* on the row, not its cells, so a stacked mobile card is tinted edge to edge */
+.row-link[aria-current='true'] {
+  background: var(--accent-wash);
+}
+
+.application {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.application-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.application-head h2 {
+  font-size: var(--fs-md);
+}
+
+.answers {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+}
+
+.answers dt {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* what they typed, line breaks included, at a readable measure */
+.answers dd {
+  max-width: 68ch;
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.application-decide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 /* ---------- status ---------- */
 
 .status {
