@@ -76,9 +76,8 @@ export function CreateServerDialog({ onClose, onCreated }) {
     name: name.trim(),
   }
   const motdRendered = motd ? renderMotd(motd.text, listing) : null
-  // the hub writes it into the template's own MOTD setting, so that field gives way to the preview
-  const motdFills = Boolean(motdRendered && variables.some((v) => v.key === 'motd'))
-  const shownVariables = motdFills ? variables.filter((v) => v.key !== 'motd') : variables
+  // one MOTD control: with network MOTDs to pick from, the template's own motd field gives way to that dropdown
+  const shownVariables = motds?.length > 0 ? variables.filter((v) => v.key !== 'motd') : variables
 
   const valueOf = (v) => (v.key in values ? values[v.key] : v.key in DEFAULTS ? DEFAULTS[v.key] : v.value)
   const changed = (v) => String(valueOf(v)) !== String(v.value)
@@ -306,18 +305,6 @@ export function CreateServerDialog({ onClose, onCreated }) {
                   </Field>
                 )}
               </div>
-              {motds?.length > 0 && (
-                <Field label="MOTD" hint="One of the network MOTDs, filled in with this server's pack and version.">
-                  <select value={motdId} onChange={(e) => setMotdPick(Number(e.target.value))}>
-                    <option value={0}>None (the template's own)</option>
-                    {motds.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
             </>
           )}
 
@@ -328,13 +315,19 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </Note>
           )}
 
-          {current === 'Settings' && motdFills && (
-            <div className="field">
-              <span>MOTD</span>
-              <MinecraftText text={motdRendered} />
-              <small>From the {motd.name} MOTD. Change it in Basics.</small>
-            </div>
+          {current === 'Settings' && motds?.length > 0 && (
+            <Field label="MOTD" hint="One of the network MOTDs, filled in with this server's pack and version.">
+              <select value={motdId} onChange={(e) => setMotdPick(Number(e.target.value))}>
+                <option value={0}>Template's own</option>
+                {motds.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
           )}
+          {current === 'Settings' && motdRendered && <MinecraftText text={motdRendered} />}
           {current === 'Settings' && motd && !motdRendered && (
             <Note>
               The {motd.name} MOTD needs the server's {motdMissing(motd.text, listing).join(' and ')}, so the template's own
@@ -386,11 +379,12 @@ export function CreateServerDialog({ onClose, onCreated }) {
                     value={v.key === 'memory' && valueOf(v) ? formatMemory(Number(valueOf(v))) : valueOf(v)}
                   />
                 ))}
-              {motdRendered && (
+              {motds?.length > 0 && (
                 <>
                   <dt>MOTD</dt>
                   <dd>
-                    <MinecraftText text={motdRendered} />
+                    {motd ? motd.name : "Template's own"}
+                    {motdRendered && <MinecraftText text={motdRendered} />}
                   </dd>
                 </>
               )}
