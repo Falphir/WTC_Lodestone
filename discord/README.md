@@ -38,12 +38,14 @@ account, and vice-versa).
   and only reviewable applications are ever offered. Someone who has since left the server has no
   Discord name to resolve and is listed by their Discord id — still reviewable, where a member
   picker could not have found them. The card shows the applicant and a jump link to the public
-  post that holds their written answers, Minecraft name included (the hub row keeps only the
-  Discord id and the post's id).
+  post that holds their written answers, Minecraft name included. Staff can also read the answers,
+  and decide, on the dashboard's Applications page.
 - **Approve** → assigns the member role and posts a welcome message telling them how to link,
   pointing to the server-info channel. It doesn't whitelist anyone: that happens when the member
   links their account with `/link`. No DMs of IPs.
 - **Deny** → optional reason, DMed to the applicant; application post is stamped.
+- **Decided on the dashboard** → the bot checks the hub every 30 seconds and does the same in
+  Discord (role and welcome, or the DM with the reason), stamped "on the dashboard".
 - **Retention** → the hub deletes decided applications nightly: approved after a day, denied once
   the re-apply cooldown is over. The public post stays in Discord until staff delete it. The privacy
   notice to pin where people run `/apply` is `PRIVACY.md` at the repo root.

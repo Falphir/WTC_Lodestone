@@ -2,7 +2,7 @@
 Run by <WHO RUNS IT>. Questions or requests: <HOW TO CONTACT, e.g. DM a staff member>.
 
 **What we keep, and why**
-• **Applications:** your Discord account, Minecraft username, age and answers. They're posted publicly in the applications channel so the community can see who's joining. We use them only to review your application.
+• **Applications:** your Discord account, Minecraft username, age and answers. They're posted publicly in the applications channel so the community can see who's joining, and staff read them on our staff dashboard. We use them only to review your application. If staff deny it with a reason, the reason is kept with your application and deleted with it.
 • **Account link:** your Minecraft account ID and name, linked to your Discord ID, so we can whitelist you on our servers.
 • **While you play:** servers report who's online. This is never stored.
 • **Server logs:** the website and servers log IP addresses, kept up to 14 days for security.

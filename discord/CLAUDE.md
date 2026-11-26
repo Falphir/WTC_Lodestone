@@ -15,6 +15,7 @@ The rules for changing bot code. Commands are in the root `CLAUDE.md`; why the b
   - New bot copy means a new key there.
 - **Changing a command or option description** also needs `npm run deploy` to re-register it with Discord.
 - **Autocomplete can only answer with choices,** never a reply, and Discord fires it on every keystroke. Build a choice list at most once per cache period, filter it in memory, and answer errors with `[]`.
-- **The hub's application row is the record,** not the posted embed. Handlers read `status` and `messageId` from the row, and a decision is refused unless the row is still `pending`.
+- **The hub's application row is the record,** not the posted embed. Handlers read `status` and `messageId` from the row, and the hub refuses a decision unless the row is still `pending` (`setApplicationDecision` returns `null` then).
+  - What a decision does in Discord lives in one place, `applyDecision`, used by both `/review` and `syncDashboardDecisions` (the 30s poll for decisions made on the dashboard). See `docs/discord-bot.md`.
 - **The `/apply` form needs a recent discord.js.** It's built from `LabelBuilder` components, so its declared version can't drop below the range that has `addLabelComponents`/`setDescription`/selects in modals.
 - **Tests** (`test/*.test.js`, `node:test`) stub `fetch`, or replace `src/hub.js` in `require.cache`. They never reach a real hub or Discord.

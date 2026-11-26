@@ -14,7 +14,7 @@ What the admin audit log records, how it knows who acted (including through the 
 
 **Sign-in lockouts** are the one row that isn't an admin's change: `login.lockout`, written by `LoginThrottle` when an IP or a username first gets locked out (`docs/hub-auth.md`). The actor is `system`, the target is `IP <addr>` or the username, and the detail names the other one.
 
-**Not recorded:** what the mods report, the bot's own application bookkeeping (`pending`/`clear`), the nightly cleanups.
+**Not recorded:** what the mods report, the bot's own application bookkeeping (`pending`/`clear`, and acknowledging a dashboard decision with `applied`), the nightly cleanups.
 
 **Creating a server** registers it with `ServerService.register(…, false)` and records a single `server.create`, not a second `server.register`.
 

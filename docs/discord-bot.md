@@ -30,7 +30,8 @@ The bot keeps **no durable state at all.** Everything that used to be `config.js
   - There's no `setLink` any more: links are only made by `hub.claimLinkCode`.
 - **In-flight applications** (pending, approved or denied): the `DiscordApplication` entity (`discord_applications` table), `DiscordApplicationService`, `AdminDiscordApplicationController` at `/api/admin/discord/applications`.
   - They're independent of the whitelist, since an applicant may not be whitelisted yet.
-  - Decided rows are deleted nightly by `ApplicationRetentionTask`, for GDPR retention. Approved ones go after 1 day, denied ones once `applyCooldownDays` has passed, which is exactly as long as the row is needed to block re-applying. Pending rows are kept.
+  - A row holds the applicant's Discord name, the form's answers (one JSON object, for the dashboard) and a deny reason. All of it goes with the row. Rows from before V23 have no answers.
+  - Decided rows are deleted nightly by `ApplicationRetentionTask`, for GDPR retention. Approved ones go after 1 day, denied ones once `applyCooldownDays` has passed, which is exactly as long as the row is needed to block re-applying. Pending rows are kept, and so are decisions the bot hasn't acted on yet (`bot_pending`), or an approval could vanish before the role is granted.
   - With audit entries and heartbeats, these are the data the hub expires on purpose. Whitelist rows, links and staff accounts are kept while they're current. The privacy notice to pin in Discord is `PRIVACY.md`.
 
 ## In-memory caches
@@ -51,10 +52,10 @@ The only things the bot holds in memory are caches it can lose without consequen
 
 **That's why the Approve/Deny buttons aren't on it.** A message's components render for everyone who can see the message, and Discord has no per-user visibility for them. So staff pull the controls to themselves with `/review`, whose **ephemeral** reply is the one place components are per-user.
 
-**`/review`'s option autocompletes** from `GET /api/admin/discord/applications?status=pending`. That's the only listing endpoint on `AdminDiscordApplicationController`; everything else there is keyed by `discordId`. So a choice's value is an applicant's Discord id, and staff never type one.
+**`/review`'s option autocompletes** from `GET /api/admin/discord/applications?status=pending`. A choice's value is an applicant's Discord id, so staff never type one.
 
 **A choice's label is the applicant's Discord name,** resolved bot-side when the list is built:
-- **Why it's resolved:** the application row (V16) holds no Minecraft identity at all, only the Discord id and the post's `messageId`. And a plain-text choice label renders a `<@id>` mention as raw markup.
+- **Why it's resolved:** a plain-text choice label renders a `<@id>` mention as raw markup, and the name the row stores is the one the applicant had when they applied (none at all before V23).
 - **How:** member cache first, then one bulk `members.fetch` for the misses, never one call per applicant, because autocomplete is on a 3s clock.
 - **An applicant who has left the guild** resolves to nothing, and is listed by their Discord id rather than dropped.
 
@@ -67,9 +68,19 @@ The only things the bot holds in memory are caches it can lose without consequen
 **The hub's row is the record, not the post:**
 - **The post is only ever stamped** with the outcome (`stampPost`).
 - **Handlers read `status` and `messageId` from the hub's application row,** not the rendered embed. So rewording a locale key can't make an in-flight application unapprovable.
-- **The Minecraft name an applicant typed exists only in that post.** Approval never derives an account from it.
+- **The Minecraft name an applicant typed is information for staff,** in the post and the row's answers. Approval never derives an account from it.
 
-**A decision is refused unless the row is still `pending`,** which is what stops two staff double-approving.
+**The hub refuses a decision unless the row is still `pending`** (409, or 404 with no row). That's what stops two staff, or a staff member and the dashboard, deciding the same application. `/review` records the decision first and acts on it in Discord only once the hub has accepted it, so the loser of a race is told "already reviewed" and nobody gets two DMs.
+
+## Decisions made on the dashboard
+
+**The dashboard's Applications page decides through the same endpoint,** but the role and the DM are Discord's, and only the bot can reach Discord. The hub can't call the bot either (it has no listener), so the bot polls.
+
+- **The hand-off:** a decision sent without `applied: true` sets `bot_pending` on the row. `/review` always sends `applied: true`, because it acts in Discord itself.
+- **The poll:** `syncDashboardDecisions` (`discord/src/lib/applications.js`) runs at login and every 30s from `ready.js`. It reads `GET …/applications/unapplied`, runs `applyDecision` on each one (the same role, welcome, deny DM, post stamp and staff log as `/review`, worded "on the dashboard"), then acknowledges it with `PUT …/{discordId}/applied`, which clears the flag.
+- **The deny reason** comes from the row, so the DM carries what the reviewer typed on the dashboard.
+- **When Discord or the hub is down,** nothing is acknowledged and the next run retries. A crash between acting and acknowledging repeats that one decision: a second welcome post is the only visible effect, and that's accepted rather than tracked.
+- **The flag holds nothing beyond the row:** the decision and its time were already there, and it's cleared the moment the bot is done.
 
 ## No other integrations
 
