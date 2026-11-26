@@ -26,6 +26,20 @@ public class DiscordApplication {
     @Column(name = "decided_at")
     private Long decidedAt;
 
+    @Column(name = "discord_name", length = 64)
+    private String discordName;
+
+    /** The /apply form as a JSON object, for the dashboard; null on applications from before it was kept. */
+    @Column(length = 4000)
+    private String answers;
+
+    @Column(name = "deny_reason", length = 500)
+    private String denyReason;
+
+    /** Decided off Discord, and the bot hasn't granted the role / sent the DM yet. */
+    @Column(name = "bot_pending", nullable = false)
+    private boolean botPending;
+
     protected DiscordApplication() {
         // required by JPA
     }
@@ -34,19 +48,26 @@ public class DiscordApplication {
         this.discordId = discordId;
     }
 
-    public void markPending(String messageId) {
+    public void markPending(String messageId, String discordName, String answers) {
         this.status = "pending";
         this.messageId = messageId;
+        this.discordName = discordName;
+        this.answers = answers;
         this.createdAt = System.currentTimeMillis();
         this.decidedAt = null;
+        this.denyReason = null;
+        this.botPending = false;
     }
 
-    /** A decision can arrive with no prior pending row; createdAt then starts here too. */
-    public void decide(String status) {
-        long now = System.currentTimeMillis();
-        if (this.createdAt == 0) this.createdAt = now;
+    public void decide(String status, String denyReason, boolean botPending) {
         this.status = status;
-        this.decidedAt = now;
+        this.decidedAt = System.currentTimeMillis();
+        this.denyReason = denyReason;
+        this.botPending = botPending;
+    }
+
+    public void markApplied() {
+        this.botPending = false;
     }
 
     public String getDiscordId() { return discordId; }
@@ -54,4 +75,8 @@ public class DiscordApplication {
     public String getMessageId() { return messageId; }
     public long getCreatedAt() { return createdAt; }
     public Long getDecidedAt() { return decidedAt; }
+    public String getDiscordName() { return discordName; }
+    public String getAnswers() { return answers; }
+    public String getDenyReason() { return denyReason; }
+    public boolean isBotPending() { return botPending; }
 }

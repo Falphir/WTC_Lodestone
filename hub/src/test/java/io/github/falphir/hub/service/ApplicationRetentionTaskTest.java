@@ -41,11 +41,15 @@ class ApplicationRetentionTaskTest {
         decided("test-ret-approved-new", "approved", Duration.ofHours(1));
         decided("test-ret-denied-old", "denied", Duration.ofDays(8));   // cooldown over
         decided("test-ret-denied-new", "denied", Duration.ofDays(3));   // still blocks re-applying
-        service.setApplicationPending("test-ret-pending", "m1");
+        service.setApplicationPending("test-ret-pending", "m1", null, null);
+        decided("test-ret-unapplied", "approved", Duration.ofDays(2));
+        jdbc.update("UPDATE discord_applications SET bot_pending = TRUE WHERE discord_id = 'test-ret-unapplied'");
         applications.flush();
 
         task.pruneDecidedApplications();
 
+        // the bot hasn't granted the role yet, so it stays however old it is
+        assertThat(applications.existsById("test-ret-unapplied")).isTrue();
         assertThat(applications.existsById("test-ret-approved-old")).isFalse();
         assertThat(applications.existsById("test-ret-denied-old")).isFalse();
         assertThat(applications.existsById("test-ret-approved-new")).isTrue();
@@ -55,8 +59,8 @@ class ApplicationRetentionTaskTest {
 
     /** decide() stamps "now", so the age is written straight to the column afterwards. */
     private void decided(String discordId, String status, Duration ago) {
-        service.setApplicationPending(discordId, "m");
-        service.setApplicationDecision(discordId, status);
+        service.setApplicationPending(discordId, "m", null, null);
+        service.setApplicationDecision(discordId, status, null, true);
         applications.flush();
         jdbc.update("UPDATE discord_applications SET decided_at = ? WHERE discord_id = ?",
                 Instant.now().minus(ago).toEpochMilli(), discordId);

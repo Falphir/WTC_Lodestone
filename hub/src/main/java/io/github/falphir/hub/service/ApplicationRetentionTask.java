@@ -5,6 +5,7 @@ import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +27,13 @@ public class ApplicationRetentionTask {
 
     private final DiscordApplicationRepository applications;
     private final DiscordBotService discordBot;
+    private final ApplicationEventPublisher events;
 
-    public ApplicationRetentionTask(DiscordApplicationRepository applications, DiscordBotService discordBot) {
+    public ApplicationRetentionTask(DiscordApplicationRepository applications, DiscordBotService discordBot,
+            ApplicationEventPublisher events) {
         this.applications = applications;
         this.discordBot = discordBot;
+        this.events = events;
     }
 
     @Scheduled(cron = "0 15 3 * * *")
@@ -42,6 +46,7 @@ public class ApplicationRetentionTask {
                 + applications.deleteDecidedBefore("denied", now.minus(keepDenied).toEpochMilli());
         if (deleted > 0) {
             LOGGER.info("Deleted {} decided application(s) past retention", deleted);
+            events.publishEvent(HubEvent.applications());
         }
     }
 }

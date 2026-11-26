@@ -14,8 +14,14 @@ public interface DiscordApplicationRepository extends JpaRepository<DiscordAppli
 
     List<DiscordApplication> findAllByOrderByCreatedAtAsc();
 
-    /** decidedAt is epoch millis. Pending rows have none, so they're never matched. */
+    /** Decisions made on the dashboard that the bot still has to act on, oldest first. */
+    List<DiscordApplication> findByBotPendingTrueOrderByDecidedAtAsc();
+
+    /**
+     * decidedAt is epoch millis. Pending rows have none, so they're never matched; nor are decisions
+     * the bot hasn't applied yet, or an approval could vanish before the member role is granted.
+     */
     @Modifying
-    @Query("delete from DiscordApplication a where a.status = :status and a.decidedAt < :cutoff")
+    @Query("delete from DiscordApplication a where a.status = :status and a.decidedAt < :cutoff and a.botPending = false")
     int deleteDecidedBefore(String status, long cutoff);
 }

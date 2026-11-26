@@ -121,7 +121,8 @@ class AuditRecordingTest {
     @Test
     void discordChanges() {
         discord.updateConfig(new DiscordBotService.Patch(null, null, null, null, null, null, 16, null, "WTC", null, null));
-        applications.setApplicationDecision("456", "approved");
+        applications.setApplicationPending("456", "m", null, null); // not audited
+        applications.setApplicationDecision("456", "approved", null, true);
 
         assertThat(rows()).containsExactly(
                 "discord.config Discord bot settings minAge, brandName",
