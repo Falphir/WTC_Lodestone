@@ -2,6 +2,10 @@
 
 const { Events } = require('discord.js');
 const config = require('../config');
+const { syncDashboardDecisions } = require('../lib/applications');
+
+// How often decisions made on the dashboard get their role / DM. Each run is one hub call.
+const SYNC_MS = 30_000;
 
 module.exports = {
   name: Events.ClientReady,
@@ -21,5 +25,9 @@ module.exports = {
     } catch (err) {
       console.error('Could not warm the member cache:', err.message);
     }
+
+    // Catch up on anything decided while the bot was down, then keep checking.
+    await syncDashboardDecisions(client);
+    setInterval(() => syncDashboardDecisions(client), SYNC_MS).unref();
   },
 };

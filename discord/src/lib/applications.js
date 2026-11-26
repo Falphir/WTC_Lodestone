@@ -95,10 +95,8 @@ async function postStaffLog(client, embed) {
   }
 }
 
-// Why a reviewed application can't be reviewed again. The hub row carries the decision, so the
-// loser of a double-click learns what happened instead of silently running the whole flow twice.
-// ponytail: this only narrows the race to one hub round-trip, which is enough for two staff
-// clicking at once. A compare-and-set on `status` hub-side is the upgrade if it ever bites.
+// Why a reviewed application can't be reviewed again. The hub refuses a second decision, so the
+// loser of a double-click (or of a race with the dashboard) learns what happened instead.
 function reviewedAlready(app) {
   const when = app.decidedAt ? `<t:${Math.floor(app.decidedAt / 1000)}:R>` : '';
   return t('apply.alreadyReviewed', { when });
@@ -121,8 +119,8 @@ async function acknowledge(interaction) {
 
 /**
  * The staff-side card for one application: who, when, and a link to the public post that holds
- * their written answers, Minecraft name included -- the hub keeps only the Discord id and the
- * post's id, so the post stays the record of what they actually wrote.
+ * their written answers, Minecraft name included. (The hub keeps the answers too, for the
+ * dashboard, but not for applications posted before it did.)
  */
 async function reviewCard(app, guildId) {
   if (app.status !== 'pending') return { content: reviewedAlready(app), embeds: [], components: [] };
@@ -329,7 +327,13 @@ async function submitApplication(interaction) {
     embeds: [embed],
   });
 
-  await db.setApplicationPending({ discordId: interaction.user.id, messageId: post.id });
+  // The answers go to the hub too, for reviewers on the dashboard; they're deleted with the row.
+  await db.setApplicationPending({
+    discordId: interaction.user.id,
+    messageId: post.id,
+    discordName: interaction.user.tag,
+    answers: data,
+  });
 
   drafts.delete(interaction.user.id); // it went through; a stale retry button must not reopen it
 
@@ -338,66 +342,111 @@ async function submitApplication(interaction) {
   });
 }
 
+/**
+ * Everything a decision does in Discord, wherever it was made: on approve the member role and the
+ * public welcome, on deny the DM with the hub's stored reason; then the post stamp and the staff
+ * log. `reviewerId` is the staff member on /review, or null for a dashboard decision, which has no
+ * Discord account to name. Each step fails on its own; the returned warnings are for /review.
+ */
+async function applyDecision(client, app, reviewerId) {
+  const approved = app.status === 'approved';
+  const applicantId = app.discordId;
+  let warnings = '';
+  let avatar = null;
+
+  if (approved) {
+    // Approval is the member role and nothing else. It doesn't touch the whitelist: the member links
+    // their own account with the code a server shows them on their first join, and /link
+    // whitelists it then (only for members, which is what this grants).
+    try {
+      const guild = await client.guilds.fetch(config.guildId);
+      const member = await guild.members.fetch(applicantId);
+      avatar = member.displayAvatarURL();
+      if (config.memberRoleId) await member.roles.add(config.memberRoleId);
+    } catch (err) {
+      console.error('Role assignment failed:', err);
+      warnings += `\n${withIcon('warning', t('apply.roleWarn'))}`;
+    }
+
+    // Public welcome message pointing them to the server-info channel (no DMs).
+    try {
+      const welcome = await client.channels.fetch(config.welcomeChannelId);
+      const welcomeEmbed = brandEmbed()
+        .setColor(COLORS.success)
+        .setTitle(withIcon('welcome', t('apply.welcomeTitle', { brand: config.brand.name })))
+        .setThumbnail(avatar)
+        .setDescription(t('apply.welcomeDescription', { serverInfoChannelId: config.serverInfoChannelId }));
+      // Mention in content (so it pings); embed carries the polish.
+      await welcome.send({ content: `<@${applicantId}>`, embeds: [welcomeEmbed] });
+    } catch {
+      warnings += `\n${withIcon('warning', t('apply.welcomeWarn'))}`;
+    }
+  } else {
+    try {
+      const user = await client.users.fetch(applicantId);
+      const dm = brandEmbed()
+        .setColor(COLORS.danger)
+        .setTitle(t('apply.denyDmTitle'))
+        .setDescription(
+          t('apply.denyDmDescription', { brand: config.brand.name }) +
+            (app.denyReason ? t('apply.denyDmReason', { reason: app.denyReason }) : '') +
+            t('apply.denyDmClosing')
+        );
+      await user.send({ embeds: [dm] });
+    } catch {
+      /* user may have DMs closed */
+    }
+  }
+
+  const color = approved ? COLORS.success : COLORS.danger;
+  const icon = approved ? 'approved' : 'denied';
+  const status = reviewerId
+    ? t(approved ? 'apply.statusApproved' : 'apply.statusDenied', { staffId: reviewerId })
+    : t(approved ? 'apply.statusApprovedDashboard' : 'apply.statusDeniedDashboard');
+  await stampPost(client, app.messageId, color, withIcon(icon, status));
+
+  const log = brandEmbed()
+    .setColor(color)
+    .setTitle(withIcon(icon, t(approved ? 'apply.logTitleApproved' : 'apply.logTitleDenied')))
+    .setThumbnail(avatar)
+    .addFields(
+      { name: t('apply.logFieldApplicant'), value: `<@${applicantId}>`, inline: true },
+      {
+        name: t('apply.logFieldReviewer'),
+        value: reviewerId ? `<@${reviewerId}>` : t('apply.logReviewerDashboard'),
+        inline: true,
+      }
+    );
+  if (app.denyReason) log.addFields({ name: t('apply.logFieldReason'), value: app.denyReason });
+  await postStaffLog(client, log);
+
+  return warnings;
+}
+
+/**
+ * Records a decision from /review, then acts on it. The hub refuses one on an application that's
+ * no longer pending, so whoever loses a race (another staff member, or the dashboard) learns what
+ * happened instead of running the whole flow twice.
+ */
+async function decide(interaction, applicantId, status, reason) {
+  const app = await db.setApplicationDecision(applicantId, status, { reason, applied: true });
+  if (!app) {
+    const current = await db.getApplication(applicantId);
+    await finish(interaction, current ? reviewedAlready(current) : t('review.notFound', { discordId: applicantId }));
+    return null;
+  }
+  return applyDecision(interaction.client, app, interaction.user.id);
+}
+
 async function handleApprove(interaction, applicantId) {
   if (!isStaff(interaction.member)) {
     return interaction.reply({ content: t('apply.staffOnlyReview'), ...EPHEMERAL });
   }
   await acknowledge(interaction);
 
-  const app = await db.getApplication(applicantId);
-  if (!app) return finish(interaction, t('review.notFound', { discordId: applicantId }));
-  if (app.status !== 'pending') return finish(interaction, reviewedAlready(app));
-
-  // Approval is the member role and nothing else. It doesn't touch the whitelist: the member links
-  // their own account with the code a server shows them on their first join, and /link
-  // whitelists it then (only for members, which is what this grants).
-  await db.setApplicationDecision(applicantId, 'approved');
-
-  let roleNote = '';
-  let avatar = null;
-  try {
-    const member = await interaction.guild.members.fetch(applicantId);
-    avatar = member.displayAvatarURL();
-    if (config.memberRoleId) await member.roles.add(config.memberRoleId);
-  } catch (err) {
-    console.error('Role assignment failed:', err);
-    roleNote = `\n${withIcon('warning', t('apply.roleWarn'))}`;
-  }
-
-  // Public welcome message pointing them to the server-info channel (no DMs).
-  try {
-    const welcome = await interaction.client.channels.fetch(config.welcomeChannelId);
-    const welcomeEmbed = brandEmbed()
-      .setColor(COLORS.success)
-      .setTitle(withIcon('welcome', t('apply.welcomeTitle', { brand: config.brand.name })))
-      .setThumbnail(avatar)
-      .setDescription(
-        t('apply.welcomeDescription', { serverInfoChannelId: config.serverInfoChannelId })
-      );
-    // Mention in content (so it pings); embed carries the polish.
-    await welcome.send({ content: `<@${applicantId}>`, embeds: [welcomeEmbed] });
-  } catch {
-    roleNote += `\n${withIcon('warning', t('apply.welcomeWarn'))}`;
-  }
-
-  await stampPost(
-    interaction.client,
-    app.messageId,
-    COLORS.success,
-    withIcon('approved', t('apply.statusApproved', { staffId: interaction.user.id }))
-  );
-
-  const approvedLog = brandEmbed()
-    .setColor(COLORS.success)
-    .setTitle(withIcon('approved', t('apply.logTitleApproved')))
-    .setThumbnail(avatar)
-    .addFields(
-      { name: t('apply.logFieldApplicant'), value: `<@${applicantId}>`, inline: true },
-      { name: t('apply.logFieldReviewer'), value: `<@${interaction.user.id}>`, inline: true }
-    );
-  await postStaffLog(interaction.client, approvedLog);
-
-  await finish(interaction, withIcon('approved', t('apply.approveSuccess', { discordId: applicantId })) + roleNote);
+  const warnings = await decide(interaction, applicantId, 'approved');
+  if (warnings === null) return;
+  await finish(interaction, withIcon('approved', t('apply.approveSuccess', { discordId: applicantId })) + warnings);
 }
 
 async function promptDeny(interaction, applicantId) {
@@ -425,45 +474,37 @@ async function submitDeny(interaction, applicantId) {
   await acknowledge(interaction);
   const reason = interaction.fields.getTextInputValue('reason').trim();
 
-  const app = await db.getApplication(applicantId);
-  if (app && app.status !== 'pending') return finish(interaction, reviewedAlready(app));
-
-  await stampPost(
-    interaction.client,
-    app?.messageId,
-    COLORS.danger,
-    withIcon('denied', t('apply.statusDenied', { staffId: interaction.user.id }))
-  );
-
-  try {
-    const user = await interaction.client.users.fetch(applicantId);
-    const dm = brandEmbed()
-      .setColor(COLORS.danger)
-      .setTitle(t('apply.denyDmTitle'))
-      .setDescription(
-        t('apply.denyDmDescription', { brand: config.brand.name }) +
-          (reason ? t('apply.denyDmReason', { reason }) : '') +
-          t('apply.denyDmClosing')
-      );
-    await user.send({ embeds: [dm] });
-  } catch {
-    /* user may have DMs closed */
-  }
-
-  // Record the denial so the re-apply cooldown can be enforced.
-  await db.setApplicationDecision(applicantId, 'denied');
-
-  const deniedLog = brandEmbed()
-    .setColor(COLORS.danger)
-    .setTitle(withIcon('denied', t('apply.logTitleDenied')))
-    .addFields(
-      { name: t('apply.logFieldApplicant'), value: `<@${applicantId}>`, inline: true },
-      { name: t('apply.logFieldReviewer'), value: `<@${interaction.user.id}>`, inline: true }
-    );
-  if (reason) deniedLog.addFields({ name: t('apply.logFieldReason'), value: reason });
-  await postStaffLog(interaction.client, deniedLog);
-
+  // Recorded first (it's what enforces the re-apply cooldown), so a lost race DMs nobody.
+  const warnings = await decide(interaction, applicantId, 'denied', reason || undefined);
+  if (warnings === null) return;
   await finish(interaction, withIcon('denied', t('apply.denied')));
+}
+
+let syncing = false;
+
+/**
+ * Acts on decisions made on the dashboard, which can't reach Discord itself: the hub keeps each
+ * one flagged until this acknowledges it. Runs on a timer from events/ready. If the hub or Discord
+ * is unreachable nothing is acknowledged, and the next run tries again.
+ * ponytail: a crash between acting and acknowledging re-runs that one decision (a second welcome
+ * post); the role and DM are harmless twice, so that's accepted rather than tracked.
+ */
+async function syncDashboardDecisions(client) {
+  if (syncing) return; // a slow run mustn't overlap the next and act on the same decision twice
+  syncing = true;
+  try {
+    const decisions = await db.listUnappliedDecisions();
+    if (decisions.length === 0) return;
+    await client.guilds.fetch(config.guildId); // Discord down: leave them all for the next run
+    for (const app of decisions) {
+      await applyDecision(client, app, null);
+      await db.markDecisionApplied(app.discordId);
+    }
+  } catch (err) {
+    console.error('Could not apply dashboard decisions:', err.message);
+  } finally {
+    syncing = false;
+  }
 }
 
 // Routes application-related buttons / modals (called from events/interactionCreate).
@@ -487,4 +528,4 @@ async function onModal(interaction) {
   }
 }
 
-module.exports = { openApplyModal, reviewCard, parseAge, onButton, onModal, postStaffLog };
+module.exports = { openApplyModal, reviewCard, parseAge, onButton, onModal, postStaffLog, syncDashboardDecisions };

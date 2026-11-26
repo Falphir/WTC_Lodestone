@@ -152,3 +152,22 @@ test('calls made for a Discord user name them for the audit log, and only those'
   assert.equal(forStaff.onBehalfOf, 'staff?r (123)', 'non-ASCII is replaced, since it goes in a header');
   assert.equal(onItsOwn.onBehalfOf, undefined);
 });
+
+test('a decision someone else already made comes back as null, not an error', async () => {
+  const bodies = [];
+  globalThis.fetch = async (url, opts) => {
+    if (url.endsWith('/api/auth/token')) {
+      return jsonResponse(200, { token: 'tok', expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+    }
+    bodies.push(JSON.parse(opts.body));
+    if (url.includes('/taken/')) return jsonResponse(409, { message: 'This application was already approved' });
+    return jsonResponse(200, { discordId: 'free', status: 'denied', denyReason: 'too short' });
+  };
+  const hub = freshHub();
+
+  assert.equal((await hub.setApplicationDecision('free', 'denied', { reason: 'too short' })).denyReason, 'too short');
+  assert.equal(await hub.setApplicationDecision('taken', 'approved'), null);
+  // the bot acts on its own decisions, so the hub mustn't queue them for it
+  assert.deepEqual(bodies[0], { status: 'denied', reason: 'too short', applied: true });
+  assert.equal(bodies[1].applied, true);
+});

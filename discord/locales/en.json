@@ -52,10 +52,12 @@
     "welcomeTitle": "Welcome to {brand}!",
     "welcomeDescription": "You've been approved!\n\nTo get on the servers, try joining any of them: you'll be shown a link code, then run `/link <code>` here to link your Minecraft account and get whitelisted.\n\nCheck <#{serverInfoChannelId}> for server details.",
     "statusApproved": "Approved by <@{staffId}>",
+    "statusApprovedDashboard": "Approved on the dashboard",
     "approveSuccess": "Approved <@{discordId}> and gave them the member role. They get whitelisted once they link their account with `/link`.",
     "denyModalTitle": "Deny Application",
     "denyReasonLabel": "Reason (optional — DMed to applicant)",
     "statusDenied": "Denied by <@{staffId}>",
+    "statusDeniedDashboard": "Denied on the dashboard",
     "denyDmTitle": "Application Update",
     "denyDmDescription": "Thank you for your interest in **{brand}**. After review, your application wasn't approved at this time.",
     "denyDmReason": "\n\n**Reason provided:**\n> {reason}",
@@ -65,6 +67,7 @@
     "logTitleDenied": "Application Denied",
     "logFieldApplicant": "Applicant",
     "logFieldReviewer": "Reviewed by",
+    "logReviewerDashboard": "The dashboard",
     "logFieldReason": "Reason"
   },
   "review": {

@@ -31,11 +31,17 @@ module.exports = {
   async getApplication(discordId) {
     return hub.getApplication(discordId);
   },
-  async setApplicationPending({ discordId, messageId }) {
-    await hub.setApplicationPending(discordId, { messageId });
+  async setApplicationPending({ discordId, messageId, discordName, answers }) {
+    await hub.setApplicationPending(discordId, { messageId, discordName, answers });
   },
-  async setApplicationDecision(discordId, status) {
-    await hub.setApplicationDecision(discordId, status);
+  async setApplicationDecision(discordId, status, opts) {
+    return hub.setApplicationDecision(discordId, status, opts);
+  },
+  async listUnappliedDecisions() {
+    return hub.listUnappliedDecisions();
+  },
+  async markDecisionApplied(discordId) {
+    await hub.markDecisionApplied(discordId);
   },
   async clearApplication(discordId) {
     await hub.clearApplication(discordId);

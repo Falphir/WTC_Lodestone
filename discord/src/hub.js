@@ -237,20 +237,41 @@ async function listApplications(status) {
   return res.json();
 }
 
-async function setApplicationPending(discordId, { messageId }) {
+/** `answers` is the /apply form by field, shown to reviewers on the dashboard. */
+async function setApplicationPending(discordId, { messageId, discordName, answers }) {
   const res = await request('PUT', `/api/admin/discord/applications/${encodeURIComponent(discordId)}/pending`, {
-    body: { messageId },
+    body: { messageId, discordName, answers },
     what: `Could not mark application pending for '${discordId}'`,
   });
   return res.json();
 }
 
-async function setApplicationDecision(discordId, status) {
+/**
+ * The decided application, or null if it was no longer pending (409: someone decided it first,
+ * maybe on the dashboard) or is gone (404). `applied` says the bot is acting on it itself, so the
+ * hub doesn't queue it in listUnappliedDecisions.
+ */
+async function setApplicationDecision(discordId, status, { reason, applied = true } = {}) {
   const res = await request('PUT', `/api/admin/discord/applications/${encodeURIComponent(discordId)}/decision`, {
-    body: { status },
+    body: { status, reason, applied },
+    ok: [404, 409],
     what: `Could not record decision for '${discordId}'`,
   });
+  return res.ok ? res.json() : null;
+}
+
+/** Decisions made on the dashboard that nobody has acted on in Discord yet, oldest first. */
+async function listUnappliedDecisions() {
+  const res = await request('GET', '/api/admin/discord/applications/unapplied', {
+    what: 'Could not load the dashboard decisions',
+  });
   return res.json();
+}
+
+async function markDecisionApplied(discordId) {
+  await request('PUT', `/api/admin/discord/applications/${encodeURIComponent(discordId)}/applied`, {
+    what: `Could not acknowledge the decision for '${discordId}'`,
+  });
 }
 
 /** A no-op if there wasn't an application. */
@@ -279,5 +300,7 @@ module.exports = {
   listApplications,
   setApplicationPending,
   setApplicationDecision,
+  listUnappliedDecisions,
+  markDecisionApplied,
   clearApplication,
 };
