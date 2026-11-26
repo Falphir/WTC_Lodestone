@@ -81,7 +81,10 @@ export function CreateServerDialog({ onClose, onCreated }) {
 
   const valueOf = (v) => (v.key in values ? values[v.key] : v.key in DEFAULTS ? DEFAULTS[v.key] : v.value)
   const changed = (v) => String(valueOf(v)) !== String(v.value)
-  const mainVariables = shownVariables.filter((v) => !ADVANCED.includes(v.key))
+  // eula leads the grid: it's the one every new server needs ticked
+  const mainVariables = shownVariables
+    .filter((v) => !ADVANCED.includes(v.key))
+    .sort((a, b) => (b.key === 'eula') - (a.key === 'eula'))
   const advancedVariables = shownVariables.filter((v) => ADVANCED.includes(v.key))
   const templateName = templates?.find((t) => t.name === template)?.display ?? template
   const nodeName = nodes?.find((n) => String(n.id) === nodeId)?.name ?? nodes?.[0]?.name
@@ -315,6 +318,13 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </Note>
           )}
 
+          {current === 'Settings' &&
+            (variables.length > 0 ? (
+              <div className="wizard-grid">{mainVariables.map(setting)}</div>
+            ) : (
+              <p className="muted">{stale ? 'Loading the template…' : 'This template has nothing to set.'}</p>
+            ))}
+
           {current === 'Settings' && motds?.length > 0 && (
             <Field label="MOTD" hint="One of the network MOTDs, filled in with this server's pack and version.">
               <select value={motdId} onChange={(e) => setMotdPick(Number(e.target.value))}>
@@ -335,20 +345,12 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </Note>
           )}
 
-          {current === 'Settings' &&
-            (variables.length > 0 ? (
-              <>
-                <div className="wizard-grid">{mainVariables.map(setting)}</div>
-                {advancedVariables.length > 0 && (
-                  <details className="wizard-advanced">
-                    <summary>Advanced settings</summary>
-                    <div className="wizard-grid">{advancedVariables.map(setting)}</div>
-                  </details>
-                )}
-              </>
-            ) : (
-              <p className="muted">{stale ? 'Loading the template…' : 'This template has nothing to set.'}</p>
-            ))}
+          {current === 'Settings' && advancedVariables.length > 0 && (
+            <details className="wizard-advanced">
+              <summary>Advanced settings</summary>
+              <div className="wizard-grid">{advancedVariables.map(setting)}</div>
+            </details>
+          )}
 
           {current === 'Review' && (
             <dl className="wizard-review">
@@ -375,7 +377,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
                 .map((v) => (
                   <ReviewRow
                     key={v.key}
-                    label={v.display}
+                    label={v.key === 'memory' ? 'Memory' : v.display}
                     value={v.key === 'memory' && valueOf(v) ? formatMemory(Number(valueOf(v))) : valueOf(v)}
                   />
                 ))}
@@ -445,16 +447,19 @@ function TemplateSetting({ variable: v, value, fromPack, onChange }) {
   if (v.key === 'memory') {
     // entered in GB, sent in MB as the template's -Xmx${memory}M wants
     return (
-      <Field label={`${v.display} (GB)`} hint={[fromPack && 'From the pack.', value ? `${value} MB.` : null].filter(Boolean).join(' ') || undefined}>
-        <input
-          type="number"
-          step="0.5"
-          min="0.5"
-          // shown to the nearest half GB so a pack's odd MB figure doesn't fail the step check; the hint has the exact MB
-          value={value == null || value === '' ? '' : Math.round(Number(value) / 512) / 2}
-          onChange={(e) => onChange(e.target.value === '' ? null : Math.round(Number(e.target.value) * 1024))}
-          required={v.required}
-        />
+      <Field label="Memory" hint={[fromPack && 'From the pack.', value ? `${value} MB.` : null].filter(Boolean).join(' ') || undefined}>
+        <span className="input-unit">
+          <input
+            type="number"
+            step="0.5"
+            min="0.5"
+            // shown to the nearest half GB so a pack's odd MB figure doesn't fail the step check
+            value={value == null || value === '' ? '' : Math.round(Number(value) / 512) / 2}
+            onChange={(e) => onChange(e.target.value === '' ? null : Math.round(Number(e.target.value) * 1024))}
+            required={v.required}
+          />
+          <span aria-hidden="true">GB</span>
+        </span>
       </Field>
     )
   }
