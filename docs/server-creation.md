@@ -19,6 +19,17 @@ The New server flow: a PufferPanel server made from a template, registered on th
 
 **The form is built from the template's non-internal variables** (`GET /api/admin/pufferpanel/templates/{name}`), so new templates need no code. `useApi(null)` loads nothing, which is what the template details use while they wait for a pick.
 
+**A few settings the dialog knows by key** (`DEFAULTS`/`ADVANCED` in `CreateServerDialog.jsx`), as PufferPanel's Minecraft templates name them:
+- **`eula`:** checked by default, and sent as `true` even untouched (the template's own default is the string `"false"`).
+- **`memory`:** entered in GB (steps of 0.5), sent in MB for `-Xmx${memory}M`. The box rounds a pack's odd figure to the nearest half GB; untouched, the exact MB is sent.
+- **`javaversion`:** a 17/21/25 dropdown, under Advanced settings. A pack's own value (say 8) stays as an extra option.
+- **`ip`:** under Advanced settings, closed by default. Review lists Advanced values only when they differ from the template's.
+- **`motd`:** hidden while any network MOTD exists; the dialog's one MOTD dropdown (default preselected, or "Template's own", which sends nothing) replaces it.
+
+**The server ID follows the display name** (`slugify`) until it's edited by hand, on both paths.
+
+A template missing one of these keys just doesn't show that control. If a template names a setting differently, rename it in PufferPanel → Templates rather than adding aliases in the dashboard.
+
 **Two 2.7.1 quirks met here:**
 - **A file write won't create missing folders,** so `putFile` makes the parent with `?folder` first.
 - **`ModRelease` splices the repo into the URL,** since a `{repo}` URI variable encodes its `/` as `%2F` and GitHub answers 404.
