@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../../api'
-import { minecraftVersions, motdMissing, packRunsOn, packVersion, renderMotd, slugify } from '../../format'
+import { formatMemory, minecraftVersions, motdMissing, packRunsOn, packVersion, renderMotd, slugify } from '../../format'
 import { useAction, useApi } from '../../hooks'
 import { Dialog } from '../ui/Dialog'
 import { ErrorNote } from '../ui/ErrorNote'
@@ -14,6 +14,12 @@ const STEPS = {
   blank: ['Basics', 'Settings', 'Review'],
   modpack: ['Modpack', 'Basics', 'Settings', 'Review'],
 }
+
+/** Template settings matched by key (docs/server-creation.md): what the dialog starts them at instead of the template's. */
+const DEFAULTS = { eula: true }
+/** Settings rarely changed, kept under a closed "Advanced settings". */
+const ADVANCED = ['ip', 'javaversion']
+const JAVA_VERSIONS = ['17', '21', '25']
 
 /**
  * Creates a server on PufferPanel from one of its templates and registers it on the hub in one
@@ -70,15 +76,30 @@ export function CreateServerDialog({ onClose, onCreated }) {
     name: name.trim(),
   }
   const motdRendered = motd ? renderMotd(motd.text, listing) : null
-  // the hub writes it into the template's own MOTD setting, so that field gives way to the preview
-  const motdFills = Boolean(motdRendered && variables.some((v) => v.key === 'motd'))
-  const shownVariables = motdFills ? variables.filter((v) => v.key !== 'motd') : variables
+  // one MOTD control: with network MOTDs to pick from, the template's own motd field gives way to that dropdown
+  const shownVariables = motds?.length > 0 ? variables.filter((v) => v.key !== 'motd') : variables
 
-  const valueOf = (v) => (v.key in values ? values[v.key] : v.value)
+  const valueOf = (v) => (v.key in values ? values[v.key] : v.key in DEFAULTS ? DEFAULTS[v.key] : v.value)
+  const changed = (v) => String(valueOf(v)) !== String(v.value)
+  // eula leads the grid: it's the one every new server needs ticked
+  const mainVariables = shownVariables
+    .filter((v) => !ADVANCED.includes(v.key))
+    .sort((a, b) => (b.key === 'eula') - (a.key === 'eula'))
+  const advancedVariables = shownVariables.filter((v) => ADVANCED.includes(v.key))
   const templateName = templates?.find((t) => t.name === template)?.display ?? template
   const nodeName = nodes?.find((n) => String(n.id) === nodeId)?.name ?? nodes?.[0]?.name
   // the pack's suggestion applies to its own template only, and a setting stops being "from the pack" once changed
   const fromPack = (key) => setup?.template === template && key in (setup?.values ?? {}) && values[key] === setup.values[key]
+
+  /** The ID follows the name until it's edited by hand. */
+  function changeName(next) {
+    setName(next)
+    if (!id || id === filled.id) {
+      const suggested = slugify(next)
+      setId(suggested)
+      setFilled((f) => ({ ...f, id: suggested }))
+    }
+  }
 
   function pickTemplate(next) {
     setTemplate(next)
@@ -127,7 +148,11 @@ export function CreateServerDialog({ onClose, onCreated }) {
         template,
         id,
         name: name.trim(),
-        values,
+        // the dialog's own defaults go along too, or the hub would keep the template's
+        values: {
+          ...Object.fromEntries(variables.filter((v) => v.key in DEFAULTS).map((v) => [v.key, DEFAULTS[v.key]])),
+          ...values,
+        },
         nodeId: nodeId === '' ? null : Number(nodeId),
         modpack: path === 'modpack' && modpack?.file ? { modId: modpack.pack.id, fileId: modpack.file.fileId } : null,
         motdTemplateId: motdId || null,
@@ -136,6 +161,16 @@ export function CreateServerDialog({ onClose, onCreated }) {
       return null
     })
   }
+
+  const setting = (v) => (
+    <TemplateSetting
+      key={v.key}
+      variable={v}
+      value={valueOf(v)}
+      fromPack={fromPack(v.key)}
+      onChange={(value) => setValues((current) => ({ ...current, [v.key]: value }))}
+    />
+  )
 
   // the pack's Minecraft version, for matching a template by hand when none was picked for it
   const packMinecraft = setup?.minecraftVersion || minecraftVersions(modpack?.file)
@@ -223,7 +258,7 @@ export function CreateServerDialog({ onClose, onCreated }) {
               </p>
               <div className="form-row">
                 <Field label="Display name">
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="WTC Genesis" maxLength={40} required autoFocus />
+                  <input value={name} onChange={(e) => changeName(e.target.value)} placeholder="WTC Genesis" maxLength={40} required autoFocus />
                 </Field>
                 <Field label="Server ID" hint="Its serverId in the mod config.">
                   <input
@@ -273,18 +308,6 @@ export function CreateServerDialog({ onClose, onCreated }) {
                   </Field>
                 )}
               </div>
-              {motds?.length > 0 && (
-                <Field label="MOTD" hint="One of the network MOTDs, filled in with this server's pack and version.">
-                  <select value={motdId} onChange={(e) => setMotdPick(Number(e.target.value))}>
-                    <option value={0}>None (the template's own)</option>
-                    {motds.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
             </>
           )}
 
@@ -295,13 +318,26 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </Note>
           )}
 
-          {current === 'Settings' && motdFills && (
-            <div className="field">
-              <span>MOTD</span>
-              <MinecraftText text={motdRendered} />
-              <small>From the {motd.name} MOTD. Change it in Basics.</small>
-            </div>
+          {current === 'Settings' &&
+            (variables.length > 0 ? (
+              <div className="wizard-grid">{mainVariables.map(setting)}</div>
+            ) : (
+              <p className="muted">{stale ? 'Loading the template…' : 'This template has nothing to set.'}</p>
+            ))}
+
+          {current === 'Settings' && motds?.length > 0 && (
+            <Field label="MOTD" hint="One of the network MOTDs, filled in with this server's pack and version.">
+              <select value={motdId} onChange={(e) => setMotdPick(Number(e.target.value))}>
+                <option value={0}>Template's own</option>
+                {motds.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
           )}
+          {current === 'Settings' && motdRendered && <MinecraftText text={motdRendered} />}
           {current === 'Settings' && motd && !motdRendered && (
             <Note>
               The {motd.name} MOTD needs the server's {motdMissing(motd.text, listing).join(' and ')}, so the template's own
@@ -309,22 +345,12 @@ export function CreateServerDialog({ onClose, onCreated }) {
             </Note>
           )}
 
-          {current === 'Settings' &&
-            (variables.length > 0 ? (
-              <div className="wizard-grid">
-                {shownVariables.map((v) => (
-                  <TemplateSetting
-                    key={v.key}
-                    variable={v}
-                    value={valueOf(v)}
-                    fromPack={fromPack(v.key)}
-                    onChange={(value) => setValues((current) => ({ ...current, [v.key]: value }))}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="muted">{stale ? 'Loading the template…' : 'This template has nothing to set.'}</p>
-            ))}
+          {current === 'Settings' && advancedVariables.length > 0 && (
+            <details className="wizard-advanced">
+              <summary>Advanced settings</summary>
+              <div className="wizard-grid">{advancedVariables.map(setting)}</div>
+            </details>
+          )}
 
           {current === 'Review' && (
             <dl className="wizard-review">
@@ -346,14 +372,21 @@ export function CreateServerDialog({ onClose, onCreated }) {
                   <dd>{nodeName}</dd>
                 </>
               )}
-              {shownVariables.map((v) => (
-                <ReviewRow key={v.key} label={v.display} value={valueOf(v)} />
-              ))}
-              {motdRendered && (
+              {shownVariables
+                .filter((v) => !ADVANCED.includes(v.key) || changed(v))
+                .map((v) => (
+                  <ReviewRow
+                    key={v.key}
+                    label={v.key === 'memory' ? 'Memory' : v.display}
+                    value={v.key === 'memory' && valueOf(v) ? formatMemory(Number(valueOf(v))) : valueOf(v)}
+                  />
+                ))}
+              {motds?.length > 0 && (
                 <>
                   <dt>MOTD</dt>
                   <dd>
-                    <MinecraftText text={motdRendered} />
+                    {motd ? motd.name : "Template's own"}
+                    {motdRendered && <MinecraftText text={motdRendered} />}
                   </dd>
                 </>
               )}
@@ -411,8 +444,41 @@ function TemplateSetting({ variable: v, value, fromPack, onChange }) {
       </div>
     )
   }
+  if (v.key === 'memory') {
+    // entered in GB, sent in MB as the template's -Xmx${memory}M wants
+    return (
+      <Field label="Memory" hint={[fromPack && 'From the pack.', value ? `${value} MB.` : null].filter(Boolean).join(' ') || undefined}>
+        <span className="input-unit">
+          <input
+            type="number"
+            step="0.5"
+            min="0.5"
+            // shown to the nearest half GB so a pack's odd MB figure doesn't fail the step check
+            value={value == null || value === '' ? '' : Math.round(Number(value) / 512) / 2}
+            onChange={(e) => onChange(e.target.value === '' ? null : Math.round(Number(e.target.value) * 1024))}
+            required={v.required}
+          />
+          <span aria-hidden="true">GB</span>
+        </span>
+      </Field>
+    )
+  }
   let input
-  if (v.options?.length > 0) {
+  if (v.key === 'javaversion') {
+    // the template runs java${javaversion}; a pack's own value is kept even if it isn't one of these
+    const current = value == null ? '' : String(value)
+    const choices = current && !JAVA_VERSIONS.includes(current) ? [current, ...JAVA_VERSIONS] : JAVA_VERSIONS
+    input = (
+      <select value={current} onChange={(e) => onChange(e.target.value)} required={v.required}>
+        {!current && <option value="" disabled>Pick a version</option>}
+        {choices.map((j) => (
+          <option key={j} value={j}>
+            Java {j}
+          </option>
+        ))}
+      </select>
+    )
+  } else if (v.options?.length > 0) {
     input = (
       <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} required={v.required}>
         {v.options.map((o) => (
