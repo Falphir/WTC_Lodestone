@@ -1369,6 +1369,22 @@
   gap: 16px;
 }
 
+/* the Settings step's rarely-changed settings, closed by default */
+.wizard-advanced {
+  margin-top: 20px;
+}
+
+.wizard-advanced summary {
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.wizard-advanced[open] summary {
+  margin-bottom: 16px;
+}
+
 .wizard-foot {
   display: flex;
   align-items: center;

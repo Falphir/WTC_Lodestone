@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../../api'
-import { minecraftVersions, motdMissing, packRunsOn, packVersion, renderMotd, slugify } from '../../format'
+import { formatMemory, minecraftVersions, motdMissing, packRunsOn, packVersion, renderMotd, slugify } from '../../format'
 import { useAction, useApi } from '../../hooks'
 import { Dialog } from '../ui/Dialog'
 import { ErrorNote } from '../ui/ErrorNote'
@@ -14,6 +14,12 @@ const STEPS = {
   blank: ['Basics', 'Settings', 'Review'],
   modpack: ['Modpack', 'Basics', 'Settings', 'Review'],
 }
+
+/** Template settings matched by key (docs/server-creation.md): what the dialog starts them at instead of the template's. */
+const DEFAULTS = { eula: true }
+/** Settings rarely changed, kept under a closed "Advanced settings". */
+const ADVANCED = ['ip', 'javaversion']
+const JAVA_VERSIONS = ['17', '21', '25']
 
 /**
  * Creates a server on PufferPanel from one of its templates and registers it on the hub in one
@@ -74,7 +80,10 @@ export function CreateServerDialog({ onClose, onCreated }) {
   const motdFills = Boolean(motdRendered && variables.some((v) => v.key === 'motd'))
   const shownVariables = motdFills ? variables.filter((v) => v.key !== 'motd') : variables
 
-  const valueOf = (v) => (v.key in values ? values[v.key] : v.value)
+  const valueOf = (v) => (v.key in values ? values[v.key] : v.key in DEFAULTS ? DEFAULTS[v.key] : v.value)
+  const changed = (v) => String(valueOf(v)) !== String(v.value)
+  const mainVariables = shownVariables.filter((v) => !ADVANCED.includes(v.key))
+  const advancedVariables = shownVariables.filter((v) => ADVANCED.includes(v.key))
   const templateName = templates?.find((t) => t.name === template)?.display ?? template
   const nodeName = nodes?.find((n) => String(n.id) === nodeId)?.name ?? nodes?.[0]?.name
   // the pack's suggestion applies to its own template only, and a setting stops being "from the pack" once changed
@@ -137,7 +146,11 @@ export function CreateServerDialog({ onClose, onCreated }) {
         template,
         id,
         name: name.trim(),
-        values,
+        // the dialog's own defaults go along too, or the hub would keep the template's
+        values: {
+          ...Object.fromEntries(variables.filter((v) => v.key in DEFAULTS).map((v) => [v.key, DEFAULTS[v.key]])),
+          ...values,
+        },
         nodeId: nodeId === '' ? null : Number(nodeId),
         modpack: path === 'modpack' && modpack?.file ? { modId: modpack.pack.id, fileId: modpack.file.fileId } : null,
         motdTemplateId: motdId || null,
@@ -146,6 +159,16 @@ export function CreateServerDialog({ onClose, onCreated }) {
       return null
     })
   }
+
+  const setting = (v) => (
+    <TemplateSetting
+      key={v.key}
+      variable={v}
+      value={valueOf(v)}
+      fromPack={fromPack(v.key)}
+      onChange={(value) => setValues((current) => ({ ...current, [v.key]: value }))}
+    />
+  )
 
   // the pack's Minecraft version, for matching a template by hand when none was picked for it
   const packMinecraft = setup?.minecraftVersion || minecraftVersions(modpack?.file)
@@ -321,17 +344,15 @@ export function CreateServerDialog({ onClose, onCreated }) {
 
           {current === 'Settings' &&
             (variables.length > 0 ? (
-              <div className="wizard-grid">
-                {shownVariables.map((v) => (
-                  <TemplateSetting
-                    key={v.key}
-                    variable={v}
-                    value={valueOf(v)}
-                    fromPack={fromPack(v.key)}
-                    onChange={(value) => setValues((current) => ({ ...current, [v.key]: value }))}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="wizard-grid">{mainVariables.map(setting)}</div>
+                {advancedVariables.length > 0 && (
+                  <details className="wizard-advanced">
+                    <summary>Advanced settings</summary>
+                    <div className="wizard-grid">{advancedVariables.map(setting)}</div>
+                  </details>
+                )}
+              </>
             ) : (
               <p className="muted">{stale ? 'Loading the template…' : 'This template has nothing to set.'}</p>
             ))}
@@ -356,9 +377,15 @@ export function CreateServerDialog({ onClose, onCreated }) {
                   <dd>{nodeName}</dd>
                 </>
               )}
-              {shownVariables.map((v) => (
-                <ReviewRow key={v.key} label={v.display} value={valueOf(v)} />
-              ))}
+              {shownVariables
+                .filter((v) => !ADVANCED.includes(v.key) || changed(v))
+                .map((v) => (
+                  <ReviewRow
+                    key={v.key}
+                    label={v.display}
+                    value={v.key === 'memory' && valueOf(v) ? formatMemory(Number(valueOf(v))) : valueOf(v)}
+                  />
+                ))}
               {motdRendered && (
                 <>
                   <dt>MOTD</dt>
@@ -421,8 +448,38 @@ function TemplateSetting({ variable: v, value, fromPack, onChange }) {
       </div>
     )
   }
+  if (v.key === 'memory') {
+    // entered in GB, sent in MB as the template's -Xmx${memory}M wants
+    return (
+      <Field label={`${v.display} (GB)`} hint={[fromPack && 'From the pack.', value ? `${value} MB.` : null].filter(Boolean).join(' ') || undefined}>
+        <input
+          type="number"
+          step="0.5"
+          min="0.5"
+          // shown to the nearest half GB so a pack's odd MB figure doesn't fail the step check; the hint has the exact MB
+          value={value == null || value === '' ? '' : Math.round(Number(value) / 512) / 2}
+          onChange={(e) => onChange(e.target.value === '' ? null : Math.round(Number(e.target.value) * 1024))}
+          required={v.required}
+        />
+      </Field>
+    )
+  }
   let input
-  if (v.options?.length > 0) {
+  if (v.key === 'javaversion') {
+    // the template runs java${javaversion}; a pack's own value is kept even if it isn't one of these
+    const current = value == null ? '' : String(value)
+    const choices = current && !JAVA_VERSIONS.includes(current) ? [current, ...JAVA_VERSIONS] : JAVA_VERSIONS
+    input = (
+      <select value={current} onChange={(e) => onChange(e.target.value)} required={v.required}>
+        {!current && <option value="" disabled>Pick a version</option>}
+        {choices.map((j) => (
+          <option key={j} value={j}>
+            Java {j}
+          </option>
+        ))}
+      </select>
+    )
+  } else if (v.options?.length > 0) {
     input = (
       <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} required={v.required}>
         {v.options.map((o) => (
